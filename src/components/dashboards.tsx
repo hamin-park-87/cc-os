@@ -132,12 +132,21 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
       setSel(new Set()); setTick((t) => t + 1);
     } catch (e) { alert("삭제 실패: " + (e as Error).message); setTick((t) => t + 1); }
   }
+  const nActive = creators.filter((c) => c.status === "active").length;
+  const nPreparing = creators.filter((c) => c.status === "preparing").length;
+  const nHold = creators.filter((c) => c.status === "on_hold").length;
   return (<>
     {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>크리에이터 관리</h2>
       <span style={{ display: "flex", gap: 8 }}>
         {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>선택 삭제 ({sel.size})</button>}
         <button className="btn acc" onClick={() => setEdit(null)}>+ 크리에이터 추가</button>
       </span></div>}
+    {full && <div className="grid-kpi" style={{ marginBottom: 16 }}>
+      <Kpi lab="전체" val={String(creators.length)} />
+      <Kpi lab="활동중" val={String(nActive)} />
+      <Kpi lab="계약준비" val={String(nPreparing)} />
+      <Kpi lab="보류" val={String(nHold)} />
+    </div>}
     <div className="tablewrap"><table><thead><tr>
       {full && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" /></th>}
       <th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
