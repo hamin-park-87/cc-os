@@ -6,10 +6,11 @@ import { getAdminClient } from "@/lib/supabase/admin";
 export async function POST(req: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  let body: { email?: string; role?: string; scope?: string };
+  let body: { email?: string; role?: string; scope?: string; password?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad request" }, { status: 400 }); }
-  const { email, role, scope } = body;
+  const { email, role, scope, password } = body;
   if (!email || !role) return NextResponse.json({ error: "email·role 필요" }, { status: 400 });
+  if (!password || password.length < 6) return NextResponse.json({ error: "비밀번호는 6자 이상" }, { status: 400 });
 
   // 1) 호출자 admin 검증 (로그인 토큰)
   const token = req.headers.get("authorization")?.replace("Bearer ", "");
@@ -25,15 +26,18 @@ export async function POST(req: NextRequest) {
   const { data: caller } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (caller?.role !== "admin") return NextResponse.json({ error: "관리자만 초대할 수 있습니다" }, { status: 403 });
 
-  // 2) 초대 발송 (auth.users 생성 + 메일)
-  const origin = req.headers.get("origin") ?? undefined;
-  const { data: inv, error: invErr } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo: origin });
-  let uid = inv?.user?.id;
-  if (invErr) {
-    // 이미 존재하는 유저면 기존 id 조회 (재초대/권한변경)
+  // 2) 계정 생성 (이메일 확인 완료 상태 + 비밀번호) — 이메일 발송 불필요
+  const { data: created, error: cErr } = await admin.auth.admin.createUser({
+    email, password, email_confirm: true,
+  });
+  let uid = created?.user?.id;
+  if (cErr) {
+    // 이미 존재하면 기존 유저 찾아 비번·상태 갱신
     const { data: list } = await admin.auth.admin.listUsers();
-    uid = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase())?.id;
-    if (!uid) return NextResponse.json({ error: invErr.message }, { status: 400 });
+    const existing = list?.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+    uid = existing?.id;
+    if (!uid) return NextResponse.json({ error: cErr.message }, { status: 400 });
+    await admin.auth.admin.updateUserById(uid, { password, email_confirm: true });
   }
 
   // 3) 역할·소속 세팅

@@ -333,10 +333,11 @@ function RevenueTable({ d }: { d: Bundle }) {
 }
 
 /* 배정 관리 (월 · 브랜드별 크리에이터 배분) */
+const ASSIGN_MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
 function AssignEditor({ d }: { d: Bundle }) {
   const [, setTick] = useState(0);
   const [brand, setBrand] = useState("abib");
-  const month = "2026-08";
+  const [month, setMonth] = useState("2026-08");
   const actives = d.creators.filter((c) => c.status === "active");
   const contract = d.contracts.find((c) => c.brandId === brand && c.yearMonth === month);
   const target = contract?.quota ?? 0;
@@ -356,10 +357,10 @@ function AssignEditor({ d }: { d: Bundle }) {
   return (<>
     <div className="filterbar">
       <select value={brand} onChange={(e) => setBrand(e.target.value)}>{ALL_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}</select>
-      <span className="num" style={{ alignSelf: "center", color: "var(--faint)", fontSize: 12.5 }}>{month.replace("2026-", "")}월</span>
+      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.replace("-", ". ")}</option>)}</select>
     </div>
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
-      <b>{brand}</b> · {month.replace("2026-", "")}월 계약 <b>{target}</b>건 · 배정 합계 <b>{sum}</b>건 — {diff === 0 ? "계약과 일치" : diff > 0 ? `${diff}건 초과` : `${-diff}건 미배정`}
+      <b>{brand}</b> · {month.slice(0, 4)}년 {+month.slice(5)}월 계약 <b>{target}</b>건 · 배정 합계 <b>{sum}</b>건 — {diff === 0 ? "계약과 일치" : diff > 0 ? `${diff}건 초과` : `${-diff}건 미배정`}
     </div>
     <div className="tablewrap"><table><thead><tr><th>크리에이터</th><th>{brand} 배정</th><th>완료</th><th>월 총배정/계약수량</th></tr></thead><tbody>
       {actives.map((c) => {
@@ -453,7 +454,7 @@ function AccountsTable({ creators }: { creators: Creator[] }) {
   const ROLE: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터" };
   const ST: Record<string, [string, string]> = { active: ["p-ok", "활성"], pending: ["p-warn", "초대중"], disabled: ["p-plan", "비활성"] };
   return (<>
-    <div className="sec-h" style={{ marginTop: 0 }}><h2>계정·권한</h2><button className="btn acc" onClick={() => setInvite(true)}>+ 계정 초대</button></div>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>계정·권한</h2><button className="btn acc" onClick={() => setInvite(true)}>+ 계정 생성</button></div>
     <div className="tablewrap"><table><thead><tr><th>이메일</th><th>역할</th><th>소속</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody>
       {accts.map((a, i) => (
         <tr key={a.email}><td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
@@ -467,46 +468,68 @@ function AccountsTable({ creators }: { creators: Creator[] }) {
   </>);
 }
 
+function genPassword() {
+  const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  let s = ""; for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
 function InviteModal({ onClose, onSaved, creators }: { onClose: () => void; onSaved: () => void; creators: Creator[] }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "brand" | "creator">("brand");
   const [scope, setScope] = useState("abib");
+  const [password, setPassword] = useState(genPassword());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState(false);
   const creatorNames = creators.map((c) => c.name);
   const scopes = role === "admin" ? ["81degree"] : role === "brand" ? ALL_BRANDS : (creatorNames.length ? creatorNames : ["hina"]);
+  const finalScope = role === "admin" ? "81degree" : scope;
   async function save() {
     if (!email.trim()) { setErr("이메일을 입력해주세요"); return; }
-    const finalScope = role === "admin" ? "81degree" : scope;
+    if (password.length < 6) { setErr("비밀번호는 6자 이상"); return; }
     if (supabaseConfigured()) {
       setBusy(true); setErr("");
       const { data: { session } } = await getSupabase().auth.getSession();
-      if (!session) { setErr("관리자 로그인이 필요합니다 (매직링크/비밀번호로 로그인 후)"); setBusy(false); return; }
+      if (!session) { setErr("관리자 로그인이 필요합니다 (비밀번호로 로그인 후)"); setBusy(false); return; }
       const res = await fetch("/api/invite", {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ email: email.trim(), role, scope: finalScope }),
+        body: JSON.stringify({ email: email.trim(), role, scope: finalScope, password }),
       });
       const j = await res.json().catch(() => ({}));
       setBusy(false);
-      if (!res.ok) { setErr(j.error || "초대 실패"); return; }
+      if (!res.ok) { setErr(j.error || "생성 실패"); return; }
       setOk(true); onSaved();
       return;
     }
-    ACCOUNTS.push({ email: email.trim(), role, scope: finalScope, status: "pending", lastLogin: null });
+    ACCOUNTS.push({ email: email.trim(), role, scope: finalScope, status: "active", lastLogin: null });
     onSaved(); onClose();
   }
   return (
-    <Modal title="계정 초대" onClose={onClose} width={440}
+    <Modal title="계정 생성" onClose={onClose} width={440}
       footer={ok ? <button className="btn acc" onClick={onClose}>완료</button>
-        : <><button className="btn" onClick={onClose}>취소</button><button className="btn acc" disabled={busy} onClick={save}>{busy ? "초대 중…" : "초대 보내기"}</button></>}>
-      {ok ? <div className="note" style={{ color: "var(--accent-ink)" }}>✓ {email} 초대 발송 완료. 상대가 링크를 클릭하면 {role === "brand" ? scope + " 브랜드" : role === "creator" ? scope : "관리자"} 권한으로 로그인됩니다.</div> : <>
+        : <><button className="btn" onClick={onClose}>취소</button><button className="btn acc" disabled={busy} onClick={save}>{busy ? "생성 중…" : "계정 생성"}</button></>}>
+      {ok ? <div>
+        <div className="note" style={{ color: "var(--accent-ink)", marginBottom: 12 }}>✓ 계정 생성 완료 — 아래 정보를 담당자에게 전달하세요.</div>
+        <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px", fontFamily: "var(--mono)", fontSize: 13, lineHeight: 1.9 }}>
+          <div>사이트: https://cc-os.81degree.com</div>
+          <div>이메일: {email}</div>
+          <div>비밀번호: {password}</div>
+          <div>권한: {role === "brand" ? finalScope + " 브랜드" : role === "creator" ? finalScope + " 크리에이터" : "관리자"}</div>
+        </div>
+        <button className="btn sm" style={{ marginTop: 10 }} onClick={() => navigator.clipboard?.writeText(`사이트: https://cc-os.81degree.com\n이메일: ${email}\n비밀번호: ${password}`)}>복사</button>
+      </div> : <>
         <Field label="이메일"><input style={inp} type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
           <Field label="역할"><select style={inp} value={role} onChange={(e) => { setRole(e.target.value as "admin" | "brand" | "creator"); }}><option value="admin">관리자</option><option value="brand">브랜드</option><option value="creator">크리에이터</option></select></Field>
           <Field label="소속"><select style={inp} value={scope} onChange={(e) => setScope(e.target.value)} disabled={role === "admin"}>{scopes.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
         </div>
-        <div style={{ fontSize: 12, color: "var(--faint)" }}>초대 메일 발송 + 역할·소속 자동 연결. 수락 시 RLS로 데이터가 격리됩니다.</div>
+        <Field label="비밀번호 (담당자에게 전달)">
+          <div style={{ display: "flex", gap: 8 }}>
+            <input style={inp} value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button className="btn sm" onClick={() => setPassword(genPassword())}>자동생성</button>
+          </div>
+        </Field>
+        <div style={{ fontSize: 12, color: "var(--faint)" }}>이메일 발송 없이 계정 생성 + 역할·소속 자동 연결. 생성 후 이메일·비번을 담당자에게 직접 전달하세요.</div>
         {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
       </>}
     </Modal>
