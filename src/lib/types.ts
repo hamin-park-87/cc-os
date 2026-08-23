@@ -50,6 +50,9 @@ export interface Creator {
   code?: string | null;           // 고유번호 (CC001…)
   pic?: number;
   name: string;
+  nameKanji?: string | null;      // 한자(일본어) 이름
+  nameEn?: string | null;         // 영문 이름
+  addressEn?: string | null;      // 영문 주소
   aliases: string[];
   handle?: string;
   photoUrl?: string | null;

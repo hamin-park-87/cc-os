@@ -28,7 +28,7 @@ export const supabaseProvider: DataProvider = {
     return rows.map((r): Creator => {
       const ig = igByCreator.get(r.id);
       return {
-        id: r.id, code: r.code, pic: r.pic, name: r.name, aliases: r.aliases ?? [], handle: r.handle, photoUrl: r.photo_url,
+        id: r.id, code: r.code, pic: r.pic, name: r.name, nameKanji: r.name_kanji, nameEn: r.name_en, addressEn: r.address_en, aliases: r.aliases ?? [], handle: r.handle, photoUrl: r.photo_url,
         followers: r.followers ?? 0, status: r.status, category: r.category, tone: r.tone, intro: r.intro,
         monthlyQuota: r.monthly_quota, fixedCost: Number(r.fixed_cost ?? 0), contractDate: r.contract_date, startDate: r.start_date,
         email: r.email, phone: r.phone, address: r.address, bankAccount: r.bank_account, invoiceRegNo: r.invoice_reg_no,

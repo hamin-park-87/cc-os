@@ -283,7 +283,11 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
         <button className={`btn sm ${tab === "insight" ? "acc" : ""}`} onClick={() => setTab("insight")}>인사이트</button>
       </div>
       {tab === "info" ? <>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "0 0 4px" }}>계약·정산 정보</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "0 0 4px" }}>기본 정보</div>
+        <DRow k="한자 이름" v={c.nameKanji} />
+        <DRow k="영문 이름" v={c.nameEn} />
+        <DRow k="영문 주소" v={c.addressEn} />
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "14px 0 4px" }}>계약·정산 정보</div>
         <DRow k="구분" v={c.entityType === "corporation" ? "법인" : "개인"} />
         <DRow k="이메일" v={c.email} />
         <DRow k="전화번호" v={c.phone} />
@@ -543,6 +547,8 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
         <Field label="고유번호 (CC번호)"><input style={inp} placeholder="CC001 (숫자만 입력해도 자동 변환)" value={f.code ?? ""} onChange={(e) => up("code", e.target.value)} onBlur={(e) => up("code", normalizeCode(e.target.value))} /></Field>
         <Field label="크리에이터명"><input style={inp} value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
+        <Field label="한자(일본어) 이름"><input style={inp} placeholder="瀬戸川芽瑠" value={f.nameKanji ?? ""} onChange={(e) => up("nameKanji", e.target.value)} /></Field>
+        <Field label="영문 이름"><input style={inp} placeholder="Merumi Setokawa" value={f.nameEn ?? ""} onChange={(e) => up("nameEn", e.target.value)} /></Field>
         <Field label="인스타 핸들"><input style={inp} value={f.handle ?? ""} onChange={(e) => up("handle", e.target.value)} /></Field>
         <Field label="팔로워"><input style={inp} type="number" value={f.followers} onChange={(e) => up("followers", +e.target.value)} /></Field>
         <Field label="상태"><select style={inp} value={f.status} onChange={(e) => up("status", e.target.value)}><option value="active">활동중</option><option value="preparing">계약준비</option><option value="on_hold">보류</option></select></Field>
@@ -570,6 +576,7 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
         <Field label="전화번호"><input style={inp} value={f.phone ?? ""} onChange={(e) => up("phone", e.target.value)} /></Field>
       </div>
       <Field label="주소"><input style={inp} value={f.address ?? ""} onChange={(e) => up("address", e.target.value)} /></Field>
+      <Field label="영문 주소"><input style={inp} placeholder="English address" value={f.addressEn ?? ""} onChange={(e) => up("addressEn", e.target.value)} /></Field>
       <Field label="은행계좌"><input style={inp} value={f.bankAccount ?? ""} onChange={(e) => up("bankAccount", e.target.value)} /></Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
         <Field label="인보이스 등록번호 (T번호)"><input style={inp} placeholder="T0000000000000" value={f.invoiceRegNo ?? ""} onChange={(e) => up("invoiceRegNo", e.target.value)} /></Field>
@@ -990,6 +997,8 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
   const [invoice, setInvoice] = useState<Deal | null>(null);
   const [fStep, setFStep] = useState(""); const [fManager, setFManager] = useState(""); const [fCreator, setFCreator] = useState(""); const [q, setQ] = useState("");
+  const [view, setView] = useState<"list" | "card">("list");
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const STEPS = DEAL_STEPS;
   const managers = [...new Set(deals.map((d) => d.manager).filter(Boolean))] as string[];
   const dealCreators = [...new Set(deals.map((d) => d.creatorName))];
@@ -999,10 +1008,23 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   list = [...list].sort((a, b) => b.step - a.step);
   // 단계별 요약
   const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allChecked = list.length > 0 && list.every((dl) => sel.has(dl.id));
+  async function bulkDelete() {
+    const targets = list.filter((dl) => sel.has(dl.id));
+    if (!targets.length || !confirm(`선택한 ${targets.length}건의 PR 안건을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    try { for (const dl of targets) { await deleteDeal(dl.id); const i = deals.indexOf(dl); if (i >= 0) deals.splice(i, 1); } setSel(new Set()); setTick((t) => t + 1); }
+    catch (e) { alert("삭제 실패: " + (e as Error).message); setTick((t) => t + 1); }
+  }
 
   return (
     <>
-      {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>PR 안건 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 안건 추가</button></div>}
+      {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>PR 안건 관리</h2>
+        <span style={{ display: "flex", gap: 8 }}>
+          {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>선택 삭제 ({sel.size})</button>}
+          <button className="btn" onClick={() => setView(view === "list" ? "card" : "list")}>{view === "list" ? "카드 보기" : "목록 보기"}</button>
+          <button className="btn acc" onClick={() => setEdit(null)}>+ 안건 추가</button>
+        </span></div>}
       {!readonly && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
           <button className={`chip ${fStep === "" ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setFStep("")}>전체 {deals.length}</button>
@@ -1020,11 +1042,36 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
         </div>
       )}
       {!list.length ? <div className="placeholder">조건에 맞는 PR 안건이 없어요.</div> :
+       view === "list" ? (
+        <div className="tablewrap"><table><thead><tr>
+          {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label="전체 선택" /></th>}
+          <th>안건</th><th>의뢰사</th><th>크리에이터</th><th>담당</th><th>단계</th><th>PR 비용</th><th>납기</th>{!readonly && <th></th>}
+        </tr></thead><tbody>
+          {list.map((dl) => (
+            <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
+              {!readonly && <td><input type="checkbox" checked={sel.has(dl.id)} onChange={() => toggle(dl.id)} aria-label={`${dl.title} 선택`} /></td>}
+              <td><b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : "개별"}</span></td>
+              <td style={{ color: "var(--muted)" }}>{dl.client}</td>
+              <td>{withCode(dl.creatorName)}</td>
+              <td style={{ color: "var(--muted)" }}>{dl.manager}</td>
+              <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
+              <td className="num">{yen(dl.fee)}</td>
+              <td className="num" style={{ color: "var(--muted)" }}>{md(dl.dueDate ?? undefined)}</td>
+              {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                {dl.step < 5 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>다음 →</button>}
+                <button className="btn sm" onClick={() => setEdit(dl)}>수정</button>
+              </td>}
+            </tr>
+          ))}
+        </tbody></table></div>
+       ) :
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {list.map((dl) => {
         const ct = dl.contentId ? contents.find((c) => c.id === dl.contentId) : null;
         return (
           <div key={dl.id} className="srow" style={{ marginBottom: 0 }}>
+            {!readonly && <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--faint)", marginBottom: 6 }}>
+              <input type="checkbox" checked={sel.has(dl.id)} onChange={() => toggle(dl.id)} /> 선택</label>}
             <div className="hd">
               <Avatar name={dl.client} size={36} radius={9} />
               <div style={{ flex: 1, minWidth: 0 }}>

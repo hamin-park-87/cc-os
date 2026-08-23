@@ -8,7 +8,7 @@ export const isDb = () =>
 
 function creatorRow(c: Creator) {
   return {
-    code: c.code ?? null, pic: c.pic ?? null, name: c.name, handle: c.handle ?? null, photo_url: c.photoUrl ?? null,
+    code: c.code ?? null, pic: c.pic ?? null, name: c.name, name_kanji: c.nameKanji ?? null, name_en: c.nameEn ?? null, address_en: c.addressEn ?? null, handle: c.handle ?? null, photo_url: c.photoUrl ?? null,
     followers: c.followers, status: c.status, category: c.category ?? null, tone: c.tone ?? null,
     intro: c.intro ?? null, monthly_quota: c.monthlyQuota ?? null, fixed_cost: c.fixedCost,
     contract_date: c.contractDate ?? null, start_date: c.startDate ?? null, sns: c.sns, rates: c.rates,

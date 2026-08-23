@@ -3,6 +3,9 @@
 
 alter table creators
   add column if not exists code           text,   -- 고유번호 (CC001…)
+  add column if not exists name_kanji     text,   -- 한자(일본어) 이름
+  add column if not exists name_en        text,   -- 영문 이름
+  add column if not exists address_en     text,   -- 영문 주소
   add column if not exists email          text,
   add column if not exists phone          text,
   add column if not exists address        text,
