@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment } from "@/lib/data/writes";
 
 export interface Bundle {
   brands: Brand[]; creators: Creator[]; contents: Content[];
@@ -722,6 +722,7 @@ function AssignEditor({ d }: { d: Bundle }) {
   const [month, setMonth] = useState("2026-08");
   const [sortBy, setSortBy] = useState<"code" | "name" | "assigned">("code");
   const [prods, setProds] = useState<BrandProduct[]>([]);
+  const [pa, setPa] = useState<Record<string, number>>({}); // `${productId}|${creatorName}` → qty
   const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
   const qOf = (name: string) => d.assignments.find((a) => a.brandId === brand && a.creatorId === name && a.yearMonth === month)?.quota ?? 0;
   const actives = d.creators.filter((c) => c.status === "active").sort((a, b) => {
@@ -738,8 +739,22 @@ function AssignEditor({ d }: { d: Bundle }) {
   const totalFor = (name: string) => d.assignments.filter((a) => a.creatorId === name && a.yearMonth === month).reduce((s, a) => s + a.quota, 0);
   const capOf = (name: string) => d.creators.find((c) => c.name === name)?.monthlyQuota ?? 0;
   const sum = actives.reduce((s, c) => s + qOf(c.name), 0);
-  // 브랜드 월별 PR 상품 로드 (브랜드/월 변경 시)
+  // 브랜드 월별 PR 상품 + 상품별 배정 로드 (브랜드/월 변경 시)
   useEffect(() => { getBrandProducts(brand, month, d.brands).then(setProds).catch(() => setProds([])); }, [brand, month, d.brands]);
+  useEffect(() => {
+    getProductAssignments(brand, month, d.brands).then((rows) => {
+      const map: Record<string, number> = {};
+      for (const r of rows) map[`${r.productId}|${r.creatorName}`] = r.qty;
+      setPa(map);
+    }).catch(() => setPa({}));
+  }, [brand, month, d.brands]);
+  const paKey = (pid: string, name: string) => `${pid}|${name}`;
+  function setProdQty(pid: string, name: string, qty: number) {
+    setPa((m) => { const n = { ...m }; if (qty > 0) n[paKey(pid, name)] = qty; else delete n[paKey(pid, name)]; return n; });
+    setProductAssignment(pid, name, qty, d.creators).catch((e) => console.warn(e.message));
+  }
+  const prodTotalFor = (name: string) => prods.reduce((s, p) => s + (pa[paKey(p.id, name)] ?? 0), 0);
+  const prodRowTotal = (pid: string) => actives.reduce((s, c) => s + (pa[paKey(pid, c.name)] ?? 0), 0);
   function set(name: string, delta: number) {
     const a = d.assignments.find((x) => x.brandId === brand && x.creatorId === name && x.yearMonth === month);
     let finalQ = 0;
@@ -784,6 +799,35 @@ function AssignEditor({ d }: { d: Bundle }) {
           <td className="num" style={{ color: over ? "var(--critical)" : "var(--muted)", fontWeight: over ? 600 : 400 }}>{tot}/{cap || "—"}{over ? " ⚠" : ""}</td></tr>);
       })}
     </tbody></table></div>
+
+    {prods.length > 0 && <>
+      <div className="sec-h"><h2>상품별 배정</h2><span className="hint">상품 × 크리에이터 콘텐츠 수량</span></div>
+      <div className="tablewrap"><table><thead><tr>
+        <th style={{ minWidth: 160 }}>상품 \ 크리에이터</th>
+        {actives.map((c) => <th key={c.id} style={{ textAlign: "center" }}>{creatorCode(c.name) ?? c.name}</th>)}
+        <th style={{ textAlign: "center" }}>합계</th>
+      </tr></thead><tbody>
+        {prods.map((p) => (
+          <tr key={p.id}>
+            <td>{p.url ? <a href={p.url} target="_blank" rel="noopener" style={{ color: "var(--accent-ink)" }}>{p.name}</a> : <b>{p.name}</b>}</td>
+            {actives.map((c) => {
+              const v = pa[paKey(p.id, c.name)] ?? 0;
+              return <td key={c.id} style={{ textAlign: "center" }}>
+                <input className="rate-in" style={{ width: 46, textAlign: "center", background: v ? "var(--accent-weak)" : undefined }} type="number" min={0}
+                  value={v || ""} onChange={(e) => setProdQty(p.id, c.name, Math.max(0, +e.target.value || 0))} />
+              </td>;
+            })}
+            <td className="num" style={{ textAlign: "center", fontWeight: 600 }}>{prodRowTotal(p.id)}</td>
+          </tr>
+        ))}
+        <tr style={{ borderTop: "2px solid var(--border-strong)" }}>
+          <td style={{ fontWeight: 600, color: "var(--muted)" }}>크리에이터 합계</td>
+          {actives.map((c) => <td key={c.id} className="num" style={{ textAlign: "center", fontWeight: 600 }}>{prodTotalFor(c.name)}</td>)}
+          <td className="num" style={{ textAlign: "center", fontWeight: 700 }}>{prods.reduce((s, p) => s + prodRowTotal(p.id), 0)}</td>
+        </tr>
+      </tbody></table></div>
+      <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>상품별로 크리에이터가 만들 콘텐츠 수량을 입력하세요. 셀에 숫자를 넣으면 자동 저장됩니다.</div>
+    </>}
   </>);
 }
 

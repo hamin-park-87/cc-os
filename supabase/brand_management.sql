@@ -27,4 +27,19 @@ drop policy if exists bp_brand on brand_products;
 create policy bp_admin on brand_products for all using (is_admin()) with check (is_admin());
 create policy bp_brand  on brand_products for select using (brand_id in (select my_brand_ids()));
 
+-- 4) 상품별 크리에이터 배정 (상품 × 크리에이터 → 콘텐츠 수량)
+create table if not exists product_assignments (
+  id          uuid primary key default gen_random_uuid(),
+  product_id  uuid not null references brand_products on delete cascade,
+  creator_id  uuid not null references creators on delete cascade,
+  qty         integer not null default 0,
+  created_at  timestamptz not null default now(),
+  unique (product_id, creator_id)
+);
+alter table product_assignments enable row level security;
+drop policy if exists pa_admin on product_assignments;
+drop policy if exists pa_creator on product_assignments;
+create policy pa_admin   on product_assignments for all using (is_admin()) with check (is_admin());
+create policy pa_creator on product_assignments for select using (creator_id = my_creator_id());
+
 notify pgrst, 'reload schema';

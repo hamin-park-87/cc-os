@@ -87,6 +87,39 @@ export async function deleteBrandProduct(id: string) {
   const { error } = await getSupabase().from("brand_products").delete().eq("id", id); if (error) throw error;
 }
 
+// 상품별 크리에이터 배정 (상품 × 크리에이터 → 수량)
+export interface ProductAssign { productId: string; creatorName: string; qty: number }
+const mockPA: ProductAssign[] = [];
+export async function getProductAssignments(brandName: string, month: string, brands: { id: string; name: string }[]): Promise<ProductAssign[]> {
+  if (!isDb()) {
+    const prodIds = new Set(mockProducts.filter((p) => p.brandId === brandName && p.yearMonth === month).map((p) => p.id));
+    return mockPA.filter((a) => prodIds.has(a.productId));
+  }
+  const sb = getSupabase();
+  const brand_id = brands.find((b) => b.name === brandName)?.id;
+  if (!brand_id) return [];
+  const { data: prods } = await sb.from("brand_products").select("id").eq("brand_id", brand_id).eq("year_month", month);
+  const ids = (prods ?? []).map((p) => p.id);
+  if (!ids.length) return [];
+  const { data, error } = await sb.from("product_assignments").select("product_id, qty, creators(name)").in("product_id", ids);
+  if (error) { console.warn("[product_assignments]", error.message); return []; }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => ({ productId: r.product_id, creatorName: r.creators?.name ?? "", qty: r.qty }));
+}
+export async function setProductAssignment(productId: string, creatorName: string, qty: number, creators: Creator[]) {
+  if (!isDb()) {
+    const i = mockPA.findIndex((a) => a.productId === productId && a.creatorName === creatorName);
+    if (qty <= 0) { if (i >= 0) mockPA.splice(i, 1); }
+    else if (i >= 0) mockPA[i].qty = qty; else mockPA.push({ productId, creatorName, qty });
+    return;
+  }
+  const sb = getSupabase();
+  const creator_id = creators.find((c) => c.name === creatorName)?.id;
+  if (!creator_id) return;
+  if (qty <= 0) { const { error } = await sb.from("product_assignments").delete().match({ product_id: productId, creator_id }); if (error) throw error; }
+  else { const { error } = await sb.from("product_assignments").upsert({ product_id: productId, creator_id, qty }, { onConflict: "product_id,creator_id" }); if (error) throw error; }
+}
+
 function dealRow(d: Deal, creatorId: string | null) {
   return {
     code: d.code ?? null, title: d.title, client: d.client, creator_id: creatorId, manager: d.manager ?? null,
