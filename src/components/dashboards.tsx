@@ -310,11 +310,13 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
           <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>팔로워 추이</h2><span className="hint">{c.handle} · 최근 12주</span></div>
           <div style={{ marginTop: 8 }}><Spark data={series} /></div>
         </div>
-        <div className="card pad">
+        <div className="card pad" style={{ marginBottom: 14 }}>
           <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>✨ AI 성장 코치</h2><button className="btn acc" onClick={runAI}>분석 실행</button></div>
           {!ai ? <div className="note">'분석 실행'을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.</div>
             : ai.map((f, i) => <div key={i} className="ai-card"><span className="ic">★</span><div><div className="t">{f.t}</div><div className="s">{f.s}</div></div></div>)}
         </div>
+        <div className="sec-h" style={{ margin: "0 0 10px" }}><h2>콘텐츠 아카이브</h2><span className="hint">{c.handle}</span></div>
+        <ContentArchive contents={mine} showCreator={false} />
       </>}
     </Modal>
   );
@@ -836,6 +838,8 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
       {!ai ? <div className="note">‘분석 실행’을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.</div>
         : ai.map((f, i) => <div key={i} className="ai-card"><span className="ic">★</span><div><div className="t">{f.t}</div><div className="s">{f.s}</div></div></div>)}
     </div>
+    <div className="sec-h" style={{ marginTop: 22 }}><h2>{withCode(name)} 콘텐츠 아카이브</h2><span className="hint">이 크리에이터의 SNS 콘텐츠</span></div>
+    <ContentArchive contents={contents.filter((x) => x.creatorName === name)} showCreator={false} />
   </>);
 }
 
