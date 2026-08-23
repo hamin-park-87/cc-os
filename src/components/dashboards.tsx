@@ -657,29 +657,39 @@ function ConnModal({ creator, onClose, onDone }: { creator: Creator; onClose: ()
   );
 }
 
+// 브랜드 계약 단가(월금액/월수량) — 없으면 UNIT_PRICE 폴백. 브랜드가 매출·배정의 단일 원본.
+export function brandUnitPrice(brand: Brand | undefined): number {
+  return brand?.monthlyQuota && brand?.monthlyAmount ? brand.monthlyAmount / brand.monthlyQuota : UNIT_PRICE;
+}
+// 크리에이터 월 인건비: 기본보수(baseFee) 우선, 없으면 고정비(fixedCost)
+export const monthlyCost = (c: Creator): number => (c.baseFee != null ? c.baseFee : (c.fixedCost || 0));
+
 function RevenueTable({ d }: { d: Bundle }) {
   const live = d.deals.filter((x) => x.step >= 4);
   const comp = (x: Deal) => Math.round(x.fee * x.shareCompany / 100);
   const ah = live.filter((x) => x.type === "ahchannel").reduce((s, x) => s + comp(x), 0);
   const cr = live.filter((x) => x.type !== "ahchannel").reduce((s, x) => s + comp(x), 0);
-  const brandRev = d.assignments.reduce((s, a) => s + a.quota * UNIT_PRICE, 0);
-  const fixed = d.creators.reduce((s, c) => s + (c.fixedCost || 0), 0);
+  const unitOf = (brandName: string) => brandUnitPrice(d.brands.find((b) => b.name === brandName));
+  // ② 브랜드 월계약 = 브랜드별 월 계약금액 합 (단일 원본)
+  const brandRev = d.brands.reduce((s, b) => s + (b.monthlyAmount || 0), 0);
+  const fixed = d.creators.reduce((s, c) => s + monthlyCost(c), 0);
   const total = ah + brandRev + cr;
   // 크리에이터별 기여
   const per = d.creators.map((c) => {
     const ds = live.filter((x) => x.creatorName === c.name);
     const prComp = ds.reduce((s, x) => s + comp(x), 0);
-    const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name).reduce((s, a) => s + a.quota * UNIT_PRICE, 0);
-    return { name: c.name, prComp, brandAlloc, fixed: c.fixedCost || 0, contrib: prComp + brandAlloc - (c.fixedCost || 0) };
+    const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name).reduce((s, a) => s + a.quota * unitOf(a.brandId), 0);
+    const cost = monthlyCost(c);
+    return { name: c.name, prComp, brandAlloc, fixed: cost, contrib: prComp + brandAlloc - cost };
   }).filter((p) => p.prComp || p.brandAlloc || p.fixed).sort((a, b) => b.contrib - a.contrib);
   return (<>
     <div className="grid-kpi">
       <Kpi lab="① ah!channel PR" val={yen(ah)} /><Kpi lab="② 브랜드 월계약" val={yen(brandRev)} />
-      <Kpi lab="③ 개별 PR" val={yen(cr)} /><Kpi lab="총 매출" val={yen(total)} /><Kpi lab="순이익 (−고정비)" val={yen(total - fixed)} />
+      <Kpi lab="③ 개별 PR" val={yen(cr)} /><Kpi lab="총 매출" val={yen(total)} /><Kpi lab="순이익 (−인건비)" val={yen(total - fixed)} />
     </div>
-    <div className="sec-h"><h2>크리에이터별 기여 손익</h2><span className="hint">브랜드계약 배정 + PR 회사매출 − 고정비</span></div>
+    <div className="sec-h"><h2>크리에이터별 기여 손익</h2><span className="hint">브랜드계약 배분 + PR 회사매출 − 월 보수</span></div>
     <div className="tablewrap"><table><thead><tr>
-      <th>크리에이터</th><th>브랜드계약 배정</th><th>PR 회사매출</th><th>월 고정비</th><th>기여이익</th>
+      <th>크리에이터</th><th>브랜드계약 배분</th><th>PR 회사매출</th><th>월 보수</th><th>기여이익</th>
     </tr></thead><tbody>
       {per.map((p) => (
         <tr key={p.name}><td><b>{withCode(p.name)}</b></td><td className="num">{yen(p.brandAlloc)}</td><td className="num">{yen(p.prComp)}</td>
@@ -696,13 +706,26 @@ function AssignEditor({ d }: { d: Bundle }) {
   const [, setTick] = useState(0);
   const [brand, setBrand] = useState("abib");
   const [month, setMonth] = useState("2026-08");
-  const actives = d.creators.filter((c) => c.status === "active");
-  const contract = d.contracts.find((c) => c.brandId === brand && c.yearMonth === month);
-  const target = contract?.quota ?? 0;
+  const [sortBy, setSortBy] = useState<"code" | "name" | "assigned">("code");
+  const [prods, setProds] = useState<BrandProduct[]>([]);
+  const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
   const qOf = (name: string) => d.assignments.find((a) => a.brandId === brand && a.creatorId === name && a.yearMonth === month)?.quota ?? 0;
+  const actives = d.creators.filter((c) => c.status === "active").sort((a, b) => {
+    if (sortBy === "name") return a.name.localeCompare(b.name);
+    if (sortBy === "assigned") return qOf(b.name) - qOf(a.name);
+    return codeNum(a) - codeNum(b); // code
+  });
+  // 브랜드 계약(월수량)을 단일 원본으로 — 계약기간 내에서만 목표 적용, 없으면 contracts 폴백
+  const brandObj = d.brands.find((b) => b.name === brand);
+  const inPeriod = (!brandObj?.contractStart || brandObj.contractStart <= month) && (!brandObj?.contractEnd || brandObj.contractEnd >= month);
+  const target = brandObj?.monthlyQuota != null && inPeriod
+    ? brandObj.monthlyQuota
+    : (d.contracts.find((c) => c.brandId === brand && c.yearMonth === month)?.quota ?? 0);
   const totalFor = (name: string) => d.assignments.filter((a) => a.creatorId === name && a.yearMonth === month).reduce((s, a) => s + a.quota, 0);
   const capOf = (name: string) => d.creators.find((c) => c.name === name)?.monthlyQuota ?? 0;
   const sum = actives.reduce((s, c) => s + qOf(c.name), 0);
+  // 브랜드 월별 PR 상품 로드 (브랜드/월 변경 시)
+  useEffect(() => { getBrandProducts(brand, month, d.brands).then(setProds).catch(() => setProds([])); }, [brand, month, d.brands]);
   function set(name: string, delta: number) {
     const a = d.assignments.find((x) => x.brandId === brand && x.creatorId === name && x.yearMonth === month);
     let finalQ = 0;
@@ -716,10 +739,22 @@ function AssignEditor({ d }: { d: Bundle }) {
     <div className="filterbar">
       <select value={brand} onChange={(e) => setBrand(e.target.value)}>{(d.brands.length ? d.brands.map((x) => x.name) : ALL_BRANDS).map((b) => <option key={b} value={b}>{b}</option>)}</select>
       <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.replace("-", ". ")}</option>)}</select>
+      <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+        <option value="code">번호순</option>
+        <option value="name">이름순</option>
+        <option value="assigned">배정 많은순</option>
+      </select>
     </div>
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
       <b>{brand}</b> · {month.slice(0, 4)}년 {+month.slice(5)}월 계약 <b>{target}</b>건 · 배정 합계 <b>{sum}</b>건 — {diff === 0 ? "계약과 일치" : diff > 0 ? `${diff}건 초과` : `${-diff}건 미배정`}
     </div>
+    {prods.length > 0 && <div className="callout" style={{ background: "var(--surface-2)", marginBottom: 12 }}><div style={{ width: "100%" }}>
+      <div className="t" style={{ fontSize: 12 }}>이 달 {brand} PR 상품 {prods.length}개</div>
+      <div className="s" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+        {prods.map((p) => p.url
+          ? <a key={p.id} href={p.url} target="_blank" rel="noopener" className="chip" style={{ textDecoration: "none" }}>{p.name} ↗</a>
+          : <span key={p.id} className="chip">{p.name}</span>)}
+      </div></div></div>}
     <div className="tablewrap"><table><thead><tr><th>크리에이터</th><th>{brand} 배정</th><th>완료</th><th>월 총배정/계약수량</th></tr></thead><tbody>
       {actives.map((c) => {
         const q = qOf(c.name); const tot = totalFor(c.name); const cap = capOf(c.name);
@@ -895,15 +930,53 @@ function InviteModal({ onClose, onSaved, creators, brands }: { onClose: () => vo
   );
 }
 
+// 계약 리스크 자동 감지 (실데이터 규칙) — 슬랙/이메일 알림의 공통 소스
+export interface RiskItem { level: "critical" | "warning" | "info"; t: string; s: string }
+export function computeRisks(d: Bundle): RiskItem[] {
+  const now = new Date();
+  const todayMonth = now.toISOString().slice(0, 7);
+  const daysUntil = (ds?: string | null) => ds ? Math.round((new Date(ds).getTime() - now.getTime()) / 86400000) : null;
+  const risks: RiskItem[] = [];
+  // 1) Instagram 연동 이슈
+  for (const c of d.creators) {
+    if (c.ig?.status === "expired" || c.ig?.status === "revoked")
+      risks.push({ level: "critical", t: `${withCode(c.name)} — Instagram 연동 ${c.ig.status === "expired" ? "만료" : "해지"}`, s: "자동 수집 중단. 재연동 요청 필요." });
+    else { const du = daysUntil(c.ig?.expiresAt); if (du != null && du <= 14) risks.push({ level: du < 0 ? "critical" : "warning", t: `${withCode(c.name)} — IG 토큰 ${du < 0 ? "만료 경과" : `만료 D-${du}`}`, s: "연동 갱신이 필요합니다." }); }
+  }
+  // 2) 크리에이터 계약 종료 임박 (D-30)
+  for (const c of d.creators) { const du = daysUntil(c.contractEnd); if (du != null && du <= 30) risks.push({ level: du < 0 ? "critical" : "warning", t: `${withCode(c.name)} — 계약 ${du < 0 ? "만료됨" : "종료 임박"} (${c.contractEnd})`, s: du < 0 ? "재계약 또는 정리 확인 필요." : `D-${du}. 재계약 검토 권장.` }); }
+  // 3) 브랜드 계약 종료월 도래
+  for (const b of d.brands) { if (b.contractEnd && b.contractEnd <= todayMonth) risks.push({ level: "warning", t: `${b.name} — 브랜드 계약 종료월 (${b.contractEnd})`, s: "연장 여부 확인이 필요합니다." }); }
+  // 4) 이번 달 브랜드 배정 미달
+  for (const b of d.brands) {
+    if (b.monthlyQuota == null) continue;
+    const inPeriod = (!b.contractStart || b.contractStart <= todayMonth) && (!b.contractEnd || b.contractEnd >= todayMonth);
+    if (!inPeriod) continue;
+    const assigned = d.assignments.filter((a) => a.brandId === b.name && a.yearMonth === todayMonth).reduce((s, a) => s + a.quota, 0);
+    if (assigned < b.monthlyQuota) risks.push({ level: "warning", t: `${b.name} — ${+todayMonth.slice(5)}월 배정 미달 (${assigned}/${b.monthlyQuota})`, s: `${b.monthlyQuota - assigned}건 미배정. 배정 관리에서 채워주세요.` });
+  }
+  // 5) 납기 임박·경과 PR 안건
+  for (const dl of d.deals) { if (dl.step >= 5) continue; const du = daysUntil(dl.dueDate); if (du != null && du <= 3) risks.push({ level: du < 0 ? "critical" : "warning", t: `${dl.title} · ${withCode(dl.creatorName)} — 납기 ${du < 0 ? "경과" : `D-${du}`}`, s: `${dl.client} · 현재 단계: ${DEAL_STEPS[dl.step]}` }); }
+  const order = { critical: 0, warning: 1, info: 2 };
+  return risks.sort((a, b) => order[a.level] - order[b.level]);
+}
 function RiskList({ d }: { d: Bundle }) {
-  const risks = [
-    { t: "whipped × rui — 토큰 만료로 자동수집 중단", s: "연동 갱신 요청 필요.", cls: "var(--critical)" },
-    { t: "naming × momo — 잔여 D-2, 진척 부진", s: "월말 마감 대비 리마인드 권장.", cls: "var(--warning)" },
-  ];
-  return (<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-    {risks.map((r, i) => (<div key={i} className="card pad" style={{ borderLeft: `3px solid ${r.cls}` }}>
-      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.t}</div><div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>{r.s}</div></div>))}
-  </div>);
+  const risks = computeRisks(d);
+  const color: Record<string, string> = { critical: "var(--critical)", warning: "var(--warning)", info: "var(--muted)" };
+  const label: Record<string, string> = { critical: "긴급", warning: "주의", info: "정보" };
+  if (!risks.length) return <div className="placeholder">현재 감지된 계약 리스크가 없습니다. ✓</div>;
+  return (<>
+    <div className="grid-kpi" style={{ marginBottom: 16 }}>
+      <Kpi lab="전체 리스크" val={String(risks.length)} />
+      <Kpi lab="긴급" val={String(risks.filter((r) => r.level === "critical").length)} />
+      <Kpi lab="주의" val={String(risks.filter((r) => r.level === "warning").length)} />
+    </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {risks.map((r, i) => (<div key={i} className="card pad" style={{ borderLeft: `3px solid ${color[r.level]}` }}>
+        <div style={{ fontWeight: 600, fontSize: 13 }}><span className="chip" style={{ marginRight: 8, color: color[r.level] }}>{label[r.level]}</span>{r.t}</div>
+        <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4 }}>{r.s}</div></div>))}
+    </div>
+  </>);
 }
 
 /* ── DEAL LIST (admin & creator 공용) ───── */
