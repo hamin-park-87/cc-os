@@ -101,7 +101,7 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
       </>
     );
   }
-  if (pane === "a-roster") return <RosterTable creators={d.creators} full />;
+  if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
   if (pane === "a-assign") return <AssignEditor d={d} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} />;
@@ -114,9 +114,10 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
   return <Placeholder name={pane} />;
 }
 
-function RosterTable({ creators, full }: { creators: Creator[]; full?: boolean }) {
+function RosterTable({ creators, full, contents }: { creators: Creator[]; full?: boolean; contents?: Content[] }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Creator | null | undefined>(undefined); // undefined=닫힘, null=추가
+  const [detail, setDetail] = useState<Creator | null>(null);
   const list = [...creators].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
   return (<>
     {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>크리에이터 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 크리에이터 추가</button></div>}
@@ -125,19 +126,66 @@ function RosterTable({ creators, full }: { creators: Creator[]; full?: boolean }
     </tr></thead><tbody>
       {list.map((c) => (
         <tr key={c.id}>
-          <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} /><b>{c.name}</b></span></td>
+          <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} />
+            {full ? <b style={{ cursor: "pointer", color: "var(--accent-ink)", textDecoration: "underline", textUnderlineOffset: 2 }} onClick={() => setDetail(c)}>{c.name}</b> : <b>{c.name}</b>}</span></td>
           <td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
           <td><SnsBadges c={c} /></td>
           <td className="num">{fmt(c.followers)}</td>
           <td>{statusPill(c.status)}</td>
           <td>{c.category ?? "—"}</td>
           {full && <><td className="num">{c.monthlyQuota ?? "—"}</td>
-            <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(c)}>수정</button></td></>}
+            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setDetail(c)}>상세</button>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(c)}>수정</button></td></>}
         </tr>
       ))}
     </tbody></table></div>
     {edit !== undefined && <CreatorEditModal creator={edit} all={creators} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+    {detail && <CreatorDetailModal creator={detail} contents={contents ?? []} onClose={() => setDetail(null)} onEdit={() => { setEdit(detail); setDetail(null); }} />}
   </>);
+}
+
+function DRow({ k, v }: { k: string; v?: React.ReactNode }) {
+  return <div style={{ display: "flex", gap: 10, padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
+    <span style={{ color: "var(--faint)", minWidth: 128, flexShrink: 0 }}>{k}</span>
+    <span style={{ flex: 1, wordBreak: "break-word" }}>{v ?? "—"}</span></div>;
+}
+function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator: Creator; contents: Content[]; onClose: () => void; onEdit: () => void }) {
+  const mine = contents.filter((x) => x.creatorName === c.name);
+  const uploaded = mine.filter((x) => x.status === "uploaded");
+  const totalViews = uploaded.reduce((s, x) => s + (x.views || 0), 0);
+  return (
+    <Modal title="크리에이터 상세" onClose={onClose} width={560}
+      footer={<><button className="btn" onClick={onClose}>닫기</button><button className="btn acc" onClick={onEdit}>수정</button></>}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+        <Avatar creator={c} name={c.name} size={56} radius={15} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>{c.name} {statusPill(c.status)}</div>
+          <div style={{ color: "var(--faint)", fontSize: 12.5, marginTop: 3 }}>{c.handle} · 팔로워 {fmt(c.followers)} · {c.category ?? "—"}</div>
+          <div style={{ marginTop: 6 }}><SnsBadges c={c} /></div>
+        </div>
+      </div>
+      {c.intro && <div className="note" style={{ marginBottom: 14 }}>{c.intro}</div>}
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "0 0 4px" }}>계약·정산 정보</div>
+      <DRow k="구분" v={c.entityType === "corporation" ? "법인" : "개인"} />
+      <DRow k="이메일" v={c.email} />
+      <DRow k="전화번호" v={c.phone} />
+      <DRow k="주소" v={c.address} />
+      <DRow k="은행계좌" v={c.bankAccount} />
+      <DRow k="인보이스 등록번호" v={c.invoiceRegNo} />
+      <DRow k="원천징수" v={c.withholding == null ? "—" : c.withholding ? "대상 (10.21%)" : "대상외"} />
+      <DRow k="계약기간" v={c.contractDate || c.contractEnd ? `${c.contractDate ?? "—"} ~ ${c.contractEnd ?? "—"}` : undefined} />
+      <DRow k="기본보수 (세전/월)" v={c.baseFee != null ? yen(c.baseFee) : undefined} />
+      <DRow k="지급사이클" v={c.payCycle} />
+      <DRow k="월 계약 수량" v={c.monthlyQuota != null ? `${c.monthlyQuota}건` : undefined} />
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "14px 0 4px" }}>PR 단가</div>
+      <DRow k="릴스 1건당" v={yen(c.rates.reels)} />
+      <DRow k="2차 활용" v={yen(c.rates.secondary)} />
+      <DRow k="오프라인 PR" v={yen(c.rates.offline)} />
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "14px 0 4px" }}>콘텐츠 현황</div>
+      <div className="note">업로드 <b className="num">{uploaded.length}</b>건 · 누적 조회 <b className="num">{fmt(totalViews)}</b></div>
+    </Modal>
+  );
 }
 
 const SNS_URL: Record<string, (h: string) => string> = {
@@ -222,6 +270,24 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
             <input style={inp} type="number" value={f.rates[k]} onChange={(e) => setF((s) => ({ ...s, rates: { ...s.rates, [k]: +e.target.value } }))} /></Field>
         ))}
       </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "4px 0 8px" }}>계약·정산 정보 <span style={{ color: "var(--faint)", fontWeight: 400 }}>(민감정보)</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label="이메일"><input style={inp} type="email" value={f.email ?? ""} onChange={(e) => up("email", e.target.value)} /></Field>
+        <Field label="전화번호"><input style={inp} value={f.phone ?? ""} onChange={(e) => up("phone", e.target.value)} /></Field>
+      </div>
+      <Field label="주소"><input style={inp} value={f.address ?? ""} onChange={(e) => up("address", e.target.value)} /></Field>
+      <Field label="은행계좌"><input style={inp} value={f.bankAccount ?? ""} onChange={(e) => up("bankAccount", e.target.value)} /></Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label="인보이스 등록번호 (T번호)"><input style={inp} placeholder="T0000000000000" value={f.invoiceRegNo ?? ""} onChange={(e) => up("invoiceRegNo", e.target.value)} /></Field>
+        <Field label="구분"><select style={inp} value={f.entityType ?? "individual"} onChange={(e) => up("entityType", e.target.value)}><option value="individual">개인</option><option value="corporation">법인</option></select></Field>
+        <Field label="계약 시작일"><input style={inp} type="date" value={f.contractDate ?? ""} onChange={(e) => up("contractDate", e.target.value)} /></Field>
+        <Field label="계약 종료일"><input style={inp} type="date" value={f.contractEnd ?? ""} onChange={(e) => up("contractEnd", e.target.value)} /></Field>
+        <Field label="기본보수 (세전/월, ¥)"><input style={inp} type="number" value={f.baseFee ?? ""} onChange={(e) => up("baseFee", e.target.value === "" ? null : +e.target.value)} /></Field>
+        <Field label="지급사이클"><input style={inp} placeholder="월말마감 익월 10일 지급" value={f.payCycle ?? ""} onChange={(e) => up("payCycle", e.target.value)} /></Field>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, margin: "2px 0 4px" }}>
+        <input type="checkbox" checked={f.withholding ?? false} onChange={(e) => up("withholding", e.target.checked)} /> 원천징수 대상 (개인사업자, 10.21%)
+      </label>
     </Modal>
   );
 }

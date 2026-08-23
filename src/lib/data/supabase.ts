@@ -29,6 +29,9 @@ export const supabaseProvider: DataProvider = {
         id: r.id, pic: r.pic, name: r.name, aliases: r.aliases ?? [], handle: r.handle, photoUrl: r.photo_url,
         followers: r.followers ?? 0, status: r.status, category: r.category, tone: r.tone, intro: r.intro,
         monthlyQuota: r.monthly_quota, fixedCost: Number(r.fixed_cost ?? 0), contractDate: r.contract_date, startDate: r.start_date,
+        email: r.email, phone: r.phone, address: r.address, bankAccount: r.bank_account, invoiceRegNo: r.invoice_reg_no,
+        entityType: r.entity_type, withholding: r.withholding, contractEnd: r.contract_end,
+        baseFee: r.base_fee != null ? Number(r.base_fee) : null, payCycle: r.pay_cycle,
         sns: r.sns ?? {}, rates: r.rates ?? { reels: 0, secondary: 0, offline: 0, etc: 0 },
         ig: ig ? { status: ig.status, linkedAt: ig.linked_at, expiresAt: ig.expires_at } : undefined,
       };

@@ -28,6 +28,7 @@ export interface Brand {
 
 export interface CreatorSns { youtube?: string; tiktok?: string; x?: string; line?: string }
 export interface CreatorRates { reels: number; secondary: number; offline: number; etc: number }
+export type EntityType = "individual" | "corporation"; // 개인/법인
 
 export interface Creator {
   id: string;
@@ -43,10 +44,21 @@ export interface Creator {
   intro?: string;
   monthlyQuota?: number | null;
   fixedCost: number;
-  contractDate?: string | null;
-  startDate?: string | null;
+  contractDate?: string | null;   // 계약시작일
+  startDate?: string | null;      // 활동시작일
   sns: CreatorSns;
   rates: CreatorRates;
+  // 계약·정산 상세 (프리랜서 마스터, 민감정보 PII)
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  bankAccount?: string | null;    // 은행계좌
+  invoiceRegNo?: string | null;   // 인보이스 등록번호 (T번호)
+  entityType?: EntityType | null; // 개인/법인
+  withholding?: boolean | null;   // 원천징수 대상
+  contractEnd?: string | null;    // 계약종료일
+  baseFee?: number | null;        // 기본보수 (세전/월)
+  payCycle?: string | null;       // 지급사이클
   // 연동
   ig?: { status: IgStatus; linkedAt?: string | null; expiresAt?: string | null };
 }
