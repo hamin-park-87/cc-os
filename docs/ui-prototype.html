@@ -1,0 +1,2832 @@
+<title>81'DEGREE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root{
+    --ground:#F5F7F7; --surface:#FFFFFF; --surface-2:#EEF2F1; --surface-3:#E6ECEB;
+    --ink:#141C1B; --muted:#57635F; --faint:#879591;
+    --border:#E0E6E4; --border-strong:#CDD6D3;
+    --accent:#22B24E; --accent-ink:#15803D; --accent-weak:#DCF7E2;
+    --success:#16A34A; --success-weak:#DFF3E6;
+    --warning:#C77A08; --warning-weak:#FBEDD5;
+    --critical:#DC2626; --critical-weak:#FBE0E0;
+    --shadow:0 1px 2px rgba(20,28,27,.05), 0 6px 20px -12px rgba(20,28,27,.18);
+    --shadow-lg:0 24px 60px -20px rgba(12,20,19,.35);
+    --r:14px; --r-sm:9px;
+    --display:'Bricolage Grotesque',system-ui,sans-serif;
+    --body:'IBM Plex Sans',system-ui,sans-serif;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+  }
+  :root:not([data-theme="light"]){
+    @media (prefers-color-scheme: dark){
+      --ground:#050805; --surface:#0F120F; --surface-2:#171B16; --surface-3:#20251F;
+      --ink:#E9F0E9; --muted:#98A79A; --faint:#66746A;
+      --border:#232A22; --border-strong:#343D31;
+      --accent:#5FE070; --accent-ink:#84EC91; --accent-weak:rgba(95,224,112,.15);
+      --success:#34D399; --success-weak:rgba(52,211,153,.14);
+      --warning:#FBBF24; --warning-weak:rgba(251,191,36,.14);
+      --critical:#F87171; --critical-weak:rgba(248,113,113,.15);
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -14px rgba(0,0,0,.6);
+      --shadow-lg:0 30px 70px -20px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#050805; --surface:#0F120F; --surface-2:#171B16; --surface-3:#20251F;
+    --ink:#E9F0E9; --muted:#98A79A; --faint:#66746A;
+    --border:#232A22; --border-strong:#343D31;
+    --accent:#5FE070; --accent-ink:#84EC91; --accent-weak:rgba(95,224,112,.15);
+    --success:#34D399; --success-weak:rgba(52,211,153,.14);
+    --warning:#FBBF24; --warning-weak:rgba(251,191,36,.14);
+    --critical:#F87171; --critical-weak:rgba(248,113,113,.15);
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px -14px rgba(0,0,0,.6);
+    --shadow-lg:0 30px 70px -20px rgba(0,0,0,.7);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--body); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4{font-family:var(--display); margin:0; text-wrap:balance; letter-spacing:-.01em}
+  .num{font-family:var(--mono); font-variant-numeric:tabular-nums}
+  a{color:inherit}
+  button{font-family:inherit; cursor:pointer}
+  ::selection{background:var(--accent-weak)}
+
+  /* ---------- shell ---------- */
+  .app{display:grid; grid-template-columns:236px 1fr; min-height:100vh}
+  .sidebar{
+    background:var(--surface); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; gap:4px; padding:18px 14px;
+    position:sticky; top:0; height:100vh; overflow:auto;
+  }
+  .brandmark{display:flex; align-items:baseline; gap:8px; padding:8px 8px 18px}
+  .brandmark .logo{font-family:var(--display); font-weight:700; font-size:22px; letter-spacing:-.03em; color:var(--accent); line-height:1}
+  .brandmark .logo span{color:var(--muted); font-weight:600; font-size:11px; letter-spacing:.24em; margin-left:7px; vertical-align:middle}
+  :root[data-theme="dark"] .brandmark .logo,:root:not([data-theme="light"]) .brandmark .logo{color:var(--accent)}
+  .navlabel{font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--faint); padding:14px 10px 6px; font-weight:600}
+  .navitem{
+    display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:9px;
+    color:var(--muted); font-weight:500; font-size:13.5px; border:0; background:none; width:100%; text-align:left;
+  }
+  .navitem svg{width:17px; height:17px; flex:none; stroke:currentColor; fill:none; stroke-width:1.7}
+  .navitem:hover{background:var(--surface-2); color:var(--ink)}
+  .navitem.active{background:var(--accent-weak); color:var(--accent-ink); font-weight:600}
+  :root[data-theme="dark"] .navitem.active,
+  :root:not([data-theme="light"]) .navitem.active{color:var(--accent)}
+  .sidebar-foot{margin-top:auto; padding-top:12px; border-top:1px solid var(--border)}
+  .who{display:flex; align-items:center; gap:10px; padding:8px 6px}
+  .who .av{width:32px;height:32px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:600;color:#fff;font-size:13px}
+  .who small{display:block; color:var(--faint); font-size:11.5px}
+
+  .main{min-width:0; display:flex; flex-direction:column}
+  .topbar{
+    display:flex; align-items:center; gap:16px; padding:14px 26px;
+    border-bottom:1px solid var(--border); background:color-mix(in srgb,var(--surface) 82%, transparent);
+    backdrop-filter:blur(8px); position:sticky; top:0; z-index:20;
+  }
+  .topbar h1{font-size:19px; font-weight:600}
+  .topbar .sub{color:var(--faint); font-size:12.5px; margin-top:2px}
+  .spacer{flex:1}
+
+  /* role switcher */
+  .roleswitch{display:flex; background:var(--surface-2); border-radius:10px; padding:3px; gap:2px; border:1px solid var(--border)}
+  .roleswitch button{
+    border:0; background:none; padding:6px 13px; border-radius:8px; font-size:12.5px; font-weight:600;
+    color:var(--muted); display:flex; align-items:center; gap:7px;
+  }
+  .roleswitch button .dot{width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.5}
+  .roleswitch button.active{background:var(--surface); color:var(--ink); box-shadow:var(--shadow)}
+  .roleswitch button.active .dot{opacity:1}
+  .iconbtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--surface);display:grid;place-items:center;color:var(--muted)}
+  .iconbtn:hover{color:var(--ink);border-color:var(--border-strong)}
+  .iconbtn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.7}
+
+  .content{padding:26px; max-width:1180px; width:100%; margin:0 auto}
+  .view{display:none} .view.active{display:block}
+
+  /* subtabs */
+  .subtabs{display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:22px; overflow-x:auto}
+  .subtabs button{
+    border:0; background:none; padding:10px 14px; font-size:13.5px; font-weight:600; color:var(--muted);
+    border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; cursor:grab; user-select:none;
+  }
+  .subtabs button:active{cursor:grabbing}
+  .subtabs button.dragging{opacity:.45; background:var(--surface-2); border-radius:8px 8px 0 0}
+  .tabhint{margin-left:auto; align-self:center; font-size:11px; color:var(--faint); white-space:nowrap; padding-left:14px}
+  .subtabs button:hover{color:var(--ink)}
+  .subtabs button.active{color:var(--accent-ink); border-bottom-color:var(--accent)}
+  :root[data-theme="dark"] .subtabs button.active,
+  :root:not([data-theme="light"]) .subtabs button.active{color:var(--accent)}
+  .pane{display:none} .pane.active{display:block; animation:fade .28s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* layout helpers */
+  .row{display:flex; gap:18px; flex-wrap:wrap}
+  .grid-kpi{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:22px}
+  .sec-h{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:26px 0 14px}
+  .sec-h h2{font-size:16px; font-weight:600}
+  .sec-h .hint{color:var(--faint); font-size:12px}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--shadow)}
+  .card.pad{padding:18px}
+
+  /* KPI */
+  .kpi{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:16px 16px 14px; box-shadow:var(--shadow); position:relative; overflow:hidden}
+  .kpi .lab{font-size:12px; color:var(--muted); font-weight:500; display:flex; align-items:center; gap:6px}
+  .kpi .val{font-family:var(--mono); font-size:27px; font-weight:500; letter-spacing:-.02em; margin-top:8px; line-height:1}
+  .kpi .val small{font-size:14px; color:var(--faint)}
+  .kpi .delta{font-size:11.5px; font-weight:600; margin-top:7px; display:inline-flex; align-items:center; gap:4px}
+  .up{color:var(--success)} .down{color:var(--critical)}
+  .kpi .spark{position:absolute; right:12px; bottom:10px; opacity:.9}
+
+  .pill{display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:999px; white-space:nowrap}
+  .pill .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .p-ok{background:var(--success-weak); color:var(--success)}
+  .p-warn{background:var(--warning-weak); color:var(--warning)}
+  .p-crit{background:var(--critical-weak); color:var(--critical)}
+  .p-plan{background:var(--surface-3); color:var(--muted)}
+  .p-acc{background:var(--accent-weak); color:var(--accent-ink)}
+  :root[data-theme="dark"] .p-acc,:root:not([data-theme="light"]) .p-acc{color:var(--accent)}
+
+  .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:3px 8px;border-radius:7px;background:var(--surface-2);color:var(--muted)}
+  .chip .sw{width:8px;height:8px;border-radius:3px}
+
+  /* progress ring */
+  .ring-wrap{display:flex; align-items:center; gap:16px}
+  .ring{--p:60; width:74px;height:74px;border-radius:50%;flex:none;
+    background:conic-gradient(var(--accent) calc(var(--p)*1%), var(--surface-3) 0);
+    display:grid; place-items:center; position:relative}
+  .ring::before{content:'';position:absolute;inset:8px;border-radius:50%;background:var(--surface)}
+  .ring b{position:relative;font-family:var(--mono);font-size:15px;font-weight:500}
+
+  /* lists */
+  .list{display:flex; flex-direction:column}
+  .li{display:flex; align-items:center; gap:13px; padding:12px 4px; border-top:1px solid var(--border)}
+  .li:first-child{border-top:0}
+  .li .av{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:600;font-size:13px;font-family:var(--display)}
+  .li .main{min-width:0;flex:1}
+  .li .t{font-weight:600; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .li .s{color:var(--faint); font-size:12px; margin-top:1px; white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .li .r{text-align:right; flex:none}
+  .li .r .n{font-family:var(--mono); font-weight:500; font-size:13.5px}
+  .li .r .u{font-size:11px; color:var(--faint)}
+
+  /* archive grid */
+  .archive{display:grid; grid-template-columns:repeat(auto-fill,minmax(216px,1fr)); gap:16px}
+  .rcard{background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; box-shadow:var(--shadow); text-align:left; padding:0; color:inherit; display:flex; flex-direction:column}
+  .rcard:hover{transform:translateY(-3px); box-shadow:var(--shadow-lg); border-color:var(--border-strong)}
+  .rcard{transition:transform .18s ease, box-shadow .18s ease, border-color .18s}
+  .poster{aspect-ratio:9/13; position:relative; display:grid; place-items:center; color:#fff}
+  .poster .ov{position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.05),rgba(0,0,0,.5))}
+  .poster .play{position:relative; width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.22);backdrop-filter:blur(3px);border:1.5px solid rgba(255,255,255,.7);display:grid;place-items:center; transition:transform .18s, background .18s}
+  .rcard:hover .play{transform:scale(1.08); background:rgba(255,255,255,.32)}
+  .poster .play svg{width:19px;height:19px;fill:#fff;margin-left:2px}
+  .poster .topline{position:absolute; top:10px; left:10px; right:10px; display:flex; justify-content:space-between; align-items:flex-start; gap:8px}
+  .poster .prod{position:absolute; bottom:10px; left:12px; right:12px; font-family:var(--display); font-weight:600; font-size:13px; line-height:1.25; text-shadow:0 1px 6px rgba(0,0,0,.5)}
+  .vbadge{font-size:10px;font-weight:600;padding:3px 7px;border-radius:6px;background:rgba(0,0,0,.45);color:#fff;display:inline-flex;align-items:center;gap:4px;backdrop-filter:blur(3px)}
+  .vbadge .d{width:5px;height:5px;border-radius:50%;background:#fff}
+  .rcard .meta{padding:11px 12px 13px; display:flex; flex-direction:column; gap:8px}
+  .rcard .cr{display:flex; align-items:center; gap:8px}
+  .rcard .cr .av{width:22px;height:22px;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:10px;font-weight:600}
+  .rcard .cr b{font-size:12.5px}
+  .rcard .stats{display:flex; gap:12px; color:var(--muted); font-size:11.5px}
+  .rcard .stats span{display:inline-flex;align-items:center;gap:4px}
+  .rcard .stats .num{font-size:12px; color:var(--ink)}
+  .rcard .stats svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.7;opacity:.7}
+
+  /* table */
+  .tablewrap{overflow-x:auto; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow)}
+  table{border-collapse:collapse; width:100%; min-width:560px}
+  th,td{padding:11px 14px; text-align:left; font-size:13px; border-bottom:1px solid var(--border); white-space:nowrap}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); font-weight:600}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:var(--surface-2)}
+  td.mx{text-align:center; font-family:var(--mono); font-weight:500}
+  .cell{display:inline-grid; place-items:center; width:30px; height:24px; border-radius:6px; font-family:var(--mono); font-size:12px; font-weight:500}
+
+  .callout{display:flex; gap:12px; padding:13px 15px; border-radius:11px; align-items:flex-start}
+  .callout svg{width:18px;height:18px;flex:none;margin-top:1px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .callout .t{font-weight:600; font-size:13px}
+  .callout .s{font-size:12.5px; opacity:.85; margin-top:2px}
+  .c-warn{background:var(--warning-weak); color:var(--warning)}
+  .c-crit{background:var(--critical-weak); color:var(--critical)}
+  .callout .t,.callout .s{color:var(--ink)}
+
+  .two{display:grid; grid-template-columns:1.5fr 1fr; gap:18px}
+  .bars{display:flex; flex-direction:column; gap:10px; margin-top:4px}
+  .bar{display:grid; grid-template-columns:52px 1fr 42px; align-items:center; gap:10px; font-size:12px}
+  .bar .track{height:8px; background:var(--surface-3); border-radius:5px; overflow:hidden}
+  .bar .fill{height:100%; background:var(--accent); border-radius:5px}
+  .bar .pct{font-family:var(--mono); text-align:right; color:var(--muted)}
+
+  .donut-wrap{display:flex; align-items:center; gap:18px}
+  .legend{display:flex;flex-direction:column;gap:8px;font-size:12.5px}
+  .legend .it{display:flex;align-items:center;gap:8px}
+  .legend .sw{width:10px;height:10px;border-radius:3px}
+  .legend b{font-family:var(--mono);font-weight:500;margin-left:auto;padding-left:14px}
+
+  /* modal */
+  .backdrop{position:fixed; inset:0; background:rgba(8,14,13,.62); backdrop-filter:blur(4px); z-index:50; display:none; align-items:center; justify-content:center; padding:24px}
+  .backdrop.open{display:flex; animation:fade .2s ease}
+  .modal{background:var(--surface); border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow-lg); width:min(880px,100%); max-height:92vh; overflow:auto; display:grid; grid-template-columns:340px 1fr}
+  .player{background:#0b0f0e; position:relative; display:grid; place-items:center; min-height:440px}
+  .player .poster2{position:absolute; inset:0; display:grid; place-items:center; color:#fff}
+  .player .ov{position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.1),rgba(0,0,0,.55))}
+  .player .bigplay{position:relative; width:66px;height:66px;border-radius:50%;background:rgba(255,255,255,.2);border:1.5px solid rgba(255,255,255,.8);display:grid;place-items:center}
+  .player .bigplay svg{width:26px;height:26px;fill:#fff;margin-left:3px}
+  .player .prodtitle{position:absolute; left:16px; right:16px; bottom:46px; color:#fff; font-family:var(--display); font-weight:600; font-size:15px; text-shadow:0 1px 8px rgba(0,0,0,.6)}
+  .controls{position:absolute; left:14px; right:14px; bottom:12px; display:flex; align-items:center; gap:10px; color:#fff}
+  .controls .pbar{flex:1; height:4px; border-radius:3px; background:rgba(255,255,255,.28); overflow:hidden}
+  .controls .pfill{height:100%; width:0%; background:#fff; border-radius:3px}
+  .controls .tt{font-family:var(--mono); font-size:11px; opacity:.9}
+  .controls button{background:none;border:0;color:#fff;display:grid;place-items:center;padding:0}
+  .controls button svg{width:17px;height:17px;fill:#fff}
+  .mbody{padding:20px 22px; display:flex; flex-direction:column; gap:16px; min-width:0}
+  .mbody .close{position:absolute; top:14px; right:16px}
+  .mbody h3{font-size:16px}
+  .mgrid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:2px; background:var(--border); border-radius:11px; overflow:hidden}
+  .mgrid .m{background:var(--surface); padding:12px 13px}
+  .mgrid .m .l{font-size:11px; color:var(--faint); font-weight:500}
+  .mgrid .m .v{font-family:var(--mono); font-size:17px; font-weight:500; margin-top:4px}
+  .kv{display:flex; justify-content:space-between; font-size:12.5px; padding:5px 0; border-top:1px dashed var(--border)}
+  .kv span:first-child{color:var(--faint)}
+  .kv .num{font-weight:500}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:9px 14px;border-radius:9px;font-weight:600;font-size:13px;border:1px solid var(--border-strong);background:var(--surface);color:var(--ink)}
+  .btn:hover{background:var(--surface-2)}
+  .btn.acc{background:var(--accent); color:#06210F; border-color:transparent; font-weight:700}
+  .btn.acc:hover{background:var(--accent-ink)}
+  :root[data-theme="dark"] .btn.acc,:root:not([data-theme="light"]) .btn.acc{color:#052A10}
+  .btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+
+  .note{font-size:12px;color:var(--faint);display:flex;align-items:center;gap:7px;margin-top:4px}
+  .note svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7;flex:none}
+
+  .banner{display:flex;align-items:center;gap:10px;background:var(--accent-weak);color:var(--accent-ink);border:1px solid color-mix(in srgb,var(--accent) 30%,transparent);border-radius:11px;padding:10px 14px;font-size:12.5px;font-weight:500;margin-bottom:20px}
+  :root[data-theme="dark"] .banner,:root:not([data-theme="light"]) .banner{color:var(--accent)}
+  .banner svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none}
+
+  /* stepper */
+  .stepper{display:flex; align-items:center; gap:0; margin-top:12px}
+  .step{display:flex; align-items:center; gap:8px; flex:1; min-width:0}
+  .step .dot{width:22px;height:22px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--surface-3);color:var(--faint);border:1.5px solid var(--border)}
+  .step .lbl{font-size:11.5px; color:var(--faint); white-space:nowrap}
+  .step .line{flex:1; height:2px; background:var(--border); margin:0 6px; border-radius:2px}
+  .step.done .dot{background:var(--success); color:#fff; border-color:transparent}
+  .step.done .lbl{color:var(--ink); font-weight:600}
+  .step.done .line{background:var(--success)}
+  .step.now .dot{background:var(--accent); color:#fff; border-color:transparent; box-shadow:0 0 0 4px var(--accent-weak)}
+  .step.now .lbl{color:var(--accent-ink); font-weight:600}
+  :root[data-theme="dark"] .step.now .lbl,:root:not([data-theme="light"]) .step.now .lbl{color:var(--accent)}
+  .srow{padding:16px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow); margin-bottom:12px}
+  .srow .hd{display:flex; align-items:center; gap:12px}
+
+  /* form */
+  .field{display:flex; flex-direction:column; gap:6px; margin-bottom:14px}
+  .field > label{font-size:12px; font-weight:600; color:var(--muted)}
+  .field input,.field select,.field textarea{
+    font-family:var(--body); font-size:13.5px; padding:9px 11px; border-radius:9px;
+    border:1px solid var(--border-strong); background:var(--surface); color:var(--ink); width:100%;
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--accent); outline-offset:0; border-color:transparent}
+  .field .num{font-family:var(--mono)}
+  .checks{display:flex; flex-wrap:wrap; gap:8px}
+  .checks label{display:inline-flex; align-items:center; gap:7px; padding:8px 12px; border-radius:9px; border:1px solid var(--border-strong); font-size:12.5px; font-weight:500; cursor:pointer; user-select:none}
+  .checks label:has(input:checked){background:var(--accent-weak); border-color:var(--accent); color:var(--accent-ink)}
+  :root[data-theme="dark"] .checks label:has(input:checked),:root:not([data-theme="light"]) .checks label:has(input:checked){color:var(--accent)}
+  .checks input{accent-color:var(--accent)}
+  .form2{display:grid; grid-template-columns:1fr 1fr; gap:0 14px}
+  .modal.form{grid-template-columns:1fr; width:min(560px,100%)}
+  .modal.form .mbody{padding:24px}
+  .frow{display:flex; gap:10px; margin-top:6px}
+  .frow .btn{flex:1}
+
+  /* filter bar */
+  .filterbar{display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-bottom:18px}
+  .filterbar select,.filterbar input{
+    font-family:var(--body); font-size:13px; padding:8px 12px; border-radius:9px;
+    border:1px solid var(--border-strong); background:var(--surface); color:var(--ink); font-weight:500;
+  }
+  .filterbar select{padding-right:26px; cursor:pointer;
+    appearance:none;-webkit-appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23879591' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat; background-position:right 8px center; background-size:14px;}
+  .filterbar select:focus,.filterbar input:focus{outline:2px solid var(--accent); outline-offset:0; border-color:transparent}
+  .filterbar input{min-width:150px}
+  .filterbar .count{margin-left:auto; color:var(--faint); font-size:12.5px; font-family:var(--mono)}
+  .empty{grid-column:1/-1; padding:48px 20px; text-align:center; color:var(--faint); font-size:13.5px; border:1px dashed var(--border-strong); border-radius:var(--r)}
+
+  /* production schedule */
+  .schedrow{padding:14px 16px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow); margin-bottom:11px}
+  .schedrow .hd{display:flex; align-items:center; gap:12px; margin-bottom:12px}
+  .schedrow .hd .av{width:34px;height:34px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:600;font-family:var(--display);font-size:13px}
+  .schedrow .hd .t{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .schedrow .hd .s{color:var(--faint);font-size:12px;margin-top:1px}
+  .sgtrack{display:flex; flex-wrap:wrap; gap:7px}
+  .sgstage{display:inline-flex; align-items:center; gap:8px; padding:7px 11px; border-radius:9px; background:var(--surface-2); font-size:12px; border:1px solid transparent}
+  .sgstage .sgk{font-weight:600; color:var(--muted)}
+  .sgstage .sgd{font-family:var(--mono); color:var(--ink)}
+  .sgstage.done{background:var(--success-weak)} .sgstage.done .sgk,.sgstage.done .sgd{color:var(--success)}
+  .sgstage.now{background:var(--accent-weak); border-color:var(--accent)} .sgstage.now .sgk{color:var(--accent-ink)}
+  :root[data-theme="dark"] .sgstage.now .sgk,:root:not([data-theme="light"]) .sgstage.now .sgk{color:var(--accent)}
+  .btn.sm{padding:6px 11px; font-size:12px; flex:none}
+  /* quota stepper */
+  .qstep{display:inline-flex; align-items:center; border:1px solid var(--border-strong); border-radius:9px; overflow:hidden}
+  .qstep button{width:30px; height:32px; border:0; background:var(--surface-2); color:var(--ink); font-size:16px; line-height:1; display:grid; place-items:center}
+  .qstep button:hover{background:var(--surface-3)}
+  .qstep input{width:44px; height:32px; border:0; border-left:1px solid var(--border); border-right:1px solid var(--border); text-align:center; font-family:var(--mono); font-size:14px; background:var(--surface); color:var(--ink)}
+  .qstep input:focus{outline:2px solid var(--accent); outline-offset:-2px}
+  .assign-target{display:flex; align-items:center; gap:12px; padding:13px 16px; border-radius:var(--r); margin-bottom:14px; font-size:13px; font-weight:500}
+  .assign-target.ok{background:var(--success-weak); color:var(--success)}
+  .assign-target.over{background:var(--warning-weak); color:var(--warning)}
+  .assign-target b{font-family:var(--mono)}
+  .snsb{display:inline-block; font-size:9.5px; font-weight:700; padding:2px 5px; border-radius:5px; background:var(--surface-3); color:var(--muted); letter-spacing:.02em; text-decoration:none; cursor:pointer; transition:filter .15s, transform .1s}
+  a.snsb:hover{filter:brightness(1.06); transform:translateY(-1px); box-shadow:0 2px 6px -2px rgba(0,0,0,.3)}
+  .snsb.ig{background:var(--accent-weak); color:var(--accent-ink)}
+  :root[data-theme="dark"] .snsb.ig,:root:not([data-theme="light"]) .snsb.ig{color:var(--accent)}
+  td a:hover{text-decoration:underline!important}
+  .rate-in{width:100px; padding:6px 9px; border:1px solid var(--border-strong); border-radius:8px; background:var(--surface); color:var(--ink); font-family:var(--mono); font-size:13px}
+  .rate-in:focus{outline:2px solid var(--accent); outline-offset:-2px}
+  .conn-steps{display:flex;flex-direction:column;gap:12px}
+  .cstep{display:flex;gap:12px;align-items:flex-start}
+  .cstep .cn{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;background:var(--accent);color:#fff;font-family:var(--mono);font-size:12px;font-weight:600}
+  .cstep b{display:block;font-size:13px;margin-bottom:1px}
+  .cstep span{display:block;font-size:12px;color:var(--muted);line-height:1.5}
+  /* creator directory cards */
+  .avimg{display:inline-grid;place-items:center;overflow:hidden;flex:none;line-height:0}
+  .crgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
+  .crcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+  .crcard .top{display:flex;gap:12px;align-items:center}
+  .crcard .cav{width:46px;height:46px;border-radius:13px;flex:none;display:grid;place-items:center;color:#fff;font-weight:700;font-family:var(--display);font-size:18px}
+  .crcard .nm{font-weight:700;font-size:15px}
+  .crcard .hd{color:var(--faint);font-size:12px;font-family:var(--mono)}
+  .crcard .fol{margin-left:auto;text-align:right}
+  .crcard .fol b{font-family:var(--mono);font-size:18px;font-weight:600;display:block;line-height:1}
+  .crcard .fol small{color:var(--faint);font-size:10.5px}
+  .crcard .sns{display:flex;gap:5px;flex-wrap:wrap}
+  .crcard .tags{display:flex;gap:6px;flex-wrap:wrap}
+  .crcard .intro{font-size:12.5px;color:var(--muted);line-height:1.55}
+  .crcard .foot{display:flex;gap:8px;border-top:1px solid var(--border);padding-top:12px;margin-top:2px}
+  .perm{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12.5px;color:var(--ink)}
+  .perm svg{width:15px;height:15px;stroke:var(--success);fill:none;stroke-width:2.2;flex:none}
+  .spin{width:16px;height:16px;border:2px solid var(--border-strong);border-top-color:var(--accent);border-radius:50%;display:inline-block;animation:spin .7s linear infinite;vertical-align:-3px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .ai-card{display:flex;gap:12px;padding:13px 15px;border-radius:11px;background:var(--surface-2);margin-bottom:10px;animation:fade .3s ease}
+  .ai-card .ic{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;font-size:13px}
+  .ai-card .t{font-weight:600;font-size:13px}
+  .ai-card .s{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.5}
+  .ai-ok .ic{background:var(--success-weak);color:var(--success)} .ai-warn .ic{background:var(--warning-weak);color:var(--warning)}
+  .ai-crit .ic{background:var(--critical-weak);color:var(--critical)} .ai-info .ic{background:var(--accent-weak);color:var(--accent-ink)}
+  .synced{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--accent-ink); font-weight:600}
+  :root[data-theme="dark"] .synced,:root:not([data-theme="light"]) .synced{color:var(--accent)}
+  .synced svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
+
+  /* toast */
+  .toast{position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px); z-index:70;
+    background:var(--ink); color:var(--ground); padding:12px 18px; border-radius:11px; font-size:13px; font-weight:600;
+    box-shadow:var(--shadow-lg); opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; display:flex; align-items:center; gap:9px}
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+  .toast svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:2.2}
+
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:static; height:auto; flex-direction:row; overflow-x:auto; border-right:0; border-bottom:1px solid var(--border); align-items:center}
+    .sidebar .navlabel,.sidebar-foot{display:none}
+    .brandmark{padding:6px 8px}
+    .two{grid-template-columns:1fr}
+    .modal{grid-template-columns:1fr}
+    .player{min-height:300px}
+    .content{padding:18px}
+    .topbar{padding:12px 16px; flex-wrap:wrap}
+  }
+  /* login */
+  .login{position:fixed; inset:0; z-index:100; background:var(--ground); display:flex; align-items:center; justify-content:center; padding:24px}
+  .login-card{width:min(400px,100%); background:var(--surface); border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow-lg); padding:32px}
+  .login-card h2{font-size:22px; margin-top:16px}
+  .login-card .sub{color:var(--faint); font-size:12.5px; margin-top:4px; margin-bottom:22px; font-family:var(--mono)}
+  .login .brandmark{padding:0; margin:0}
+  .login .divider{display:flex; align-items:center; gap:12px; color:var(--faint); font-size:12px; margin:16px 0}
+  .login .divider::before,.login .divider::after{content:''; height:1px; background:var(--border); flex:1}
+  .login .btn{width:100%; margin-top:10px; justify-content:center}
+  .login .field{margin-bottom:6px}
+  .quick{margin-top:24px; padding-top:18px; border-top:1px solid var(--border)}
+  .qlabel{font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--faint); font-weight:600; margin-bottom:10px}
+  .quick .qrow{display:flex; gap:8px}
+  .quick .qrow button{flex:1; padding:10px 8px; border:1px solid var(--border-strong); border-radius:9px; background:var(--surface); color:var(--ink); font-size:12px; font-weight:600; display:flex; flex-direction:column; gap:3px; align-items:center; cursor:pointer}
+  .quick .qrow button:hover{background:var(--surface-2); border-color:var(--accent)}
+  .quick .qrow button small{color:var(--faint); font-weight:500; font-size:10.5px}
+  .logoutbtn{margin-left:auto}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+
+<!-- 로그인 화면 -->
+<div class="login" id="login">
+  <div class="login-card">
+    <div class="brandmark"><b class="logo">81'<span>DEGREE</span></b></div>
+    <h2 data-i18n="로그인">로그인</h2>
+    <div class="sub">creator-os.81degree.com</div>
+    <div id="loginForm">
+      <div class="field"><label for="loginEmail" data-i18n="이메일">이메일</label><input id="loginEmail" type="email" placeholder="name@company.com"></div>
+      <button class="btn acc" id="loginSend"><svg viewBox="0 0 24 24"><path d="M22 6l-10 7L2 6"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg><span data-i18n="로그인 링크 전송">로그인 링크 전송</span></button>
+      <div class="divider"><span data-i18n="또는">또는</span></div>
+      <button class="btn" id="loginGoogle"><svg viewBox="0 0 24 24" fill="none"><path d="M21 12.2c0-.6-.1-1.2-.2-1.8H12v3.4h5.1a4.4 4.4 0 0 1-1.9 2.9v2.4h3.1c1.8-1.7 2.7-4.1 2.7-6.9z" fill="currentColor"/><path d="M12 21c2.4 0 4.5-.8 6-2.2l-3.1-2.4c-.8.6-1.9.9-2.9.9-2.3 0-4.2-1.5-4.9-3.6H3.9v2.5A9 9 0 0 0 12 21z" fill="currentColor" opacity=".7"/><path d="M7.1 13.7a5.4 5.4 0 0 1 0-3.4V7.8H3.9a9 9 0 0 0 0 8.1z" fill="currentColor" opacity=".5"/><path d="M12 6.6c1.3 0 2.5.5 3.4 1.3l2.6-2.6A9 9 0 0 0 3.9 7.8l3.2 2.5C7.8 8.1 9.7 6.6 12 6.6z" fill="currentColor" opacity=".9"/></svg><span data-i18n="Google로 계속">Google로 계속</span></button>
+    </div>
+    <div id="loginSent" style="display:none">
+      <div class="callout" style="background:var(--accent-weak)"><svg viewBox="0 0 24 24" style="stroke:var(--accent)"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+        <div><div class="t" data-i18n="메일함을 확인하세요">메일함을 확인하세요</div><div class="s" id="loginSentTo"></div></div></div>
+      <button class="btn acc" id="loginOpen"><svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg><span data-i18n="로그인 링크 열기 (시뮬레이션)">로그인 링크 열기 (시뮬레이션)</span></button>
+      <button class="btn" id="loginBack" data-i18n="← 다른 이메일로">← 다른 이메일로</button>
+    </div>
+    <div class="quick">
+      <div class="qlabel" data-i18n="데모 빠른 로그인">데모 빠른 로그인</div>
+      <div class="qrow">
+        <button data-email="hmpark@81degree.com">관리자<small>81degree</small></button>
+        <button data-email="marketing@abib.com">브랜드<small>abib</small></button>
+        <button data-email="hina.creator@gmail.com">크리에이터<small>hina</small></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brandmark"><b class="logo">81'<span>DEGREE</span></b></div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot">
+      <div class="who">
+        <div class="av" id="whoav" style="background:#0E9E9A">A</div>
+        <div style="min-width:0"><div style="font-weight:600" id="whoname">ABIB 마케팅팀</div><small id="whorole">브랜드 담당자</small></div>
+        <button class="iconbtn logoutbtn" id="logoutBtn" title="로그아웃" aria-label="로그아웃"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="pageTitle">이번 달 대시보드</h1>
+        <div class="sub" id="pageSub">2026년 8월 · abib</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="roleswitch" id="roleswitch">
+        <button data-role="brand" class="active"><span class="dot"></span>브랜드</button>
+        <button data-role="creator"><span class="dot"></span>크리에이터</button>
+        <button data-role="admin"><span class="dot"></span>관리자</button>
+      </div>
+      <button class="iconbtn" id="langBtn" title="언어 전환" aria-label="언어 전환" style="width:auto;padding:0 12px;font-size:12.5px;font-weight:600">日本語</button>
+      <button class="iconbtn" id="themeBtn" title="테마 전환" aria-label="테마 전환">
+        <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+
+    <div class="content">
+      <!-- ============ BRAND ============ -->
+      <section class="view active" id="view-brand">
+        <div class="subtabs" data-group="brand">
+          <button class="active" data-pane="b-dash">대시보드</button>
+          <button data-pane="b-archive">콘텐츠 아카이브</button>
+          <button data-pane="b-creators">크리에이터별</button>
+          <button data-pane="b-roster">소속 크리에이터</button>
+          <button data-pane="b-secondary">2차 활용</button>
+        </div>
+
+        <div class="pane active" id="b-dash">
+          <div class="banner">
+            <svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>
+            자동 수집 기준 · 확정 성과는 게시 후 D+7 스냅샷입니다. 실시간 값과 다를 수 있어요.
+          </div>
+          <div class="grid-kpi" id="brandKpi"></div>
+          <div class="two">
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 12px"><h2>업로드 예정</h2><span class="hint">남은 8건 · 마감 임박순</span></div>
+              <div class="list" id="brandUpcoming"></div>
+            </div>
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 14px"><h2>이번 달 계약 진척</h2></div>
+              <div class="ring-wrap" style="margin-bottom:18px">
+                <div class="ring" id="brandRing" style="--p:0"><b id="brandRingTxt">0/0</b></div>
+                <div>
+                  <div style="font-weight:600" id="brandRingTitle">계약 진척</div>
+                  <div class="note" style="margin-top:6px" id="brandRingNote"><svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>이번 달 배정 기준</div>
+                </div>
+              </div>
+              <div class="list" id="brandCreatorMini"></div>
+            </div>
+          </div>
+          <div class="sec-h"><h2>이번 달 제작 일정</h2><span class="hint"><span class="synced"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>크리에이터 입력 실시간 반영</span></span></div>
+          <div id="brandSched"></div>
+        </div>
+
+        <div class="pane" id="b-archive">
+          <div class="sec-h" style="margin-top:0"><h2>콘텐츠 아카이브</h2><span class="hint">카드를 눌러 인앱 재생 · 원본 삭제돼도 유지</span></div>
+          <div class="filterbar" id="brandFilter"></div>
+          <div class="archive" id="brandArchive"></div>
+        </div>
+
+        <div class="pane" id="b-creators">
+          <div class="sec-h" style="margin-top:0"><h2>크리에이터별 성과</h2><span class="hint">행을 클릭하면 해당 크리에이터의 콘텐츠 아카이브로 이동</span></div>
+          <div class="filterbar" id="bCreatorFilter"></div>
+          <div class="tablewrap">
+            <table id="brandCreatorTable"><thead><tr>
+              <th>크리에이터</th><th>게시</th><th>총 조회</th><th>평균 저장률</th><th>평균 참여율</th><th>상태</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="pane" id="b-roster">
+          <div class="sec-h" style="margin-top:0"><h2>소속 크리에이터</h2><span class="hint">81degree 소속 · 협업 가능한 크리에이터</span></div>
+          <div class="filterbar" id="brandRosterFilter"></div>
+          <div class="crgrid" id="brandRoster"></div>
+        </div>
+
+        <div class="pane" id="b-secondary">
+          <div class="sec-h" style="margin-top:0"><h2>2차 활용 요청</h2><span class="hint">새 요청은 아카이브에서 콘텐츠를 열어 시작</span></div>
+          <div id="secondaryList"></div>
+        </div>
+      </section>
+
+      <!-- ============ CREATOR ============ -->
+      <section class="view" id="view-creator">
+        <div class="subtabs" data-group="creator">
+          <button class="active" data-pane="c-growth">내 계정 성장</button>
+          <button data-pane="c-content">내 콘텐츠</button>
+          <button data-pane="c-deals">PR 안건</button>
+          <button data-pane="c-revenue">PR 매출</button>
+          <button data-pane="c-todo">이번 달 할 일</button>
+        </div>
+
+        <div class="pane active" id="c-growth">
+          <div class="grid-kpi" id="creatorKpi"></div>
+          <div class="two">
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 6px"><h2>팔로워 추이</h2><span class="hint">최근 30일</span></div>
+              <div id="followerChart"></div>
+            </div>
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 14px"><h2>오디언스 · 성별</h2></div>
+              <div class="donut-wrap">
+                <div id="genderDonut"></div>
+                <div class="legend">
+                  <div class="it"><span class="sw" style="background:var(--accent)"></span>여성 <b class="num">72%</b></div>
+                  <div class="it"><span class="sw" style="background:var(--surface-3)"></span>남성 <b class="num">28%</b></div>
+                </div>
+              </div>
+              <div class="sec-h" style="margin:20px 0 8px"><h2>연령대</h2></div>
+              <div class="bars" id="ageBars"></div>
+            </div>
+          </div>
+          <div class="card pad" style="margin-top:18px">
+            <div class="sec-h" style="margin:0 0 12px"><h2>주요 지역</h2><span class="hint">creator_audience_snapshots</span></div>
+            <div class="row" id="regionChips"></div>
+          </div>
+          <div class="sec-h"><h2>내 콘텐츠 아카이브</h2><span class="hint">최근 게시물 · 클릭하면 재생</span></div>
+          <div class="archive" id="growthArchive"></div>
+        </div>
+
+        <div class="pane" id="c-deals">
+          <div class="sec-h" style="margin-top:0"><h2>내 PR 안건</h2><span class="hint">81degree가 진행 중인 내 안건 (관리자와 실시간 연동)</span></div>
+          <div id="creatorDeals"></div>
+        </div>
+
+        <div class="pane" id="c-revenue">
+          <div class="sec-h" style="margin-top:0"><h2>PR 매출 · 내 정산</h2><span class="hint">계약 성사 이상 안건의 내 쉐어</span></div>
+          <div class="grid-kpi" id="creatorRevKpi"></div>
+          <div class="tablewrap">
+            <table id="creatorRevTable"><thead><tr>
+              <th>안건</th><th>유형</th><th>PR 비용</th><th>내 쉐어</th><th>내 정산</th><th>상태</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+          <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>정산은 계약 성사(4단계) 이후 안건 기준입니다.</div>
+        </div>
+
+        <div class="pane" id="c-content">
+          <div class="sec-h" style="margin-top:0"><h2>내 콘텐츠</h2><span class="hint">PR 콘텐츠 · 개인 콘텐츠 구분 표시</span></div>
+          <div class="filterbar" id="creatorFilter"></div>
+          <div class="archive" id="creatorArchive"></div>
+        </div>
+
+        <div class="pane" id="c-todo">
+          <div class="card pad">
+            <div class="ring-wrap" style="margin-bottom:6px">
+              <div class="ring" id="creatorRing" style="--p:0"><b id="creatorRingTxt">0/0</b></div>
+              <div>
+                <div style="font-weight:600; font-size:15px" id="creatorTodoTitle">이번 달 배정</div>
+                <div class="note" style="margin-top:6px" id="creatorTodoNote"><svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>관리자가 배정한 브랜드별 편수입니다</div>
+              </div>
+            </div>
+          </div>
+          <div class="sec-h"><h2>제작 일정</h2><span class="hint">기획·촬영·편집·업로드 예정일 입력 → 브랜드·관리자와 자동 공유</span></div>
+          <div id="creatorSched"></div>
+          <div class="sec-h"><h2>브랜드별 진행</h2></div>
+          <div class="list card pad" id="creatorTodo"></div>
+        </div>
+      </section>
+
+      <!-- ============ ADMIN ============ -->
+      <section class="view" id="view-admin">
+        <div class="subtabs" data-group="admin">
+          <button class="active" data-pane="a-matrix">브랜드×크리에이터</button>
+          <button data-pane="a-assign">배정 관리</button>
+          <button data-pane="a-deals">PR 안건</button>
+          <button data-pane="a-revenue">매출 대시보드</button>
+          <button data-pane="a-insights">크리에이터 인사이트</button>
+          <button data-pane="a-roster">크리에이터 관리</button>
+          <button data-pane="a-cost">비용 관리</button>
+          <button data-pane="a-accounts">계정·권한</button>
+          <button data-pane="a-archive">콘텐츠 아카이브</button>
+          <button data-pane="a-risk">계약 리스크</button>
+          <button data-pane="a-conn">연동 상태</button>
+        </div>
+
+        <div class="pane active" id="a-matrix">
+          <div class="grid-kpi" id="adminKpi"></div>
+          <div class="sec-h"><h2>이행률 매트릭스</h2><span class="hint">완료 / 배정 · 셀을 눌러 배정 편집</span></div>
+          <div class="filterbar"><select id="matrixMonth"></select></div>
+          <div class="tablewrap">
+            <table id="matrix"><thead></thead><tbody></tbody></table>
+          </div>
+          <div class="sec-h"><h2>제작 일정 (전체)</h2><span class="hint"><span class="synced"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>단일 원본 동기화</span></span></div>
+          <div id="adminSched"></div>
+        </div>
+
+        <div class="pane" id="a-assign">
+          <div class="sec-h" style="margin-top:0"><h2>월별 배정 관리</h2><span class="hint">브랜드 계약 편수를 크리에이터별로 배분 · 모든 화면에 반영</span></div>
+          <div class="filterbar">
+            <select id="assignMonth"></select>
+            <select id="assignBrand"></select>
+            <span class="count" id="assignSum"></span>
+          </div>
+          <div id="assignEditor"></div>
+        </div>
+
+        <div class="pane" id="a-deals">
+          <div class="sec-h" style="margin-top:0">
+            <h2>PR 안건 관리</h2>
+            <button class="btn acc sm" id="dealAdd"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>안건 추가</button>
+          </div>
+          <div class="filterbar" id="dealFilter"></div>
+          <div id="dealList"></div>
+        </div>
+
+        <div class="pane" id="a-revenue">
+          <div class="sec-h" style="margin-top:0"><h2>매출 대시보드</h2><span class="hint">① ah!channel PR ② 브랜드 월계약 ③ 개별 PR</span></div>
+          <div class="grid-kpi" id="revKpi"></div>
+          <div class="two">
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 12px"><h2>브랜드 월 계약 매출</h2><span class="hint">건당 ¥500,000</span></div>
+              <div class="bars" id="revBrandBars"></div>
+            </div>
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 12px"><h2>크리에이터별 PR 회사매출</h2><span class="hint">계약 성사 이상</span></div>
+              <div class="bars" id="revBars"></div>
+            </div>
+          </div>
+          <div class="sec-h"><h2>크리에이터별 기여 손익</h2><span class="hint">브랜드계약 배정 + PR 회사매출 − 고정비</span></div>
+          <div class="tablewrap">
+            <table id="revTable"><thead><tr>
+              <th>크리에이터</th><th>브랜드계약 배정</th><th>PR 회사매출</th><th>월 고정비</th><th>기여이익</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+          <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>브랜드 월 계약비(건당 ¥500,000)가 크리에이터 고정비를 상쇄하는 구조입니다.</div>
+        </div>
+
+        <div class="pane" id="a-insights">
+          <div class="sec-h" style="margin-top:0"><h2>크리에이터 인사이트</h2><span class="hint"><span class="synced"><svg viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg>Meta 연동 데이터</span></span></div>
+          <div class="filterbar"><select id="insightCreator"></select></div>
+          <div class="grid-kpi" id="insightKpi"></div>
+          <div class="two">
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 6px"><h2>팔로워 추이</h2><span class="hint" id="insightGrowthHint"></span></div>
+              <div id="insightGrowth"></div>
+            </div>
+            <div class="card pad">
+              <div class="sec-h" style="margin:0 0 14px"><h2>오디언스 형성</h2></div>
+              <div id="insightAudience"></div>
+            </div>
+          </div>
+          <div class="card pad" style="margin-top:18px">
+            <div class="sec-h" style="margin:0 0 12px"><h2>✨ AI 성장 코치</h2><button class="btn acc sm" id="aiRun"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z"/></svg>분석 실행</button></div>
+            <div id="aiOutput"><div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>‘분석 실행’을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.</div></div>
+          </div>
+        </div>
+
+        <div class="pane" id="a-roster">
+          <div class="sec-h" style="margin-top:0">
+            <h2>크리에이터 관리</h2>
+            <button class="btn acc sm" id="rosterAdd"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>크리에이터 추가</button>
+          </div>
+          <div class="filterbar" id="rosterFilter"></div>
+          <div class="tablewrap">
+            <table id="rosterTable"><thead><tr>
+              <th>PIC</th><th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th>
+              <th>카테고리</th><th>톤</th><th>담당 브랜드</th><th>월 계약수량</th>
+              <th>계약일</th><th>활동 시작</th><th></th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+
+        <div class="pane" id="a-cost">
+          <div class="sec-h" style="margin-top:0"><h2>크리에이터 PR 비용</h2><span class="hint">크리에이터별 단가 · 셀에 직접 입력하면 저장</span></div>
+          <div class="tablewrap">
+            <table id="costTable"><thead><tr>
+              <th>크리에이터</th><th>릴스 1건당</th><th>2차 활용</th><th>오프라인 방문 PR</th><th>기타</th>
+              <th>월 고정비</th><th>월 계약수량</th><th>월 예상(릴스)</th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+          <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>‘월 예상(릴스)’ = 릴스 단가 × 월 계약 수량. 2차 활용·오프라인은 발생 시 별도 정산.</div>
+        </div>
+
+        <div class="pane" id="a-accounts">
+          <div class="sec-h" style="margin-top:0">
+            <h2>계정·권한</h2>
+            <button class="btn acc sm" id="acctInvite"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>계정 초대</button>
+          </div>
+          <div class="filterbar" id="acctFilter"></div>
+          <div class="tablewrap">
+            <table id="acctTable"><thead><tr>
+              <th>이메일</th><th>역할</th><th>소속</th><th>상태</th><th>마지막 로그인</th><th></th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+          <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>초대 시 이메일 매직링크 발송 → 수락하면 역할·소속에 맞춰 데이터가 자동 격리됩니다(RLS). 권한 변경은 감사 로그에 기록.</div>
+        </div>
+
+        <div class="pane" id="a-archive">
+          <div class="sec-h" style="margin-top:0"><h2>전체 콘텐츠 아카이브</h2><span class="hint">모든 브랜드 · 크리에이터</span></div>
+          <div class="filterbar" id="adminFilter"></div>
+          <div class="archive" id="adminArchive"></div>
+        </div>
+
+        <div class="pane" id="a-risk">
+          <div class="sec-h" style="margin-top:0"><h2>계약 리스크 알림</h2><span class="hint">잔여일 대비 진척 부진 자동 플래그</span></div>
+          <div style="display:flex; flex-direction:column; gap:10px" id="riskList"></div>
+        </div>
+
+        <div class="pane" id="a-conn">
+          <div class="sec-h" style="margin-top:0"><h2>SNS 계정 연동</h2><span class="hint">Instagram(Meta) Graph API · check_token_health 1일 1회</span></div>
+
+          <div class="card pad" style="margin-bottom:18px">
+            <div style="display:flex;gap:14px;flex-wrap:wrap">
+              <div style="flex:1;min-width:240px">
+                <div style="font-weight:700;font-size:14px;margin-bottom:10px" data-i18n="연동 방법 (4단계)">연동 방법 (4단계)</div>
+                <div class="conn-steps">
+                  <div class="cstep"><span class="cn">1</span><div><b data-i18n="연동 요청 발송">연동 요청 발송</b><span data-i18n="관리자가 크리에이터에게 연동 링크를 보냅니다.">관리자가 크리에이터에게 연동 링크를 보냅니다.</span></div></div>
+                  <div class="cstep"><span class="cn">2</span><div><b data-i18n="Instagram 로그인·동의">Instagram 로그인·동의</b><span data-i18n="크리에이터가 링크를 열어 Instagram 계정으로 로그인하고 권한을 허용합니다.">크리에이터가 링크를 열어 Instagram 계정으로 로그인하고 권한을 허용합니다.</span></div></div>
+                  <div class="cstep"><span class="cn">3</span><div><b data-i18n="토큰 저장">토큰 저장</b><span data-i18n="시스템이 액세스 토큰을 암호화해 저장하고 상태가 ‘활성’이 됩니다.">시스템이 액세스 토큰을 암호화해 저장하고 상태가 ‘활성’이 됩니다.</span></div></div>
+                  <div class="cstep"><span class="cn">4</span><div><b data-i18n="자동 수집 시작">자동 수집 시작</b><span data-i18n="이후 릴스·지표·오디언스가 매일 자동 수집됩니다.">이후 릴스·지표·오디언스가 매일 자동 수집됩니다.</span></div></div>
+                </div>
+              </div>
+              <div style="width:280px;min-width:220px">
+                <div class="callout c-warn" style="margin-bottom:10px"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+                  <div><div class="t" data-i18n="사전 준비">사전 준비</div><div class="s" data-i18n="Instagram이 ‘비즈니스/크리에이터’ 계정이어야 하고 Facebook 페이지에 연결돼 있어야 인사이트를 가져올 수 있습니다.">Instagram이 ‘비즈니스/크리에이터’ 계정이어야 하고 Facebook 페이지에 연결돼 있어야 인사이트를 가져올 수 있습니다.</div></div></div>
+                <div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg><span data-i18n="토큰은 60일 후 만료되며 만료 전 자동으로 재연동을 안내합니다.">토큰은 60일 후 만료되며 만료 전 자동으로 재연동을 안내합니다.</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tablewrap">
+            <table id="connTable"><thead><tr>
+              <th>크리에이터</th><th>IG 핸들</th><th>연동일</th><th>토큰 만료</th><th>상태</th><th></th>
+            </tr></thead><tbody></tbody></table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- modal -->
+<div class="backdrop" id="backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="콘텐츠 재생">
+    <div class="player" id="mPlayer">
+      <div class="poster2" id="mPoster"><div class="ov"></div><div class="bigplay" id="bigPlay"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div></div>
+      <div class="prodtitle" id="mProd"></div>
+      <div class="controls">
+        <button id="ppBtn" aria-label="재생"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>
+        <span class="tt" id="tCur">0:00</span>
+        <div class="pbar"><div class="pfill" id="pfill"></div></div>
+        <span class="tt" id="tDur">0:24</span>
+      </div>
+    </div>
+    <div class="mbody">
+      <button class="iconbtn close" id="mClose" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px" id="mChips"></div>
+        <h3 id="mTitle"></h3>
+        <div class="note" style="margin-top:6px"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 2v4M16 2v4"/></svg><span id="mDate"></span></div>
+      </div>
+      <div class="mgrid" id="mMetrics"></div>
+      <div>
+        <div class="kv"><span>참여율 (ENG%)</span><span class="num" id="mEng"></span></div>
+        <div class="kv"><span>저장률 (Save%)</span><span class="num" id="mSave"></span></div>
+        <div class="kv"><span>도달률 (Reach%)</span><span class="num" id="mReach"></span></div>
+        <div class="kv"><span>아카이브 상태</span><span id="mVstat"></span></div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:2px; flex-wrap:wrap">
+        <button class="btn acc" id="mPlayBtn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>아카이브 재생</button>
+        <a class="btn" id="mPermalink" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M10 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/></svg>원본 게시물</a>
+        <button class="btn" id="mSecBtn"><svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>2차 활용 요청</button>
+      </div>
+      <div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>영상은 permalink에서 자동 다운로드 후 우리 스토리지에 보관됩니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- 2차 활용 요청 폼 -->
+<div class="backdrop" id="secBackdrop">
+  <div class="modal form" role="dialog" aria-modal="true" aria-label="2차 활용 요청">
+    <div class="mbody">
+      <button class="iconbtn close" id="secClose" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div>
+        <h3>2차 활용 요청</h3>
+        <div class="note" style="margin-top:6px" id="secFor"></div>
+      </div>
+
+      <div class="field">
+        <label for="secScope">활용 범위</label>
+        <select id="secScope">
+          <option value="광고 소재">광고 소재 (유료 광고)</option>
+          <option value="자사 SNS 리그램">자사 SNS 리그램</option>
+          <option value="오프라인 매장">오프라인 매장 (매장 영상)</option>
+          <option value="자사몰/웹">자사몰 / 웹사이트</option>
+          <option value="기타">기타</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>노출 채널 (복수 선택)</label>
+        <div class="checks" id="secChannels">
+          <label><input type="checkbox" value="Instagram" checked>Instagram</label>
+          <label><input type="checkbox" value="TikTok">TikTok</label>
+          <label><input type="checkbox" value="YouTube">YouTube</label>
+          <label><input type="checkbox" value="자사몰">자사몰</label>
+          <label><input type="checkbox" value="오프라인">오프라인 매장</label>
+        </div>
+      </div>
+
+      <div class="form2">
+        <div class="field"><label for="secStart">사용 시작</label><input type="date" id="secStart" class="num" value="2026-09-01"></div>
+        <div class="field"><label for="secEnd">사용 종료</label><input type="date" id="secEnd" class="num" value="2026-12-01"></div>
+      </div>
+
+      <div class="field"><label for="secFee">제안 비용 (¥)</label><input type="number" id="secFee" class="num" placeholder="예: 500000" value="500000"></div>
+      <div class="field"><label for="secNote">비고 (선택)</label><textarea id="secNote" rows="2" placeholder="활용 맥락, 요청 사유 등"></textarea></div>
+
+      <div class="callout c-warn" style="margin-top:2px">
+        <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div><div class="t">크리에이터 동의가 있어야 승인됩니다</div><div class="s">요청 → 81degree 검토 → 크리에이터 동의 → 승인 순으로 진행돼요.</div></div>
+      </div>
+
+      <div class="frow">
+        <button class="btn" id="secCancel">취소</button>
+        <button class="btn acc" id="secSubmit"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>요청 보내기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 제작 일정 편집 -->
+<div class="backdrop" id="schedBackdrop">
+  <div class="modal form" role="dialog" aria-modal="true" aria-label="제작 일정 편집">
+    <div class="mbody">
+      <button class="iconbtn close" id="schedCloseX" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div>
+        <h3>제작 일정 편집</h3>
+        <div class="note" style="margin-top:6px" id="schedFor"></div>
+      </div>
+      <div class="form2">
+        <div class="field"><label for="schPlan">기획</label><input type="date" id="schPlan" class="num"></div>
+        <div class="field"><label for="schShoot">촬영</label><input type="date" id="schShoot" class="num"></div>
+        <div class="field"><label for="schEdit">편집</label><input type="date" id="schEdit" class="num"></div>
+        <div class="field"><label for="schUpload">업로드 예정</label><input type="date" id="schUpload" class="num"></div>
+      </div>
+      <div class="callout" style="background:var(--accent-weak);margin-top:2px">
+        <svg viewBox="0 0 24 24" style="stroke:var(--accent)"><path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <div><div class="t">저장하면 브랜드·관리자 화면에 즉시 반영됩니다</div><div class="s">일정은 하나의 원본(DB)에 저장돼 모든 뷰가 같은 값을 봅니다.</div></div>
+      </div>
+      <div class="frow">
+        <button class="btn" id="schedCancel">취소</button>
+        <button class="btn acc" id="schedSave"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 크리에이터 추가/수정 -->
+<div class="backdrop" id="rosterBackdrop">
+  <div class="modal form" role="dialog" aria-modal="true" aria-label="크리에이터 관리">
+    <div class="mbody">
+      <button class="iconbtn close" id="rosterCloseX" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div><h3 id="rosterTitle">크리에이터 추가</h3></div>
+      <div class="field">
+        <label data-i18n="프로필 사진">프로필 사진</label>
+        <div style="display:flex;align-items:center;gap:12px">
+          <span id="rPhotoPrev" class="avimg" style="width:56px;height:56px;border-radius:15px"></span>
+          <label class="btn sm" style="cursor:pointer;margin:0"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="사진 업로드">사진 업로드</span><input type="file" id="rPhoto" accept="image/*" style="display:none"></label>
+          <button type="button" class="btn sm" id="rPhotoClear" data-i18n="제거">제거</button>
+        </div>
+      </div>
+      <div class="form2">
+        <div class="field"><label for="rName">크리에이터명</label><input id="rName" placeholder="예: hina"></div>
+        <div class="field"><label for="rPic">담당 PIC (번호)</label><input id="rPic" type="number" class="num" placeholder="예: 20"></div>
+        <div class="field"><label for="rHandle">인스타 핸들</label><input id="rHandle" placeholder="@handle"></div>
+        <div class="field"><label for="rFollowers">팔로워</label><input id="rFollowers" type="number" class="num" placeholder="예: 50000"></div>
+        <div class="field"><label for="rStatus">상태</label><select id="rStatus"><option>활동중</option><option>계약준비</option><option>보류</option></select></div>
+        <div class="field"><label for="rCategory">주력 카테고리</label><input id="rCategory" placeholder="예: 스킨케어"></div>
+        <div class="field"><label for="rTone">콘텐츠 톤</label><input id="rTone" placeholder="예: 데일리"></div>
+        <div class="field"><label for="rMonth">월 계약 수량</label><input id="rMonth" type="number" class="num" placeholder="예: 8"></div>
+        <div class="field"><label for="rContract">계약일</label><input id="rContract" type="date" class="num"></div>
+        <div class="field"><label for="rStart">활동 시작일</label><input id="rStart" type="date" class="num"></div>
+      </div>
+      <div class="field">
+        <label>담당 브랜드</label>
+        <div class="checks" id="rBrands"></div>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:2px">추가 SNS 계정 (인스타는 위 핸들)</div>
+      <div class="form2">
+        <div class="field"><label for="rYoutube">유튜브</label><input id="rYoutube" placeholder="@channel"></div>
+        <div class="field"><label for="rTiktok">틱톡</label><input id="rTiktok" placeholder="@handle"></div>
+        <div class="field"><label for="rX">X (트위터)</label><input id="rX" placeholder="@handle"></div>
+        <div class="field"><label for="rLine">라인 ID</label><input id="rLine" placeholder="line id"></div>
+      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin:6px 0 2px">PR 단가 (¥)</div>
+      <div class="form2">
+        <div class="field"><label for="rReels">릴스 1건당</label><input id="rReels" type="number" class="num" placeholder="0"></div>
+        <div class="field"><label for="rSecondary">2차 활용</label><input id="rSecondary" type="number" class="num" placeholder="0"></div>
+        <div class="field"><label for="rOffline">오프라인 방문 PR</label><input id="rOffline" type="number" class="num" placeholder="0"></div>
+        <div class="field"><label for="rEtc">기타</label><input id="rEtc" type="number" class="num" placeholder="0"></div>
+        <div class="field"><label for="rFixed">월 고정비</label><input id="rFixed" type="number" class="num" placeholder="0"></div>
+      </div>
+      <div class="frow">
+        <button class="btn" id="rosterDelete" style="display:none;color:var(--critical);border-color:var(--critical)">삭제</button>
+        <button class="btn" id="rosterCancel">취소</button>
+        <button class="btn acc" id="rosterSave"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PR 안건 추가/수정 -->
+<div class="backdrop" id="dealBackdrop">
+  <div class="modal form" role="dialog" aria-modal="true" aria-label="PR 안건">
+    <div class="mbody">
+      <button class="iconbtn close" id="dealCloseX" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div><h3 id="dealTitle">PR 안건 추가</h3></div>
+      <div class="field"><label for="dTitle">안건명</label><input id="dTitle" placeholder="예: 資生堂 신제품 언박싱"></div>
+      <div class="field"><label for="dBrief">요청사 콘텐츠 브리핑</label><textarea id="dBrief" rows="3" placeholder="요청 회사가 준 콘텐츠 방향·필수 요소 (제품, 강조점, 해시태그, 길이 등)"></textarea></div>
+      <div class="form2">
+        <div class="field"><label for="dType">안건 유형</label><select id="dType"><option value="ahchannel">ah!channel 인입</option><option value="creator">크리에이터 개별</option></select></div>
+        <div class="field"><label for="dClient">의뢰 회사</label><input id="dClient" placeholder="예: 資生堂"></div>
+        <div class="field"><label for="dCreator">크리에이터</label><select id="dCreator"></select></div>
+        <div class="field"><label for="dManager">담당 매니저</label><select id="dManager"><option value="mai">mai</option><option value="yuta">yuta</option></select></div>
+        <div class="field"><label for="dSource">인입 경로</label><select id="dSource"><option value="creator_email">크리에이터 이메일</option><option value="creator_dm">인스타 DM</option><option value="company_email">회사 이메일</option></select></div>
+        <div class="field"><label for="dFee">PR 비용 (¥)</label><input id="dFee" type="number" class="num" placeholder="1000000"></div>
+        <div class="field"><label for="dStep">진행 단계</label><select id="dStep"></select></div>
+        <div class="field"><label for="dShareC">회사 쉐어 (%)</label><input id="dShareC" type="number" class="num" value="50"></div>
+        <div class="field"><label for="dShareR">크리에이터 쉐어 (%)</label><input id="dShareR" type="number" class="num" value="50"></div>
+        <div class="field"><label for="dDue">콘텐츠 납기일</label><input id="dDue" type="date" class="num"></div>
+        <div class="field"><label for="dUpload">업로드 일자</label><input id="dUpload" type="date" class="num"></div>
+      </div>
+      <div class="frow">
+        <button class="btn" id="dealDelete" style="display:none;color:var(--critical);border-color:var(--critical)">삭제</button>
+        <button class="btn" id="dealCancel">취소</button>
+        <button class="btn acc" id="dealSave"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 계정 초대/수정 -->
+<div class="backdrop" id="acctBackdrop">
+  <div class="modal form" role="dialog" aria-modal="true" aria-label="계정 초대">
+    <div class="mbody">
+      <button class="iconbtn close" id="acctCloseX" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div><h3 id="acctTitle">계정 초대</h3></div>
+      <div class="field"><label for="aEmail">이메일</label><input id="aEmail" type="email" placeholder="name@company.com"></div>
+      <div class="form2">
+        <div class="field"><label for="aRole">역할</label><select id="aRole"><option value="admin">관리자 (81degree)</option><option value="brand">브랜드</option><option value="creator">크리에이터</option></select></div>
+        <div class="field"><label for="aScope">소속</label><select id="aScope"></select></div>
+      </div>
+      <div class="callout" style="background:var(--accent-weak);margin-top:2px">
+        <svg viewBox="0 0 24 24" style="stroke:var(--accent)"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div><div class="t" id="aScopeNote">역할에 따라 볼 수 있는 데이터가 자동 격리됩니다</div></div>
+      </div>
+      <div class="frow">
+        <button class="btn" id="acctDelete" style="display:none;color:var(--critical);border-color:var(--critical)">삭제</button>
+        <button class="btn" id="acctCancel">취소</button>
+        <button class="btn acc" id="acctSave"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span id="acctSaveTxt">초대 보내기</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SNS 연동 (OAuth 시뮬레이션) -->
+<div class="backdrop" id="connBackdrop">
+  <div class="modal form" role="dialog" aria-modal="true" aria-label="SNS 계정 연동">
+    <div class="mbody">
+      <button class="iconbtn close" id="connCloseX" aria-label="닫기"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <div><h3 data-i18n="Instagram 계정 연동">Instagram 계정 연동</h3><div class="note" style="margin-top:6px" id="connFor"></div></div>
+
+      <div id="connStep1">
+        <div class="callout" style="background:var(--surface-2)"><svg viewBox="0 0 24 24" style="stroke:var(--muted)"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>
+          <div><div class="t" data-i18n="연동 요청 링크를 크리에이터에게 발송합니다">연동 요청 링크를 크리에이터에게 발송합니다</div><div class="s" data-i18n="크리에이터가 링크를 열어 본인 Instagram 계정으로 직접 허용합니다.">크리에이터가 링크를 열어 본인 Instagram 계정으로 직접 허용합니다.</div></div></div>
+        <div class="frow" style="margin-top:14px">
+          <button class="btn" id="connSendLink"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg><span data-i18n="연동 요청 발송">연동 요청 발송</span></button>
+          <button class="btn acc" id="connSimulate"><svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg><span data-i18n="지금 연동 (시뮬레이션)">지금 연동 (시뮬레이션)</span></button>
+        </div>
+      </div>
+
+      <div id="connStep2" style="display:none">
+        <div style="text-align:center;padding:14px 0">
+          <div style="width:56px;height:56px;border-radius:16px;margin:0 auto 14px;display:grid;place-items:center;background:linear-gradient(135deg,#F58529,#DD2A7B,#8134AF);color:#fff">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="#fff" stroke="none"/></svg>
+          </div>
+          <div style="font-weight:700;font-size:15px" data-i18n="creatorOS가 접근을 요청합니다">creatorOS가 접근을 요청합니다</div>
+          <div class="note" style="justify-content:center;margin-top:6px" id="connHandle2"></div>
+        </div>
+        <div style="background:var(--surface-2);border-radius:11px;padding:14px 16px;font-size:13px">
+          <div style="font-weight:600;margin-bottom:8px" data-i18n="요청 권한">요청 권한</div>
+          <div class="perm"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="프로필·팔로워 정보 조회">프로필·팔로워 정보 조회</span></div>
+          <div class="perm"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="게시물(릴스)·미디어 조회">게시물(릴스)·미디어 조회</span></div>
+          <div class="perm"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="인사이트(조회·도달·저장 등) 조회">인사이트(조회·도달·저장 등) 조회</span></div>
+        </div>
+        <div class="frow" style="margin-top:14px">
+          <button class="btn" id="connDeny" data-i18n="거부">거부</button>
+          <button class="btn acc" id="connAllow"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="Instagram으로 허용">Instagram으로 허용</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span id="toastMsg"></span></div>
+
+<script>
+/* ---------- palette for avatars/posters ---------- */
+const BRAND_COLOR = {
+  abib:'#0E9E9A', naming:'#E0518A', amuse:'#F0A93B', vidivici:'#6C5CE7', whipped:'#F06595'
+};
+const DEAL_PALETTE=['#3B7DD8','#D8683B','#8E5BE0','#2FA36B','#C0417A','#B8862B','#2C8FB0'];
+function shash(s){let h=0; s=s||''; for(let i=0;i<s.length;i++)h=s.charCodeAt(i)+((h<<5)-h); return Math.abs(h);}
+function bcolor(b){ return BRAND_COLOR[b] || DEAL_PALETTE[shash(b)%DEAL_PALETTE.length]; }
+/* 크리에이터 얼굴 아바타 (이름 기반 생성 · 실서비스에선 IG profile_picture_url로 교체) */
+const AV_SKIN=['#F3C9A8','#EAB78E','#D89A6E','#F0D3B4','#C88C5E'];
+const AV_HAIR=['#2B2320','#43301F','#6B4A2A','#141414','#7A4B22','#9A6B3B'];
+const AV_BG=['#DCE7EA','#E7DEF0','#F0DEE8','#DEF0E4','#F0EAD6','#E4E9F2'];
+const AV_SHIRT=['#8FA3B8','#B89A8F','#9AB8A0','#C0A0B0','#A0A6C4','#C7B189'];
+function avatarSVG(name,size){
+  const h=shash(name);
+  const skin=AV_SKIN[h%AV_SKIN.length], hair=AV_HAIR[(h>>2)%AV_HAIR.length], bg=AV_BG[(h>>4)%AV_BG.length], shirt=AV_SHIRT[(h>>3)%AV_SHIRT.length];
+  const style=h%3;
+  const hairShape = style===0
+    ? `<path d="M27 50 Q26 22 50 22 Q74 22 73 50 Q73 35 50 33 Q27 35 27 50 Z" fill="${hair}"/>`
+    : style===1
+    ? `<path d="M25 66 Q23 22 50 21 Q77 22 75 66 L67 66 Q70 40 50 38 Q30 40 33 66 Z" fill="${hair}"/>`
+    : `<path d="M25 74 Q21 22 50 21 Q79 22 75 74 L65 74 Q70 44 50 42 Q30 44 35 74 Z" fill="${hair}"/>`;
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="display:block">
+    <rect width="100" height="100" fill="${bg}"/>
+    <path d="M20 100 Q20 73 50 73 Q80 73 80 100 Z" fill="${shirt}"/>
+    <circle cx="50" cy="51" r="20" fill="${skin}"/>
+    ${hairShape}
+    <ellipse cx="43" cy="51" rx="2.1" ry="2.9" fill="#3A2E2A"/>
+    <ellipse cx="57" cy="51" rx="2.1" ry="2.9" fill="#3A2E2A"/>
+    <path d="M44 59 Q50 64 56 59" stroke="#B26A52" stroke-width="2" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+function creatorPhoto(name){const c=CREATORS.find(x=>x.name===name); return c&&c.photo?c.photo:null;}
+function avatarEl(name,size,radius){
+  const r=radius||Math.round(size*0.28); const p=creatorPhoto(name);
+  const inner = p? `<img src="${p}" alt="" style="width:${size}px;height:${size}px;object-fit:cover;display:block">` : avatarSVG(name,size);
+  return `<span class="avimg" style="width:${size}px;height:${size}px;border-radius:${r}px">${inner}</span>`;
+}
+const grad = c => `linear-gradient(150deg, ${c}, ${shade(c,-28)})`;
+function shade(hex,amt){let n=parseInt(hex.slice(1),16);let r=(n>>16)+amt,g=(n>>8&255)+amt,b=(n&255)+amt;
+  r=Math.max(0,Math.min(255,r));g=Math.max(0,Math.min(255,g));b=Math.max(0,Math.min(255,b));
+  return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
+const initial = s => s[0].toUpperCase();
+const fmt = n => n.toLocaleString('en-US');
+const kfmt = n => n>=1000? (n/1000).toFixed(n>=100000?0:1).replace(/\.0$/,'')+'K' : ''+n;
+
+/* ---------- data (from the live sheet) ---------- */
+const ALL_BRANDS=['abib','naming','vidivici','amuse','whipped'];
+const CREATORS = [
+  {pic:1, name:'merumi', handle:'@merumichandayo', followers:27000,  status:'활동중',   category:'스킨케어', tone:'에디토리얼', brands:['abib','naming','vidivici','amuse','whipped'], month:10, token:'active',  linked:'2026-05-20'},
+  {pic:2, name:'hina',   handle:'@hinamiru',       followers:140000, status:'활동중',   category:'데일리',   tone:'데일리',    brands:['abib','naming','vidivici','amuse','whipped'], month:8,  token:'active',  linked:'2026-05-12'},
+  {pic:3, name:'rui',    handle:'@ruiluiruilui',   followers:50000,  status:'활동중',   category:'메이크업', tone:'트렌디',    brands:['abib','naming','vidivici','amuse','whipped'], month:8,  token:'expired', linked:'2026-04-30'},
+  {pic:4, name:'momoco', handle:'@momo_2404',      followers:26000,  status:'활동중',   category:'스킨케어', tone:'리뷰',      brands:['abib','naming','vidivici','amuse','whipped'], month:15, token:'active',  linked:'2026-06-01'},
+  {pic:5, name:'momo',   handle:'@_bogsuny',       followers:18500,  status:'활동중',   category:'스킨케어', tone:'데일리',    brands:['whipped','naming','vidivici'],               month:3,  token:'active',  linked:'2026-06-10'},
+  {pic:6, name:'chihiro',handle:'@ichi__da',       followers:132000, status:'활동중',   category:'리뷰',     tone:'리뷰',      brands:[],                                            month:0,  token:'active',  linked:'2026-06-18'},
+  {pic:7, name:'momo2',  handle:'@yyy__mo',        followers:28000,  status:'활동중',   category:'',         tone:'',          brands:[],                                            month:null, token:'revoked', linked:'2026-07-01'},
+  {pic:8, name:'noa',    handle:'@noakaii',        followers:45000,  status:'활동중',   category:'',         tone:'',          brands:[],                                            month:null, token:'active',  linked:'2026-07-05'},
+  {pic:9, name:'hikari', handle:'@__ohi._',        followers:22000,  status:'보류',     category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+  {pic:10,name:'ami',    handle:'@ami_io02',       followers:2600,   status:'보류',     category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+  {pic:11,name:'seina',  handle:'@28__s04',        followers:6200,   status:'활동중',   category:'',         tone:'',          brands:[],                                            month:null, token:'active',  linked:'2026-07-10'},
+  {pic:12,name:'erika',  handle:'@_wadaerika',     followers:100000, status:'계약준비', category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+  {pic:13,name:'nanako', handle:'@n.co._63',       followers:5410,   status:'활동중',   category:'',         tone:'',          brands:[],                                            month:null, token:'active',  linked:'2026-07-15'},
+  {pic:14,name:'nagomi', handle:'@na__iii0614',    followers:91000,  status:'보류',     category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+  {pic:15,name:'kyoka',  handle:'@kyokakikukeko',  followers:74000,  status:'보류',     category:'데일리',   tone:'데일리',    brands:[],                                            month:0,  token:null, linked:null},
+  {pic:16,name:'yuika',  handle:'@yuika__bn02',    followers:163000, status:'계약준비', category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+  {pic:17,name:'junna',  handle:'@junna_hayashi',  followers:48000,  status:'보류',     category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+  {pic:18,name:'rua',    handle:'@_fijraa',        followers:13000,  status:'활동중',   category:'',         tone:'',          brands:[],                                            month:null, token:'active',  linked:'2026-07-20'},
+  {pic:19,name:'mizuki', handle:'@mi_smile25',     followers:297000, status:'계약준비', category:'',         tone:'',          brands:[],                                            month:null, token:null, linked:null},
+];
+/* 계약일 / 활동 시작일 (pic 기준) */
+const ROSTER_DATES={
+  1:['2026-05-15','2026-05-20'], 2:['2026-05-08','2026-05-12'], 3:['2026-04-25','2026-04-30'],
+  4:['2026-05-28','2026-06-01'], 5:['2026-06-05','2026-06-10'], 6:['2026-06-12','2026-06-18'],
+  7:['2026-06-28','2026-07-01'], 8:['2026-06-30','2026-07-05'], 11:['2026-07-05','2026-07-10'],
+  13:['2026-07-10','2026-07-15'], 18:['2026-07-15','2026-07-20'],
+};
+CREATORS.forEach(c=>{const d=ROSTER_DATES[c.pic]; c.contractDate=d?d[0]:null; c.startDate=d?d[1]:null;});
+// month = 월 계약 수량(계약상 월 콘텐츠 생성 수량). 배정 합계가 이 값을 넘지 않도록 배분.
+CREATORS.find(c=>c.name==='chihiro').month=2;
+// PR 단가 (KRW) — 팔로워 규모 기준 기본값, 관리자가 조정
+function defaultRates(f){
+  const reels = f>=150000?900000 : f>=100000?700000 : f>=40000?400000 : f>=20000?250000 : 150000;
+  const r10=n=>Math.round(n/10000)*10000;
+  return {reels, secondary:r10(reels*0.6), offline:r10(reels*0.9), etc:0};
+}
+CREATORS.forEach(c=>{ c.rates=defaultRates(c.followers); });
+// SNS 계정 (instagram = handle, 그 외 플랫폼)
+CREATORS.forEach(c=>{ c.sns={youtube:'',tiktok:'',x:'',line:''}; });
+const SNS_SEED={
+  merumi:{tiktok:'@merumi.tt', line:'merumi_01'},
+  hina:{youtube:'@hinamiru', tiktok:'@hinamiru', x:'@hinamiru'},
+  rui:{tiktok:'@rui.lui', x:'@ruiluirui'},
+  momoco:{youtube:'@momoco', line:'momoco24'},
+  chihiro:{youtube:'@ichida', tiktok:'@ichi_da'},
+};
+CREATORS.forEach(c=>{ if(SNS_SEED[c.name]) Object.assign(c.sns,SNS_SEED[c.name]); });
+
+const CONTENTS = [
+  {creator:'hina',   brand:'abib',   product:'ヒアルロニックブームセラム', planned:'7/14', published:'2026-07-16', status:'uploaded', kind:'pr',
+   views:125050, reach:86201, likes:2526, saves:270, comments:8, shares:55, watch:9, permalink:'https://www.instagram.com/reel/DaSePDuv51z/', video:'ready'},
+  {creator:'rui',    brand:'abib',   product:'アビブ ガムシートマスク',   planned:'8/5',  published:'2026-08-07', status:'uploaded', kind:'pr',
+   views:45228,  reach:22899, likes:486,  saves:41,  comments:6,  shares:10, watch:7, permalink:'https://www.instagram.com/reel/DZKjTlaSLHB/', video:'ready'},
+  {creator:'momo',   brand:'naming', product:'over dew glossy lip tint · LORN/BOIL', planned:'7/22', published:'2026-07-24', status:'uploaded', kind:'pr',
+   views:98700,  reach:71400, likes:1980, saves:212, comments:34, shares:41, watch:8, permalink:'https://www.instagram.com/reel/DbIU1KZvj0p/', video:'ready'},
+  {creator:'merumi', brand:'abib',   product:'ヒアルロニックブームクリーム', planned:'7/16', published:'2026-07-18', status:'uploaded', kind:'pr',
+   views:73400,  reach:54120, likes:1420, saves:168, comments:22, shares:33, watch:8, permalink:'https://www.instagram.com/reel/DaX9ppQ2f1z/', video:'ready'},
+  {creator:'kyoka',  brand:'amuse',  product:'듀티프리 젤 핑거팁',        planned:'8/2',  published:'2026-08-04', status:'uploaded', kind:'pr',
+   views:52300,  reach:38900, likes:1105, saves:140, comments:19, shares:24, watch:7, permalink:'https://www.instagram.com/reel/DcMnO0Pql2a/', video:'pending'},
+  {creator:'chihiro',brand:'vidivici',product:'브이디비디 콜라겐 크림',    planned:'8/8',  published:'2026-08-10', status:'uploaded', kind:'pr',
+   views:31200,  reach:24500, likes:720,  saves:96,  comments:12, shares:15, watch:6, permalink:'https://www.instagram.com/reel/DdRt5uVn8Kc/', video:'ready'},
+  {creator:'hina',   brand:'naming', product:'네이밍 톤업 선세럼',        planned:'8/20', published:null,         status:'planned',  kind:'pr',
+   views:0,reach:0,likes:0,saves:0,comments:0,shares:0,watch:0, permalink:'', video:'none'},
+  {creator:'momo',   brand:'amuse',  product:'아뮤즈 듀 틴트 신상',        planned:'8/24', published:null,         status:'planned',  kind:'pr',
+   views:0,reach:0,likes:0,saves:0,comments:0,shares:0,watch:0, permalink:'', video:'none'},
+  {creator:'rui',    brand:'whipped', product:'가을 데일리 GRWM (개인)',   planned:'8/12', published:'2026-08-13', status:'uploaded', kind:'own',
+   views:64200,  reach:51000, likes:2100, saves:410, comments:58, shares:70, watch:11, permalink:'https://www.instagram.com/reel/DeYt3uVn0Kc/', video:'ready'},
+  {creator:'hina',   brand:'abib',   product:'토너패드 리필 언박싱',      planned:'8/26', published:null, status:'planned', kind:'pr',
+   views:0,reach:0,likes:0,saves:0,comments:0,shares:0,watch:0, permalink:'', video:'none',
+   sched:{plan:'2026-08-16',shoot:'2026-08-21',edit:'2026-08-24',upload:'2026-08-26'}},
+  {creator:'hina',   brand:'vidivici',product:'수분 크림 데일리 루틴',    planned:'8/29', published:null, status:'planned', kind:'pr',
+   views:0,reach:0,likes:0,saves:0,comments:0,shares:0,watch:0, permalink:'', video:'none',
+   sched:{plan:'2026-08-20',shoot:'2026-08-25',edit:'2026-08-27',upload:'2026-08-29'}},
+  {creator:'hina',   brand:'abib',   product:'아비브 수분 앰플 데일리',    planned:'8/9',  published:'2026-08-11', status:'uploaded', kind:'pr',
+   views:88400, reach:60100, likes:1710, saves:190, comments:14, shares:28, watch:8, permalink:'https://www.instagram.com/reel/Df1aBcD2eF3/', video:'ready'},
+  {creator:'merumi', brand:'abib',   product:'아비브 토너패드 8월',        planned:'8/6',  published:'2026-08-08', status:'uploaded', kind:'pr',
+   views:69200, reach:50100, likes:1290, saves:150, comments:18, shares:22, watch:7, permalink:'https://www.instagram.com/reel/Dg2bCdE3fG4/', video:'ready'},
+];
+
+/* 계약(브랜드 월별 편수) + 배정(크리에이터별 배분) — 단일 원본 */
+let CONTRACTS={
+  '2026-08':{abib:5, naming:4, amuse:3, vidivici:2, whipped:2},
+  '2026-09':{abib:5, naming:4, amuse:3, vidivici:2, whipped:2},
+};
+let ASSIGN={
+  '2026-08':{
+    'abib|hina':2,'abib|merumi':2,'abib|rui':1,
+    'naming|momo':2,'naming|hina':1,
+    'amuse|kyoka':2,'amuse|momo':1,
+    'vidivici|chihiro':1,'vidivici|hina':1,
+    'whipped|rui':1,
+  },
+  '2026-09':{},
+};
+let ASSIGN_MONTH='2026-08', ASSIGN_BRAND='abib';
+const ASSIGN_MONTHS=['2026-08','2026-09'];
+function doneCount(month,brand,creator){
+  return CONTENTS.filter(c=>c.brand===brand&&c.creator===creator&&c.status==='uploaded'&&monthOf(c)===month).length;
+}
+function assignsFor(month,creator){
+  return Object.entries(ASSIGN[month]||{}).filter(([k])=>k.split('|')[1]===creator)
+    .map(([k,q])=>({brand:k.split('|')[0], q, done:doneCount(month,k.split('|')[0],creator)}));
+}
+
+/* 제작 일정: planned 항목은 명시, 나머지는 게시일 기준 역산 */
+const SCHED_SEED={
+  '네이밍 톤업 선세럼':{plan:'2026-08-10',shoot:'2026-08-14',edit:'2026-08-18',upload:'2026-08-20'},
+  '아뮤즈 듀 틴트 신상':{plan:'2026-08-12',shoot:'2026-08-18',edit:'2026-08-22',upload:'2026-08-24'},
+};
+function backdate(dateStr,days){const d=new Date(dateStr+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()-days); return d.toISOString().slice(0,10);}
+function addDays(dateStr,days){const d=new Date(dateStr+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+days); return d.toISOString().slice(0,10);}
+function daysUntil(dateStr){const a=new Date('2026-08-22T00:00:00Z'),b=new Date(dateStr+'T00:00:00Z'); return Math.round((b-a)/86400000);}
+CONTENTS.forEach(c=>{
+  if(c.sched) return;
+  if(SCHED_SEED[c.product]){ c.sched=SCHED_SEED[c.product]; return; }
+  if(c.published){ c.sched={plan:backdate(c.published,8),shoot:backdate(c.published,6),edit:backdate(c.published,2),upload:c.published}; }
+  else { c.sched={plan:'',shoot:'',edit:'',upload:''}; }
+});
+
+/* 외부 PR 안건에서 업로드된 콘텐츠 (아카이브에 표시) */
+const DEAL_CONTENTS=[
+  {id:'deal-102', creator:'hina', brand:'ロート製薬', product:'ロート製薬 스킨케어 PR', planned:'8/20', published:'2026-08-20', status:'uploaded', kind:'deal',
+   views:112400, reach:78900, likes:2210, saves:240, comments:26, shares:44, watch:9, permalink:'https://www.instagram.com/reel/Dh3cDeF4gH5/', video:'ready'},
+  {id:'deal-106', creator:'hina', brand:'DAISO', product:'다이소 뷰티 하울', planned:'8/14', published:'2026-08-14', status:'uploaded', kind:'deal',
+   views:96800, reach:70200, likes:1890, saves:205, comments:31, shares:38, watch:8, permalink:'https://www.instagram.com/reel/Di4dEfG5hI6/', video:'ready'},
+];
+CONTENTS.push(...DEAL_CONTENTS);
+DEAL_CONTENTS.forEach(c=>{ c.sched={plan:backdate(c.published,8),shoot:backdate(c.published,6),edit:backdate(c.published,2),upload:c.published}; });
+
+/* PR 안건 (인입→매니저 검토→크리에이터 협의→의뢰사 전달→계약 성사→제작·업로드) */
+const DEAL_STEPS=['인입','매니저 검토','크리에이터 협의','의뢰사 전달','계약 성사','제작·업로드'];
+const DEAL_SOURCE={creator_email:'크리에이터 이메일', creator_dm:'인스타 DM', company_email:'회사 이메일'};
+let DEALS=[
+  {id:'D-102', title:'ロート製薬 스킨케어 PR', client:'ロート製薬', creator:'hina', manager:'yuta', source:'company_email', type:'ahchannel', fee:2500000, shareCompany:50, shareCreator:50, due:'2026-08-18', upload:'2026-08-20', step:5, contentId:'deal-102',
+   brief:'신제품 세럼 사용 전/후 3주 루틴. 아침·저녁 사용법 강조, 텍스처 클로즈업 필수. 해시태그 #ロート #스킨케어 포함, 15~30초 릴스.'},
+  {id:'D-106', title:'다이소 뷰티 하울', client:'DAISO', creator:'hina', manager:'yuta', source:'creator_dm', type:'ahchannel', fee:700000, shareCompany:50, shareCreator:50, due:'2026-08-12', upload:'2026-08-14', step:5, contentId:'deal-106',
+   brief:'1만원 이하 뷰티템 5종 하울. 실사용 데모 + 가성비 코멘트. 제품명 자막 필수.'},
+  {id:'D-101', title:'Ray Beams 가을 코디 릴스', client:'Ray Beams', creator:'momo', manager:'mai', source:'company_email', type:'creator', fee:1200000, shareCompany:50, shareCreator:50, due:'2026-08-25', upload:'2026-08-28', step:4, contentId:null,
+   brief:'가을 신상 3코디 룩북 형식. 아우터 중심, 착용샷 + 디테일컷. 매장/온라인 링크 스티커.'},
+  {id:'D-105', title:'무인양품 데일리 브이로그', client:'MUJI', creator:'merumi', manager:'mai', source:'creator_dm', type:'creator', fee:900000, shareCompany:50, shareCreator:50, due:'2026-08-30', upload:null, step:3, contentId:null,
+   brief:'무지 수납·문구 아이템으로 하루 루틴 브이로그. 자연스러운 PPL, 과한 광고 톤 지양.'},
+  {id:'D-103', title:'資生堂 신제품 언박싱', client:'資生堂', creator:'chihiro', manager:'mai', source:'company_email', type:'creator', fee:1800000, shareCompany:50, shareCreator:50, due:'2026-09-05', upload:null, step:2, contentId:null,
+   brief:'신규 파운데이션 언박싱 + 발색/지속력 테스트. 실내외 조명 비교샷 포함.'},
+  {id:'D-104', title:'コーセー 메이크업 튜토리얼', client:'コーセー', creator:'rui', manager:'yuta', source:'creator_email', type:'creator', fee:1500000, shareCompany:60, shareCreator:40, due:'2026-09-10', upload:null, step:1, contentId:null,
+   brief:'가을 톤 데일리 메이크업 튜토리얼. 제품 3종 사용, 단계별 자막.'},
+];
+const DEAL_TYPE={ahchannel:'ah!channel', creator:'개별'};
+const UNIT_PRICE=500000; // 브랜드 월 계약 건당 단가 (10건=500만, 20건=1천만)
+// 크리에이터 월 고정비 (관리·리테이너 등)
+CREATORS.forEach(c=>{ c.fixedCost = c.status==='활동중'?100000:0; });
+// 크리에이터 소개
+const INTRO_SEED={
+  merumi:'도쿄 기반 스킨케어·뷰티 에디토리얼 릴스. 감각적 연출과 제품 클로즈업이 강점.',
+  hina:'거리 인터뷰·데일리 브이로그로 20대 여성 팬층 확보. 팔로워 14만, 높은 도달률.',
+  rui:'트렌디 메이크업 튜토리얼·GRWM 중심. 실사용 리뷰 신뢰도가 높음.',
+  momoco:'스킨케어 리뷰·하울 전문. 솔직한 사용 후기로 저장률이 높음.',
+  momo:'데일리 코디·뷰티 리뷰. 자연스러운 PPL 소화력이 강점.',
+  chihiro:'제품 언박싱·리뷰어. 발색·지속력 테스트 콘텐츠에 강함.',
+};
+CREATORS.forEach(c=>{ c.intro = INTRO_SEED[c.name] || `${c.category||'라이프스타일'} 중심 · ${c.tone||'데일리'} 톤 콘텐츠`; });
+
+/* 계정·권한 (admin / brand / creator) */
+let ACCOUNTS=[
+  {email:'hmpark@81degree.com', role:'admin', scope:'81degree', status:'active', last:'2026-08-22'},
+  {email:'mai@81degree.com',    role:'admin', scope:'81degree', status:'active', last:'2026-08-22'},
+  {email:'yuta@81degree.com',   role:'admin', scope:'81degree', status:'active', last:'2026-08-21'},
+  {email:'marketing@abib.com',  role:'brand', scope:'abib',     status:'active', last:'2026-08-20'},
+  {email:'pr@naming.jp',        role:'brand', scope:'naming',   status:'pending', last:null},
+  {email:'hina.creator@gmail.com', role:'creator', scope:'hina', status:'active', last:'2026-08-19'},
+  {email:'merumi.official@gmail.com', role:'creator', scope:'merumi', status:'pending', last:null},
+];
+const ROLE_LABEL={admin:'관리자', brand:'브랜드', creator:'크리에이터'};
+const ROLE_PILL={admin:'p-acc', brand:'p-ok', creator:'p-plan'};
+const ACCT_STATUS={active:['p-ok','활성'], pending:['p-warn','초대중'], disabled:['p-plan','비활성']};
+
+/* ---------- svg icon helpers ---------- */
+const I={
+  eye:'<svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  save:'<svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>',
+  heart:'<svg viewBox="0 0 24 24"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>',
+};
+const eng = c => c.views? (((c.likes+c.comments+c.saves+c.shares)/c.views)*100).toFixed(1)+'%':'—';
+const savePct = c => c.views? ((c.saves/c.views)*100).toFixed(1)+'%':'—';
+const reachPct = c => c.views? ((c.reach/c.views)*100).toFixed(0)+'%':'—';
+
+/* ---------- sparkline ---------- */
+function spark(data,w,h,color){
+  const mn=Math.min(...data), mx=Math.max(...data), sp=mx-mn||1;
+  const pts=data.map((v,i)=>[i/(data.length-1)*w, h-((v-mn)/sp)*(h-6)-3]);
+  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area=`M0 ${h} `+pts.map(p=>'L'+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ')+` L${w} ${h} Z`;
+  const id='g'+Math.random().toString(36).slice(2,7);
+  const last=pts[pts.length-1];
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${color}" stop-opacity=".28"/><stop offset="1" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${area}" fill="url(#${id})"/>
+    <path d="${d}" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="3" fill="${color}"/>
+  </svg>`;
+}
+const accent = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+
+/* ---------- renders ---------- */
+function kpi(lab,val,unit,delta,dir,sparkData){
+  return `<div class="kpi">
+    <div class="lab">${lab}</div>
+    <div class="val">${val}${unit?`<small>${unit}</small>`:''}</div>
+    ${delta?`<div class="delta ${dir}">${dir==='up'?'▲':'▼'} ${delta}</div>`:''}
+    ${sparkData?`<div class="spark">${spark(sparkData,72,30,accent())}</div>`:''}
+  </div>`;
+}
+
+function posterCard(c){
+  const col=bcolor(c.brand);
+  const vb = c.video==='ready' ? `<span class="vbadge"><span class="d" style="background:#34D399"></span>아카이브</span>`
+           : c.video==='pending' ? `<span class="vbadge"><span class="d" style="background:#FBBF24"></span>다운로드 중</span>`
+           : '';
+  const stat = c.status==='planned'? `<span class="vbadge"><span class="d"></span>예정 ${c.planned}</span>`:'';
+  const kindChip = c.kind==='own'?'<span class="chip" style="margin-left:auto">개인</span>'
+    : c.kind==='deal'?'<span class="chip p-acc" style="margin-left:auto">외부 PR</span>'
+    : '<span class="chip p-acc" style="margin-left:auto">PR</span>';
+  return `<button class="rcard" onclick='openModal(${JSON.stringify(c)})'>
+    <div class="poster" style="background:${grad(col)}">
+      <div class="ov"></div>
+      <div class="topline"><span class="vbadge" style="background:rgba(0,0,0,.4)">${c.brand}</span>${vb||stat}</div>
+      ${c.status!=='planned'?'<div class="play"><svg viewBox=\"0 0 24 24\"><path d=\"M8 5v14l11-7z\"/></svg></div>':'<div class="play" style="opacity:.4"><svg viewBox=\"0 0 24 24\"><path d=\"M12 8v4l3 2\"/></svg></div>'}
+      <div class="prod">${c.product}</div>
+    </div>
+    <div class="meta">
+      <div class="cr">${avatarEl(c.creator,22,6)}<b>${c.creator}</b>
+        ${kindChip}</div>
+      <div class="stats">
+        <span>${I.eye}<span class="num">${c.views?kfmt(c.views):'—'}</span></span>
+        <span>${I.heart}<span class="num">${c.likes?kfmt(c.likes):'—'}</span></span>
+        <span>${I.save}<span class="num">${c.saves?kfmt(c.saves):'—'}</span></span>
+      </div>
+    </div>
+  </button>`;
+}
+
+/* ---------- 아카이브 필터 (브랜드/크리에이터/관리자 공통) ---------- */
+const ARCH={
+  brand:  {grid:'brandArchive',  bar:'brandFilter',  base:()=>CONTENTS.filter(c=>c.brand==='abib'), useCreator:true,  useBrand:false},
+  creator:{grid:'creatorArchive',bar:'creatorFilter',base:()=>CONTENTS.filter(c=>c.creator==='hina'||(c.creator==='rui'&&c.kind==='own')), useCreator:false, useBrand:true},
+  admin:  {grid:'adminArchive',  bar:'adminFilter',  base:()=>CONTENTS.slice(), useCreator:true, useBrand:true},
+};
+const ARCH_STATE={};
+const monthOf=c=>c.published?c.published.slice(0,7):null;
+const engRatio=c=>c.views?(c.likes+c.comments+c.saves+c.shares)/c.views:0;
+function buildArchive(key){
+  const cfg=ARCH[key]; const bar=document.getElementById(cfg.bar); if(!bar) return;
+  const base=cfg.base();
+  const st=ARCH_STATE[key]||(ARCH_STATE[key]={creator:'',brand:'',period:'',sort:'date',status:'',q:''});
+  const creators=[...new Set(base.map(c=>c.creator))];
+  const brands=[...new Set(base.map(c=>c.brand))];
+  const months=[...new Set(base.map(monthOf).filter(Boolean))].sort().reverse();
+  const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  bar.innerHTML=
+    (cfg.useCreator?`<select data-f="creator">${opt('','모든 크리에이터',st.creator)}${creators.map(c=>opt(c,c,st.creator)).join('')}</select>`:'')+
+    (cfg.useBrand?`<select data-f="brand">${opt('','모든 브랜드',st.brand)}${brands.map(b=>opt(b,b,st.brand)).join('')}</select>`:'')+
+    `<select data-f="period">${opt('','전체 기간',st.period)}${months.map(m=>opt(m,(+m.slice(5))+'월',st.period)).join('')}</select>`+
+    `<select data-f="sort">${opt('date','최신순',st.sort)}${opt('views','조회수순',st.sort)}${opt('saves','저장순',st.sort)}${opt('eng','참여율순',st.sort)}</select>`+
+    `<select data-f="status">${opt('','전체 상태',st.status)}${opt('uploaded','게시완료',st.status)}${opt('planned','예정',st.status)}</select>`+
+    `<input data-f="q" placeholder="상품 검색" value="${st.q}">`+
+    `<span class="count" id="${cfg.bar}-cnt"></span>`;
+  bar.querySelectorAll('[data-f]').forEach(el=>{
+    el.addEventListener(el.tagName==='INPUT'?'input':'change',()=>{st[el.dataset.f]=el.value; renderArchive(key);});
+  });
+  renderArchive(key);
+}
+function renderArchive(key){
+  const cfg=ARCH[key], st=ARCH_STATE[key]; let items=cfg.base();
+  if(st.creator) items=items.filter(c=>c.creator===st.creator);
+  if(st.brand)   items=items.filter(c=>c.brand===st.brand);
+  if(st.status)  items=items.filter(c=>c.status===st.status);
+  if(st.period)  items=items.filter(c=>monthOf(c)===st.period);
+  if(st.q){const q=st.q.toLowerCase(); items=items.filter(c=>c.product.toLowerCase().includes(q)||c.creator.toLowerCase().includes(q));}
+  items=items.slice().sort((a,b)=>{
+    if(st.sort==='views') return b.views-a.views;
+    if(st.sort==='saves') return b.saves-a.saves;
+    if(st.sort==='eng')   return engRatio(b)-engRatio(a);
+    const ad=a.published||'0000-00', bd=b.published||'0000-00';
+    return bd>ad?1:bd<ad?-1:0;
+  });
+  const grid=document.getElementById(cfg.grid);
+  grid.innerHTML=items.length? items.map(posterCard).join('') : '<div class="empty">조건에 맞는 콘텐츠가 없어요.</div>';
+  const cnt=document.getElementById(cfg.bar+'-cnt'); if(cnt) cnt.textContent=items.length+'개';
+}
+
+/* ---------- 제작 일정 (기획→촬영→편집→업로드) · 모든 뷰 공통, DB 단일 원본 ---------- */
+const TODAY='2026-08-22';
+const STAGES=[['plan','기획'],['shoot','촬영'],['edit','편집'],['upload','업로드']];
+const md=d=>d? (+d.slice(5,7))+'/'+(+d.slice(8,10)) : '—';
+function schedRow(c, editable){
+  let currentSet=false;
+  const chips=STAGES.map(([k,label])=>{
+    const d=c.sched[k]; let cls='';
+    if(c.status==='uploaded') cls='done';
+    else if(d && d<TODAY) cls='done';
+    else if(!currentSet && d){ cls='now'; currentSet=true; }
+    return `<span class="sgstage ${cls}"><span class="sgk">${cls==='done'?'✓ ':''}${label}</span><span class="sgd">${md(d)}</span></span>`;
+  }).join('');
+  const right = editable
+    ? `<button class="btn sm" onclick="openSched('${c.product.replace(/'/g,"\\'")}')"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>일정 편집</button>`
+    : (c.status==='uploaded'?'<span class="pill p-ok"><span class="d"></span>완료</span>':`<span class="pill p-warn"><span class="d"></span>업로드 ${md(c.sched.upload)}</span>`);
+  return `<div class="schedrow">
+    <div class="hd">
+      <span class="av" style="background:${grad(bcolor(c.brand))}">${initial(c.creator)}</span>
+      <div style="flex:1;min-width:0"><div class="t">${c.product}</div><div class="s">${c.creator} · ${c.brand}</div></div>
+      ${right}
+    </div>
+    <div class="sgtrack">${chips}</div>
+  </div>`;
+}
+function schedList(elId, items, editable){
+  const el=document.getElementById(elId); if(!el) return;
+  el.innerHTML = items.length? items.map(c=>schedRow(c,editable)).join('')
+    : '<div class="empty">예정된 제작 일정이 없어요.</div>';
+}
+const findContent=p=>CONTENTS.find(c=>c.product===p);
+
+/* 일정 편집 모달 */
+let SCHED_TARGET=null;
+function openSched(product){
+  const c=findContent(product); if(!c) return;
+  SCHED_TARGET=c;
+  document.getElementById('schedFor').innerHTML=`<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/></svg>${c.product} · ${c.brand}`;
+  document.getElementById('schPlan').value=c.sched.plan||'';
+  document.getElementById('schShoot').value=c.sched.shoot||'';
+  document.getElementById('schEdit').value=c.sched.edit||'';
+  document.getElementById('schUpload').value=c.sched.upload||'';
+  document.getElementById('schedBackdrop').classList.add('open'); applyLang();
+}
+function closeSched(){document.getElementById('schedBackdrop').classList.remove('open');}
+function saveSched(){
+  const c=SCHED_TARGET; if(!c) return;
+  c.sched={
+    plan:document.getElementById('schPlan').value,
+    shoot:document.getElementById('schShoot').value,
+    edit:document.getElementById('schEdit').value,
+    upload:document.getElementById('schUpload').value,
+  };
+  if(c.sched.upload){ const u=c.sched.upload; c.planned=(+u.slice(5,7))+'/'+(+u.slice(8,10)); }
+  closeSched();
+  renderAll();                       // 단일 원본 → 브랜드·크리에이터·관리자 모두 갱신
+  toast('일정 저장 · 브랜드·관리자 화면에 반영됐어요');
+}
+document.getElementById('schedCloseX').onclick=closeSched;
+document.getElementById('schedCancel').onclick=closeSched;
+document.getElementById('schedSave').onclick=saveSched;
+document.getElementById('schedBackdrop').onclick=e=>{if(e.target.id==='schedBackdrop')closeSched();};
+
+/* BRAND */
+function renderBrand(){
+  const rows=CONTENTS.filter(c=>c.brand==='abib');
+  const tv=rows.reduce((s,c)=>s+c.views,0), tr=rows.reduce((s,c)=>s+c.reach,0), ts=rows.reduce((s,c)=>s+c.saves,0);
+  const engAvg=(rows.filter(c=>c.views).reduce((s,c)=>s+parseFloat(eng(c)),0)/rows.filter(c=>c.views).length).toFixed(1);
+  document.getElementById('brandKpi').innerHTML=
+    kpi('총 조회수',fmt(tv),'','18.2% vs 지난달','up',[62,58,70,66,80,88,120])+
+    kpi('총 도달',fmt(tr),'','12.4%','up',[40,52,48,60,58,72,86])+
+    kpi('평균 참여율',engAvg,'%','0.3%p','up',[2.1,2.4,2.2,2.6,2.5,2.8,2.9])+
+    kpi('저장 합계',fmt(ts),'','',null,[120,140,130,180,210,260,311]);
+
+  const up=CONTENTS.filter(c=>c.status==='planned');
+  const extra=[{creator:'merumi',brand:'abib',product:'선크림 스틱',planned:'8/23'},{creator:'hina',brand:'abib',product:'토너패드 리필',planned:'8/26'}];
+  document.getElementById('brandUpcoming').innerHTML=[...up,...extra].slice(0,5).map((c,i)=>`
+    <div class="li"><span class="av" style="background:${grad(BRAND_COLOR[c.brand]||'#0E9E9A')}">${initial(c.creator)}</span>
+      <div class="main"><div class="t">${c.product}</div><div class="s">${c.creator} · ${c.brand}</div></div>
+      <div class="r"><span class="pill ${i<2?'p-warn':'p-plan'}"><span class="d"></span>${['D-2','D-4','D-6','D-8','D-9'][i]}</span></div>
+    </div>`).join('');
+
+  const byCr={};
+  rows.forEach(c=>{(byCr[c.creator]??={n:0,v:0,s:0,cnt:0,eng:0}); if(c.views){byCr[c.creator].v+=c.views;byCr[c.creator].s+=c.saves;byCr[c.creator].eng+=parseFloat(eng(c));byCr[c.creator].cnt++;}});
+  document.getElementById('brandCreatorMini').innerHTML=Object.entries(byCr).map(([n,d])=>`
+    <div class="li">${avatarEl(n,34,9)}
+      <div class="main"><div class="t">${n}</div><div class="s">${d.cnt}건 게시</div></div>
+      <div class="r"><div class="n">${kfmt(d.v)}</div><div class="u">조회</div></div></div>`).join('');
+
+  buildArchive('brand');
+  renderBrandCreators();
+  renderBrandRoster();
+  renderSecondary();
+
+  const bSched=CONTENTS.filter(c=>c.brand==='abib'&&(c.status==='planned'||monthOf(c)==='2026-08'))
+    .sort((a,b)=>(a.sched.upload||'9999')<(b.sched.upload||'9999')?-1:1);
+  schedList('brandSched', bSched, false);
+
+  // 계약 진척 (abib · 배정 합계 대비 완료)
+  const bAsg=Object.entries(ASSIGN[ASSIGN_MONTH]||{}).filter(([k])=>k.split('|')[0]==='abib');
+  const bQ=bAsg.reduce((s,[,q])=>s+q,0);
+  const bDone=bAsg.reduce((s,[k])=>s+doneCount(ASSIGN_MONTH,'abib',k.split('|')[1]),0);
+  const bP=bQ?Math.round(bDone/bQ*100):0;
+  document.getElementById('brandRing').style.setProperty('--p',bP);
+  document.getElementById('brandRingTxt').textContent=`${bDone}/${bQ}`;
+  document.getElementById('brandRingTitle').textContent=`${bQ}건 배정 중 ${bDone}건 게시`;
+  document.getElementById('brandRingNote').innerHTML=`<svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>남은 ${Math.max(0,bQ-bDone)}건 · ${ASSIGN_MONTH.replace('2026-','')}월 배정 기준`;
+}
+
+/* 2차 활용 — 상태 워크플로우 */
+const SEC_STEPS=['요청','81degree 검토','크리에이터 동의','승인'];
+let SECONDARY=[
+  {p:'ヒアルロニックブームセラム',c:'hina',brand:'abib',scope:'광고 소재',channels:['Instagram','자사몰'],start:'2026-08-20',end:'2026-11-20',fee:800000,step:3},
+  {p:'アビブ ガムシートマスク',c:'rui',brand:'abib',scope:'자사 SNS 리그램',channels:['Instagram'],start:'2026-09-01',end:'2026-10-01',fee:300000,step:2},
+  {p:'ヒアルロニックブームクリーム',c:'merumi',brand:'abib',scope:'오프라인 매장',channels:['오프라인'],start:'2026-09-10',end:'2026-12-10',fee:500000,step:1},
+];
+/* 브랜드: 크리에이터별 성과 (월/크리에이터 필터 + 행 클릭 → 아카이브) */
+const BCR_STATE={month:'',creator:''};
+function renderBrandCreators(){
+  const bar=document.getElementById('bCreatorFilter'); if(!bar) return;
+  const base=CONTENTS.filter(c=>c.brand==='abib'&&c.status==='uploaded'&&c.views>0);
+  const months=[...new Set(base.map(monthOf).filter(Boolean))].sort().reverse();
+  const creators=[...new Set(base.map(c=>c.creator))];
+  const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  bar.innerHTML=
+    `<select data-bcr="month">${opt('','전체 기간',BCR_STATE.month)}${months.map(m=>opt(m,(+m.slice(5))+'월',BCR_STATE.month)).join('')}</select>`+
+    `<select data-bcr="creator">${opt('','모든 크리에이터',BCR_STATE.creator)}${creators.map(c=>opt(c,c,BCR_STATE.creator)).join('')}</select>`+
+    `<span class="count" id="bcrCnt"></span>`;
+  bar.querySelectorAll('[data-bcr]').forEach(el=>el.addEventListener('change',()=>{BCR_STATE[el.dataset.bcr]=el.value; renderBrandCreators();}));
+  let f=base.slice();
+  if(BCR_STATE.month) f=f.filter(c=>monthOf(c)===BCR_STATE.month);
+  if(BCR_STATE.creator) f=f.filter(c=>c.creator===BCR_STATE.creator);
+  const byCr={};
+  f.forEach(c=>{(byCr[c.creator]??={v:0,s:0,cnt:0,eng:0}); byCr[c.creator].v+=c.views; byCr[c.creator].s+=c.saves; byCr[c.creator].eng+=parseFloat(eng(c)); byCr[c.creator].cnt++;});
+  const entries=Object.entries(byCr).sort((a,b)=>b[1].v-a[1].v);
+  document.querySelector('#brandCreatorTable tbody').innerHTML=entries.map(([n,d])=>`
+    <tr style="cursor:pointer" onclick="openCreatorArchive('${n}')" title="${n} 콘텐츠 아카이브 보기">
+      <td><b>${n}</b> <svg viewBox="0 0 24 24" width="13" height="13" style="stroke:var(--faint);fill:none;stroke-width:2;vertical-align:-1px"><path d="M9 18l6-6-6-6"/></svg></td>
+      <td class="num">${d.cnt}</td><td class="num">${fmt(d.v)}</td>
+      <td class="num">${(d.s/d.v*100).toFixed(1)}%</td><td class="num">${(d.eng/d.cnt).toFixed(1)}%</td>
+      <td><span class="pill p-ok"><span class="d"></span>정상</span></td></tr>`).join('')
+    || '<tr><td colspan="6" style="text-align:center;color:var(--faint);padding:24px">데이터 없음</td></tr>';
+  const cnt=document.getElementById('bcrCnt'); if(cnt) cnt.textContent=entries.length+'명';
+}
+function openCreatorArchive(name){
+  ARCH_STATE['brand']=ARCH_STATE['brand']||{creator:'',brand:'',period:'',sort:'date',status:'',q:''};
+  ARCH_STATE['brand'].creator=name;
+  ARCH_STATE['brand'].period=BCR_STATE.month||'';
+  selectPane('brand','b-archive',null);
+  buildArchive('brand');
+  toast(`${name} · 콘텐츠 아카이브`);
+}
+
+/* 브랜드: 소속 크리에이터 디렉토리 */
+const BRD_STATE={cat:'',q:''};
+function renderBrandRoster(){
+  const bar=document.getElementById('brandRosterFilter'); if(!bar) return;
+  const base=CREATORS.filter(c=>c.status==='활동중');
+  const cats=[...new Set(base.map(c=>c.category).filter(Boolean))];
+  const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  bar.innerHTML=
+    `<select data-brd="cat">${opt('','모든 카테고리',BRD_STATE.cat)}${cats.map(c=>opt(c,c,BRD_STATE.cat)).join('')}</select>`+
+    `<input data-brd="q" placeholder="이름·핸들 검색" value="${BRD_STATE.q}">`+
+    `<span class="count" id="brdCnt"></span>`;
+  bar.querySelectorAll('[data-brd]').forEach(el=>el.addEventListener(el.tagName==='INPUT'?'input':'change',()=>{BRD_STATE[el.dataset.brd]=el.value; renderBrandRoster();}));
+  let list=base.slice();
+  if(BRD_STATE.cat) list=list.filter(c=>c.category===BRD_STATE.cat);
+  if(BRD_STATE.q){const q=BRD_STATE.q.toLowerCase(); list=list.filter(c=>c.name.toLowerCase().includes(q)||c.handle.toLowerCase().includes(q));}
+  list.sort((a,b)=>b.followers-a.followers);
+  document.getElementById('brandRoster').innerHTML=list.map(c=>`
+    <div class="crcard">
+      <div class="top">
+        ${avatarEl(c.name,46,13)}
+        <div style="min-width:0"><div class="nm">${c.name}</div><div class="hd">${c.handle}</div></div>
+        <div class="fol"><b>${kfmt(c.followers)}</b><small data-i18n="팔로워">팔로워</small></div>
+      </div>
+      <div class="sns">${snsBadges(c)}</div>
+      <div class="tags">${c.category?`<span class="chip"><span class="sw" style="background:var(--accent)"></span>${c.category}</span>`:''}${c.tone?`<span class="chip">${c.tone}</span>`:''}</div>
+      <div class="intro">${c.intro}</div>
+      <div class="foot"><button class="btn sm" style="flex:1" onclick="openCreatorArchive('${c.name}')"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg><span data-i18n="콘텐츠 보기">콘텐츠 보기</span></button></div>
+    </div>`).join('') || '<div class="empty">조건에 맞는 크리에이터가 없어요.</div>';
+  const cnt=document.getElementById('brdCnt'); if(cnt) cnt.textContent=list.length+'명';
+}
+function renderSecondary(){
+  const el=document.getElementById('secondaryList'); if(!el) return;
+  el.innerHTML=SECONDARY.map(r=>{
+    const stepper=SEC_STEPS.map((s,i)=>{
+      const cls=i<r.step?'done':i===r.step?'now':'';
+      const mark=i<r.step?'✓':(i+1);
+      return `<div class="step ${cls}"><span class="dot">${mark}</span><span class="lbl">${s}</span>${i<SEC_STEPS.length-1?'<span class="line"></span>':''}</div>`;
+    }).join('');
+    const statusPill = r.step>=4?'<span class="pill p-ok"><span class="d"></span>승인·사용중</span>'
+      : r.step===3?'<span class="pill p-acc"><span class="d"></span>승인 대기</span>'
+      : r.step===2?'<span class="pill p-warn"><span class="d"></span>크리에이터 확인중</span>'
+      : r.step===1?'<span class="pill p-plan"><span class="d"></span>81degree 검토중</span>'
+      : '<span class="pill p-plan"><span class="d"></span>요청 접수</span>';
+    const period = r.step>=3? `${r.start.slice(2).replace(/-/g,'.')}–${r.end.slice(2).replace(/-/g,'.')}` : '승인 시 확정';
+    return `<div class="srow">
+      <div class="hd">
+        <span class="av li-av" style="width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:600;font-family:var(--display);background:${grad(BRAND_COLOR[r.brand])}">${initial(r.c)}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:14px">${r.p}</div>
+          <div style="color:var(--faint);font-size:12px;margin-top:2px">${r.c} · ${r.scope} · ${r.channels.join(', ')} · ¥${fmt(r.fee)}</div>
+        </div>
+        ${statusPill}
+      </div>
+      <div class="stepper">${stepper}</div>
+      <div class="note" style="margin-top:10px"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 2v4M16 2v4"/></svg>사용 기간 ${period}${r.step>=3?' · 만료 D-30 자동 알림':''}</div>
+    </div>`;
+  }).join('');
+}
+
+/* CREATOR (hina) */
+function renderCreator(){
+  const me='hina';
+  const mine=CONTENTS.filter(c=>c.creator===me);
+  const monthViews=mine.filter(c=>c.views).reduce((s,c)=>s+c.views,0);
+  const myAsg=assignsFor(ASSIGN_MONTH,me);
+  const myQ=myAsg.reduce((s,a)=>s+a.q,0), myDone=myAsg.reduce((s,a)=>s+a.done,0);
+  document.getElementById('creatorKpi').innerHTML=
+    kpi('팔로워','140,000','','1,240 (30일)','up',[131,132,133,135,136,138,140])+
+    kpi('이번 달 조회',fmt(monthViews),'','24%','up',[40,55,60,80,110,120,125])+
+    kpi('평균 저장률','1.9','%','0.2%p','up',[1.4,1.5,1.6,1.7,1.8,1.9,1.9])+
+    kpi('이번 달 배정',`${myDone}/${myQ}`,'','',null,null);
+
+  document.getElementById('followerChart').innerHTML=
+    `<div style="margin-top:8px">${spark([131000,131400,131900,132600,133200,134100,135000,135800,136500,137400,138200,139100,140000],520,120,accent())}</div>
+     <div style="display:flex;justify-content:space-between;color:var(--faint);font-size:11px;margin-top:6px" class="num"><span>7/23</span><span>8/6</span><span>8/22</span></div>`;
+
+  const gp=72;
+  document.getElementById('genderDonut').innerHTML=
+    `<svg width="96" height="96" viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--surface-3)" stroke-width="7"/>
+     <circle cx="21" cy="21" r="15.9" fill="none" stroke="${accent()}" stroke-width="7" stroke-dasharray="${gp} ${100-gp}" stroke-dashoffset="25" stroke-linecap="round"/>
+     <text x="21" y="20" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="var(--ink)" font-weight="600">${gp}%</text>
+     <text x="21" y="27" text-anchor="middle" font-size="3.6" fill="var(--faint)">여성</text></svg>`;
+
+  const ages=[['13–17',6],['18–24',38],['25–34',41],['35–44',12],['45+',3]];
+  document.getElementById('ageBars').innerHTML=ages.map(([l,v])=>`
+    <div class="bar"><span>${l}</span><div class="track"><div class="fill" style="width:${v/41*100}%"></div></div><span class="pct">${v}%</span></div>`).join('');
+
+  document.getElementById('regionChips').innerHTML=[['도쿄',34],['오사카',18],['서울',11],['후쿠오카',7],['나고야',6]]
+    .map(([c,v])=>`<span class="chip"><span class="sw" style="background:${accent()}"></span>${c} ${v}%</span>`).join('');
+
+  buildArchive('creator');
+
+  // 내 계정 성장 하단 콘텐츠 아카이브
+  const myUp=CONTENTS.filter(c=>c.creator===me).sort((a,b)=>(b.published||'0').localeCompare(a.published||'0'));
+  document.getElementById('growthArchive').innerHTML = myUp.length? myUp.map(posterCard).join('') : '<div class="empty">콘텐츠가 없어요.</div>';
+
+  // PR 안건 (내 안건 · 관리자 연동)
+  const myDeals=DEALS.filter(d=>d.creator===me).sort((a,b)=>b.step-a.step);
+  document.getElementById('creatorDeals').innerHTML = myDeals.length? myDeals.map(d=>dealCard(d,true)).join('') : '<div class="empty">진행 중인 PR 안건이 없어요.</div>';
+
+  // PR 매출 (내 정산)
+  const live=myDeals.filter(dealContractedPlus);
+  const myShare=d=>Math.round(d.fee*d.shareCreator/100);
+  const totalPay=live.reduce((s,d)=>s+myShare(d),0);
+  const pending=myDeals.filter(d=>d.step>=1&&d.step<4).length;
+  document.getElementById('creatorRevKpi').innerHTML=
+    kpi('총 PR 정산',`¥${fmt(totalPay)}`,'','',null,null)+
+    kpi('계약 성사 안건',live.length,'건','',null,null)+
+    kpi('진행 중 안건',pending,'건','',null,null)+
+    kpi('업로드 완료',myDeals.filter(d=>d.step>=5).length,'건','',null,null);
+  document.querySelector('#creatorRevTable tbody').innerHTML = myDeals.map(d=>{
+    const paid=d.step>=4; const stt=d.step>=5?['p-ok',DEAL_STEPS[d.step]]:d.step>=4?['p-acc','계약 성사']:['p-plan',DEAL_STEPS[d.step]];
+    return `<tr><td><b>${d.title}</b><div style="color:var(--faint);font-size:11px">${d.client}</div></td>
+      <td><span class="chip ${d.type==='ahchannel'?'p-acc':''}">${DEAL_TYPE[d.type]||'개별'}</span></td>
+      <td class="num">¥${fmt(d.fee)}</td><td class="num">${d.shareCreator}%</td>
+      <td class="num" style="font-weight:600;color:${paid?'var(--success)':'var(--muted)'}">¥${fmt(myShare(d))}</td>
+      <td><span class="pill ${stt[0]}"><span class="d"></span>${stt[1]}</span></td></tr>`;}).join('')
+    || '<tr><td colspan="6" style="text-align:center;color:var(--faint);padding:24px">안건 없음</td></tr>';
+
+  const cSched=CONTENTS.filter(c=>c.creator==='hina'&&(c.status==='planned'||monthOf(c)==='2026-08'))
+    .sort((a,b)=>(a.sched.upload||'9999')<(b.sched.upload||'9999')?-1:1);
+  schedList('creatorSched', cSched, true);
+
+  const ringP = myQ? Math.round(myDone/myQ*100):0;
+  document.getElementById('creatorRing').style.setProperty('--p',ringP);
+  document.getElementById('creatorRingTxt').textContent=`${myDone}/${myQ}`;
+  document.getElementById('creatorTodoTitle').textContent=`이번 달 배정 ${myQ}건 중 ${myDone}건 완료`;
+  document.getElementById('creatorTodoNote').innerHTML=`<svg viewBox="0 0 24 24"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg>남은 ${Math.max(0,myQ-myDone)}건 · 관리자가 배정한 브랜드별 편수`;
+  document.getElementById('creatorTodo').innerHTML = myAsg.length? myAsg.map(t=>`
+    <div class="li"><span class="av" style="background:${grad(BRAND_COLOR[t.brand])}">${initial(t.brand)}</span>
+    <div class="main"><div class="t">${t.brand}</div><div class="s">${t.done}/${t.q} 완료</div></div>
+    <div class="r"><span class="pill ${t.done>=t.q?'p-ok':t.done>0?'p-warn':'p-plan'}"><span class="d"></span>${t.done>=t.q?'완료':t.done>0?'진행중':'시작 전'}</span></div></div>`).join('')
+    : '<div class="empty" style="border:0">이번 달 배정이 없어요.</div>';
+}
+
+/* ADMIN */
+function renderAdmin(){
+  const active=CREATORS.filter(c=>c.status==='활동중').length;
+  const connIssues=CREATORS.filter(c=>c.token==='expired'||c.token==='revoked').length;
+  document.getElementById('adminKpi').innerHTML=
+    kpi('전체 이행률','63','%','',null,[48,52,55,58,60,62,63])+
+    kpi('활성 크리에이터',active,'명','',null,null)+
+    kpi('리스크 계약','2','건','',null,null)+
+    kpi('연동 이슈',connIssues,'계정','',null,null);
+
+  // 월 선택기
+  const mopt=ASSIGN_MONTHS.map(m=>`<option value="${m}"${m===ASSIGN_MONTH?' selected':''}>${m.replace('2026-','')+'월'} (2026)</option>`).join('');
+  const mm=document.getElementById('matrixMonth'); if(mm){mm.innerHTML=mopt; mm.onchange=()=>{ASSIGN_MONTH=mm.value; renderAdmin();};}
+
+  const brands=ALL_BRANDS;
+  const month=ASSIGN_MONTH;
+  const asg=ASSIGN[month]||{};
+  const crs=[...new Set(Object.keys(asg).map(k=>k.split('|')[1]))];
+  document.querySelector('#matrix thead').innerHTML='<tr><th>브랜드 \\ 크리에이터</th>'+crs.map(c=>`<th style="text-align:center">${c}</th>`).join('')+'</tr>';
+  document.querySelector('#matrix tbody').innerHTML=brands.map(b=>`<tr><td><span class="chip"><span class="sw" style="background:${BRAND_COLOR[b]}"></span>${b}</span></td>`+
+    crs.map(c=>{const q=asg[b+'|'+c];
+      if(!q) return `<td class="mx"><span class="cell" style="color:var(--faint);cursor:pointer" title="배정 추가" onclick="quickAssign('${b}','${c}')">+</span></td>`;
+      const d=doneCount(month,b,c); const r=d/q;
+      const bg = r>=1?'var(--success-weak)':r>0?'var(--warning-weak)':'var(--critical-weak)';
+      const fg = r>=1?'var(--success)':r>0?'var(--warning)':'var(--critical)';
+      return `<td class="mx"><span class="cell" style="background:${bg};color:${fg};cursor:pointer" title="배정 편집" onclick="quickAssign('${b}','${c}')">${d}/${q}</span></td>`;}).join('')+'</tr>').join('');
+
+  document.getElementById('riskList').innerHTML=[
+    {t:'whipped × rui — 잔여 D-9, 진척 0/1',s:'토큰 만료로 자동수집 중단 상태. 연동 갱신 요청 필요.',cls:'c-crit'},
+    {t:'naming × momo — 잔여 D-2, 진척 1/2',s:'월말 마감 대비 진척 부진. 리마인드 권장.',cls:'c-warn'},
+  ].map(r=>`<div class="callout ${r.cls}"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <div><div class="t">${r.t}</div><div class="s">${r.s}</div></div></div>`).join('');
+
+  // 활동중 크리에이터 + 토큰 보유자 = 연동 대상
+  const connList=CREATORS.filter(c=>c.status==='활동중'||c.token);
+  document.querySelector('#connTable tbody').innerHTML=connList.map(c=>{
+    let stCls,stLabel,expiry,action;
+    if(c.token==='active'){
+      const exp=addDays(c.linked,60); const dleft=daysUntil(exp);
+      expiry=`${exp.slice(2).replace(/-/g,'.')} <span style="color:var(--faint)">(D-${dleft})</span>`;
+      if(dleft<=14){ stCls='p-warn'; stLabel='갱신 필요'; action=`<button class="btn sm" onclick="openConn('${c.name}')">갱신</button>`; }
+      else { stCls='p-ok'; stLabel='연동됨'; action=`<button class="btn sm" onclick="openConn('${c.name}')">재연동</button>`; }
+    } else if(c.token==='expired'){ stCls='p-warn'; stLabel='토큰 만료'; expiry='<span style="color:var(--critical)">만료됨</span>'; action=`<button class="btn sm acc" onclick="openConn('${c.name}')">재연동</button>`; }
+    else if(c.token==='revoked'){ stCls='p-crit'; stLabel='연동 해제'; expiry='—'; action=`<button class="btn sm acc" onclick="openConn('${c.name}')">재연동</button>`; }
+    else { stCls='p-plan'; stLabel='미연동'; expiry='—'; action=`<button class="btn sm acc" onclick="openConn('${c.name}')">연동하기</button>`; }
+    return `<tr><td><b>${c.name}</b></td>
+      <td class="num" style="color:var(--muted)">${c.handle}</td>
+      <td class="num" style="color:var(--muted)">${c.linked?c.linked.slice(2).replace(/-/g,'.'):'—'}</td>
+      <td class="num">${expiry}</td>
+      <td><span class="pill ${stCls}"><span class="d"></span>${stLabel}</span></td>
+      <td style="text-align:right">${action}</td></tr>`;}).join('');
+
+  buildArchive('admin');
+
+  const aSched=CONTENTS.filter(c=>c.status==='planned')
+    .sort((a,b)=>(a.sched.upload||'9999')<(b.sched.upload||'9999')?-1:1);
+  schedList('adminSched', aSched, false);
+
+  buildRosterFilter();
+  renderRoster();
+  buildAssignFilter();
+  renderAssign();
+  renderCost();
+  buildDealFilter();
+  renderDeals();
+  renderRevenue();
+  buildInsightFilter();
+  renderInsight();
+  buildAcctFilter();
+  renderAccounts();
+}
+function renderCost(){
+  const tb=document.querySelector('#costTable tbody'); if(!tb) return;
+  const rate=(pic,f,v)=>`<input class="rate-in" type="number" min="0" step="10000" value="${v}" onchange="setRate(${pic},'${f}',this.value)">`;
+  tb.innerHTML=CREATORS.slice().sort((a,b)=>STATUS_RANK[a.status]-STATUS_RANK[b.status]||a.pic-b.pic).map(c=>{
+    const cap=c.month!=null?c.month:0;
+    const est=(c.rates.reels||0)*cap;
+    return `<tr>
+      <td><b>${c.name}</b> <span class="pill ${STATUS_PILL[c.status]}" style="margin-left:4px"><span class="d"></span>${c.status}</span></td>
+      <td>${rate(c.pic,'reels',c.rates.reels)}</td>
+      <td>${rate(c.pic,'secondary',c.rates.secondary)}</td>
+      <td>${rate(c.pic,'offline',c.rates.offline)}</td>
+      <td>${rate(c.pic,'etc',c.rates.etc)}</td>
+      <td><input class="rate-in" type="number" min="0" step="10000" value="${c.fixedCost||0}" onchange="setFixed(${c.pic},this.value)"></td>
+      <td class="num">${cap||'—'}</td>
+      <td class="num" style="font-weight:600">¥${fmt(est)}</td>
+    </tr>`;}).join('');
+}
+function setRate(pic,field,val){
+  const c=CREATORS.find(x=>x.pic===pic); if(!c) return;
+  c.rates[field]=Math.max(0,parseInt(val||0,10)||0);
+  renderCost();
+}
+function setFixed(pic,val){
+  const c=CREATORS.find(x=>x.pic===pic); if(!c) return;
+  c.fixedCost=Math.max(0,parseInt(val||0,10)||0);
+  renderCost(); renderRevenue();
+}
+
+/* ---------- PR 안건 관리 ---------- */
+const DEAL_STATE={step:'',manager:'',creator:'',q:''};
+const dealContractedPlus=d=>d.step>=4; // 계약 성사 이상 → 매출 인식
+function buildDealFilter(){
+  const bar=document.getElementById('dealFilter'); if(!bar) return;
+  const st=DEAL_STATE;
+  const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  const creators=[...new Set(DEALS.map(d=>d.creator))];
+  bar.innerHTML=
+    `<select data-df="step">${opt('','전체 단계',st.step)}${DEAL_STEPS.map((s,i)=>opt(i,s,st.step)).join('')}</select>`+
+    `<select data-df="manager">${opt('','전체 매니저',st.manager)}${opt('mai','mai',st.manager)}${opt('yuta','yuta',st.manager)}</select>`+
+    `<select data-df="creator">${opt('','전체 크리에이터',st.creator)}${creators.map(c=>opt(c,c,st.creator)).join('')}</select>`+
+    `<input data-df="q" placeholder="안건·의뢰사 검색" value="${st.q}">`+
+    `<span class="count" id="dealCnt"></span>`;
+  bar.querySelectorAll('[data-df]').forEach(el=>el.addEventListener(el.tagName==='INPUT'?'input':'change',()=>{st[el.dataset.df]=el.value; renderDeals();}));
+}
+function renderDeals(){
+  const el=document.getElementById('dealList'); if(!el) return;
+  const st=DEAL_STATE;
+  let list=DEALS.slice();
+  if(st.step!=='') list=list.filter(d=>d.step===+st.step);
+  if(st.manager) list=list.filter(d=>d.manager===st.manager);
+  if(st.creator) list=list.filter(d=>d.creator===st.creator);
+  if(st.q){const q=st.q.toLowerCase(); list=list.filter(d=>d.title.toLowerCase().includes(q)||d.client.toLowerCase().includes(q));}
+  list.sort((a,b)=> b.step-a.step || (a.due||'9999').localeCompare(b.due||'9999'));
+  el.innerHTML = list.length? list.map(dealCard).join('') : '<div class="empty">조건에 맞는 안건이 없어요.</div>';
+  const cnt=document.getElementById('dealCnt'); if(cnt) cnt.textContent=list.length+'건';
+}
+function dealCard(d,ro){
+  const col=bcolor(d.client);
+  const stepper=DEAL_STEPS.map((s,i)=>{
+    const cls=i<d.step?'done':i===d.step?'now':'';
+    return `<div class="step ${cls}"><span class="dot">${i<d.step?'✓':(i+1)}</span><span class="lbl">${s}</span>${i<DEAL_STEPS.length-1?'<span class="line"></span>':''}</div>`;
+  }).join('');
+  const compRev=Math.round(d.fee*d.shareCompany/100), crRev=Math.round(d.fee*d.shareCreator/100);
+  const content=d.contentId? CONTENTS.find(c=>c.id===d.contentId):null;
+  const perf = content? `<div class="note" style="margin-top:10px"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      조회 <b class="num">${fmt(content.views)}</b> · 참여율 <b class="num">${eng(content)}</b> · 저장 <b class="num">${fmt(content.saves)}</b>
+      <button class="btn sm" style="margin-left:8px" onclick='openModal(${JSON.stringify(content)})'>아카이브에서 보기</button></div>`:'';
+  const nextBtn = d.step<DEAL_STEPS.length-1? `<button class="btn sm acc" onclick="advanceDeal('${d.id}')">다음 단계 →</button>`:'';
+  return `<div class="srow">
+    <div class="hd">
+      <span class="av" style="width:36px;height:36px;border-radius:9px;flex:none;display:grid;place-items:center;color:#fff;font-weight:600;font-family:var(--display);background:${grad(col)}">${initial(d.client)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:14px">${d.title} <span class="chip ${d.type==='ahchannel'?'p-acc':''}" style="margin-left:4px">${DEAL_TYPE[d.type]||'개별'}</span></div>
+        <div style="color:var(--faint);font-size:12px;margin-top:2px">${d.client} · ${d.creator} · 담당 ${d.manager} · 인입 ${DEAL_SOURCE[d.source]}</div>
+      </div>
+      <span class="pill ${d.step>=5?'p-ok':d.step>=4?'p-acc':'p-plan'}"><span class="d"></span>${DEAL_STEPS[d.step]}</span>
+    </div>
+    ${d.brief?`<div class="callout" style="background:var(--surface-2);margin-top:12px"><svg viewBox="0 0 24 24" style="stroke:var(--muted)"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><div><div class="t" style="font-size:12px">요청 콘텐츠 브리핑</div><div class="s">${d.brief}</div></div></div>`:''}
+    <div class="stepper">${stepper}</div>
+    <div class="row" style="margin-top:12px;gap:22px;font-size:12.5px">
+      <span>PR 비용 <b class="num">¥${fmt(d.fee)}</b></span>
+      <span>쉐어 <b class="num">${d.shareCompany}:${d.shareCreator}</b> (회사 ¥${fmt(compRev)} · 크리 ¥${fmt(crRev)})</span>
+      <span>납기 <b class="num">${d.due?md(d.due):'—'}</b></span>
+      <span>업로드 <b class="num">${d.upload?md(d.upload):'—'}</b></span>
+    </div>
+    ${perf}
+    ${ro?'':`<div class="frow" style="margin-top:12px;justify-content:flex-end">
+      ${nextBtn}
+      <button class="btn sm" onclick="openDeal('${d.id}')">수정</button>
+    </div>`}
+  </div>`;
+}
+function advanceDeal(id){
+  const d=DEALS.find(x=>x.id===id); if(!d) return;
+  if(d.step<DEAL_STEPS.length-1) d.step++;
+  renderDeals(); renderRevenue();
+  toast(`${d.title} → ${DEAL_STEPS[d.step]}`);
+}
+
+/* 안건 추가/수정 모달 */
+let DEAL_TARGET=null;
+function openDeal(id){
+  const d=id? DEALS.find(x=>x.id===id):null;
+  DEAL_TARGET=d;
+  document.getElementById('dealTitle').textContent=d?'PR 안건 수정':'PR 안건 추가';
+  document.getElementById('dCreator').innerHTML=CREATORS.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+  document.getElementById('dStep').innerHTML=DEAL_STEPS.map((s,i)=>`<option value="${i}">${i+1}. ${tr(s)}</option>`).join('');
+  const g=id=>document.getElementById(id);
+  g('dTitle').value=d?d.title:''; g('dClient').value=d?d.client:'';
+  g('dBrief').value=d&&d.brief?d.brief:''; g('dType').value=d&&d.type?d.type:'ahchannel';
+  g('dCreator').value=d?d.creator:CREATORS[0].name; g('dManager').value=d?d.manager:'mai';
+  g('dSource').value=d?d.source:'company_email'; g('dFee').value=d?d.fee:'';
+  g('dStep').value=d?d.step:0; g('dShareC').value=d?d.shareCompany:50; g('dShareR').value=d?d.shareCreator:50;
+  g('dDue').value=d&&d.due?d.due:''; g('dUpload').value=d&&d.upload?d.upload:'';
+  g('dealDelete').style.display=d?'':'none';
+  document.getElementById('dealBackdrop').classList.add('open'); applyLang();
+}
+function closeDeal(){document.getElementById('dealBackdrop').classList.remove('open');}
+function saveDeal(){
+  const g=id=>document.getElementById(id);
+  const rec={
+    title:g('dTitle').value.trim()||'무제 안건', client:g('dClient').value.trim()||'미정',
+    brief:g('dBrief').value.trim(), type:g('dType').value,
+    creator:g('dCreator').value, manager:g('dManager').value, source:g('dSource').value,
+    fee:parseInt(g('dFee').value||0,10)||0, step:parseInt(g('dStep').value,10)||0,
+    shareCompany:parseInt(g('dShareC').value||0,10)||0, shareCreator:parseInt(g('dShareR').value||0,10)||0,
+    due:g('dDue').value||null, upload:g('dUpload').value||null,
+  };
+  if(DEAL_TARGET){ Object.assign(DEAL_TARGET,rec); toast(`${rec.title} 저장됨`); }
+  else { rec.id='D-'+(100+DEALS.length+Math.floor(shash(rec.title)%800)); rec.contentId=null; DEALS.unshift(rec); toast(`${rec.title} 안건 추가됨`); }
+  closeDeal(); renderDeals(); renderRevenue();
+}
+function deleteDeal(){ if(!DEAL_TARGET)return; const i=DEALS.indexOf(DEAL_TARGET); if(i>=0)DEALS.splice(i,1); closeDeal(); renderDeals(); renderRevenue(); toast('안건이 삭제됐어요'); }
+document.getElementById('dealAdd').onclick=()=>openDeal(null);
+document.getElementById('dealCloseX').onclick=closeDeal;
+document.getElementById('dealCancel').onclick=closeDeal;
+document.getElementById('dealSave').onclick=saveDeal;
+document.getElementById('dealDelete').onclick=deleteDeal;
+document.getElementById('dealBackdrop').onclick=e=>{if(e.target.id==='dealBackdrop')closeDeal();};
+document.getElementById('aiRun').onclick=runAI;
+
+/* ---------- 매출 대시보드 (3개 스트림) ---------- */
+function renderRevenue(){
+  if(!document.getElementById('revKpi')) return;
+  const live=DEALS.filter(dealContractedPlus);
+  const compShare=d=>Math.round(d.fee*d.shareCompany/100);
+  // ① ah!channel PR (회사 share)
+  const ahRev=live.filter(d=>d.type==='ahchannel').reduce((s,d)=>s+compShare(d),0);
+  // ③ 개별 PR (회사 share)
+  const crDealRev=live.filter(d=>d.type!=='ahchannel').reduce((s,d)=>s+compShare(d),0);
+  // ② 브랜드 월 계약 (배정 기준 · 건당 UNIT_PRICE)
+  const month=ASSIGN_MONTH; const asg=ASSIGN[month]||{};
+  const brandUnits={}; ALL_BRANDS.forEach(b=>brandUnits[b]=0);
+  Object.entries(asg).forEach(([k,q])=>{const b=k.split('|')[0]; if(b in brandUnits) brandUnits[b]+=q;});
+  const brandRev=Object.values(brandUnits).reduce((s,u)=>s+u*UNIT_PRICE,0);
+
+  const total=ahRev+brandRev+crDealRev;
+  const fixed=CREATORS.reduce((s,c)=>s+(c.fixedCost||0),0);
+  const profit=total-fixed;
+  document.getElementById('revKpi').innerHTML=
+    kpi('① ah!channel PR',`¥${fmt(ahRev)}`,'','',null,null)+
+    kpi('② 브랜드 월계약',`¥${fmt(brandRev)}`,'','',null,null)+
+    kpi('③ 개별 PR',`¥${fmt(crDealRev)}`,'','',null,null)+
+    kpi('총 매출',`¥${fmt(total)}`,'','',null,[3,4,5,6,7,9,total/1000000])+
+    kpi('순이익 (−고정비)',`¥${fmt(profit)}`,'',profit>=0?'흑자':'적자',profit>=0?'up':'down',null);
+
+  // 브랜드 계약 매출 막대
+  const maxBrand=Math.max(1,...ALL_BRANDS.map(b=>brandUnits[b]*UNIT_PRICE));
+  document.getElementById('revBrandBars').innerHTML=ALL_BRANDS.map(b=>{const rev=brandUnits[b]*UNIT_PRICE;
+    return `<div class="bar" style="grid-template-columns:70px 1fr 96px"><span><span class="chip" style="padding:1px 6px"><span class="sw" style="background:${BRAND_COLOR[b]}"></span>${b}</span></span>
+      <div class="track"><div class="fill" style="width:${rev/maxBrand*100}%;background:${BRAND_COLOR[b]}"></div></div>
+      <span class="pct">¥${fmt(rev)} <span style="color:var(--faint)">(${brandUnits[b]}건)</span></span></div>`;}).join('');
+
+  // 크리에이터별 PR 회사매출 + 기여손익
+  const per=CREATORS.map(c=>{
+    const ds=live.filter(d=>d.creator===c.name);
+    const prComp=ds.reduce((s,d)=>s+compShare(d),0);
+    const brandAlloc=Object.entries(asg).filter(([k])=>k.split('|')[1]===c.name).reduce((s,[,q])=>s+q,0)*UNIT_PRICE;
+    const fx=c.fixedCost||0;
+    return {name:c.name, prComp, brandAlloc, fixed:fx, contrib:prComp+brandAlloc-fx};
+  }).filter(p=>p.prComp>0||p.brandAlloc>0||p.fixed>0).sort((a,b)=>b.contrib-a.contrib);
+
+  const maxComp=Math.max(1,...per.map(p=>p.prComp));
+  document.getElementById('revBars').innerHTML=per.filter(p=>p.prComp>0).map(p=>`
+    <div class="bar" style="grid-template-columns:64px 1fr 92px"><span>${p.name}</span>
+      <div class="track"><div class="fill" style="width:${p.prComp/maxComp*100}%"></div></div>
+      <span class="pct">¥${fmt(p.prComp)}</span></div>`).join('') || '<div class="empty" style="border:0">계약 성사된 개별 PR이 없어요.</div>';
+
+  document.querySelector('#revTable tbody').innerHTML=per.map(p=>`
+    <tr><td><b>${p.name}</b></td>
+    <td class="num">¥${fmt(p.brandAlloc)}</td>
+    <td class="num">¥${fmt(p.prComp)}</td>
+    <td class="num" style="color:var(--muted)">¥${fmt(p.fixed)}</td>
+    <td class="num" style="font-weight:600;color:${p.contrib>=0?'var(--success)':'var(--critical)'}">¥${fmt(p.contrib)}</td></tr>`).join('')
+    || '<tr><td colspan="5" style="text-align:center;color:var(--faint);padding:30px">데이터 없음</td></tr>';
+}
+
+/* ---------- 크리에이터 인사이트 + AI 코치 ---------- */
+let INSIGHT_CREATOR='hina';
+function growthSeries(c){
+  const rate=0.03+(shash(c.name)%9)/100;   // 월 3~11%
+  const n=13; const arr=[]; let v=c.followers;
+  for(let i=0;i<n;i++){ arr.unshift(Math.round(v)); v=v/(1+rate/4); }
+  return arr;
+}
+function audienceOf(c){
+  const h=shash(c.name);
+  const female=Math.min(93,52+h%38);
+  let a=[4+h%5, 28+h%14, 32+(h>>2)%14, 11+(h>>3)%8, 3+(h>>4)%5];
+  const sum=a.reduce((x,y)=>x+y,0); a=a.map(v=>Math.round(v/sum*100));
+  const regions=[['도쿄',20+h%18],['오사카',12+ (h>>1)%9],['서울',6+(h>>2)%9],['후쿠오카',5+(h>>3)%5],['나고야',4+(h>>4)%4]];
+  return {female, ages:[['13–17',a[0]],['18–24',a[1]],['25–34',a[2]],['35–44',a[3]],['45+',a[4]]], regions};
+}
+function creatorStats(name){
+  const ups=CONTENTS.filter(c=>c.creator===name&&c.status==='uploaded'&&c.views>0);
+  const n=ups.length||1;
+  return {
+    ups,
+    avgViews:Math.round(ups.reduce((s,c)=>s+c.views,0)/n),
+    avgEng:ups.reduce((s,c)=>s+parseFloat(eng(c)),0)/n,
+    avgSave:ups.reduce((s,c)=>s+(c.saves/c.views*100),0)/n,
+    avgReach:ups.reduce((s,c)=>s+(c.reach/c.views*100),0)/n,
+  };
+}
+function buildInsightFilter(){
+  const sel=document.getElementById('insightCreator'); if(!sel) return;
+  const withData=CREATORS.filter(c=>c.status==='활동중');
+  if(!withData.find(c=>c.name===INSIGHT_CREATOR)) INSIGHT_CREATOR=withData[0]?.name||'hina';
+  sel.innerHTML=withData.map(c=>`<option value="${c.name}"${c.name===INSIGHT_CREATOR?' selected':''}>${c.name} · ${c.handle}</option>`).join('');
+  sel.onchange=()=>{INSIGHT_CREATOR=sel.value; renderInsight();};
+}
+function renderInsight(){
+  const c=CREATORS.find(x=>x.name===INSIGHT_CREATOR); if(!c||!document.getElementById('insightKpi')) return;
+  const s=growthSeries(c); const gain=s[s.length-1]-s[0]; const pct=(gain/s[0]*100);
+  const st=creatorStats(c.name);
+  document.getElementById('insightKpi').innerHTML=
+    kpi('팔로워',fmt(c.followers),'',`${pct>=0?'+':''}${pct.toFixed(1)}% (12주)`,pct>=0?'up':'down',s.map(v=>v/1000))+
+    kpi('순증 (12주)',`${gain>=0?'+':''}${fmt(gain)}`,'','',null,null)+
+    kpi('평균 조회',fmt(st.avgViews),'','',null,null)+
+    kpi('평균 참여율',st.avgEng.toFixed(1),'%','',null,null);
+  document.getElementById('insightGrowthHint').textContent=`${c.handle} · 최근 12주`;
+  document.getElementById('insightGrowth').innerHTML=
+    `<div style="margin-top:8px">${spark(s,520,120,accent())}</div>`;
+  const a=audienceOf(c); const gp=a.female;
+  const maxAge=Math.max(...a.ages.map(x=>x[1]));
+  document.getElementById('insightAudience').innerHTML=`
+    <div class="donut-wrap">
+      <svg width="92" height="92" viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9" fill="none" stroke="var(--surface-3)" stroke-width="7"/>
+      <circle cx="21" cy="21" r="15.9" fill="none" stroke="${accent()}" stroke-width="7" stroke-dasharray="${gp} ${100-gp}" stroke-dashoffset="25" stroke-linecap="round"/>
+      <text x="21" y="20" text-anchor="middle" font-size="8" font-family="var(--mono)" fill="var(--ink)" font-weight="600">${gp}%</text>
+      <text x="21" y="27" text-anchor="middle" font-size="3.6" fill="var(--faint)">여성</text></svg>
+      <div class="legend"><div class="it"><span class="sw" style="background:var(--accent)"></span>여성 <b class="num">${gp}%</b></div>
+      <div class="it"><span class="sw" style="background:var(--surface-3)"></span>남성 <b class="num">${100-gp}%</b></div></div>
+    </div>
+    <div class="sec-h" style="margin:18px 0 8px"><h2>연령대</h2></div>
+    <div class="bars">${a.ages.map(([l,v])=>`<div class="bar"><span>${l}</span><div class="track"><div class="fill" style="width:${v/maxAge*100}%"></div></div><span class="pct">${v}%</span></div>`).join('')}</div>
+    <div class="sec-h" style="margin:18px 0 8px"><h2>주요 지역</h2></div>
+    <div class="row">${a.regions.map(([r,v])=>`<span class="chip"><span class="sw" style="background:${accent()}"></span>${r} ${v}%</span>`).join('')}</div>`;
+  // AI 출력 초기화
+  document.getElementById('aiOutput').innerHTML=`<div class="note"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>${c.name} 분석 준비됨 — ‘분석 실행’을 눌러주세요.</div>`;
+  applyLang();
+}
+function aiFeedback(c){
+  const s=growthSeries(c); const pct=(s[s.length-1]-s[0])/s[0]*100;
+  const st=creatorStats(c.name); const a=audienceOf(c);
+  const cards=[];
+  // 1. 성장 진단
+  if(pct>=40) cards.push({sev:'ok',ic:'▲',t:'성장 가속 중',s:`최근 12주 팔로워 +${pct.toFixed(0)}%. 상위 성장세입니다. 현재 업로드 주기·포맷을 유지하고, 잘 되는 콘텐츠를 시리즈화하세요.`});
+  else if(pct>=15) cards.push({sev:'ok',ic:'▲',t:'안정적 성장',s:`+${pct.toFixed(0)}% 성장 중. 업로드 빈도를 주 1회 더 늘리면 성장 곡선을 끌어올릴 수 있습니다.`});
+  else if(pct>0) cards.push({sev:'warn',ic:'→',t:'성장 정체 구간',s:`+${pct.toFixed(0)}%로 완만합니다. 새로운 훅(첫 3초)·주제 실험이 필요합니다. 트렌드 오디오 활용을 권장합니다.`});
+  else cards.push({sev:'crit',ic:'▼',t:'팔로워 하락',s:`최근 감소세. 최근 콘텐츠 톤 변화·업로드 공백을 점검하세요.`});
+  // 2. 콘텐츠 성과
+  if(st.ups.length){
+    const best=st.ups.slice().sort((x,y)=>parseFloat(eng(y))-parseFloat(eng(x)))[0];
+    cards.push({sev:'info',ic:'★',t:'베스트 콘텐츠',s:`‘${best.product}’가 참여율 ${eng(best)}, 조회 ${fmt(best.views)}로 가장 반응이 좋았습니다. 유사 주제·포맷을 2~3회 반복 제작 추천.`});
+  }
+  // 3. 저장률 vs 도달
+  if(st.avgSave>=1.5 && st.avgReach<80) cards.push({sev:'warn',ic:'!',t:'저장은 높은데 도달이 낮음',s:`평균 저장률 ${st.avgSave.toFixed(1)}%(양호)이나 도달률 ${st.avgReach.toFixed(0)}%로 낮습니다. 훅·썸네일·해시태그를 개선해 초기 도달을 키우세요.`});
+  else cards.push({sev:'info',ic:'i',t:'참여 지표 요약',s:`평균 참여율 ${st.avgEng.toFixed(1)}%, 저장률 ${st.avgSave.toFixed(1)}%, 도달률 ${st.avgReach.toFixed(0)}%. 저장 유도 문구(‘저장해두세요’)를 캡션에 추가해보세요.`});
+  // 4. 오디언스 기반 추천
+  const topAge=a.ages.slice().sort((x,y)=>y[1]-x[1])[0][0];
+  cards.push({sev:'info',ic:'◎',t:'오디언스 맞춤 제안',s:`주 시청층은 여성 ${a.female}%·${topAge} 세대, ${a.regions[0][0]} 중심입니다. 해당 층이 반응하는 데일리·가성비 주제를 강화하세요.`});
+  return cards;
+}
+let aiTimer=null;
+function runAI(){
+  const c=CREATORS.find(x=>x.name===INSIGHT_CREATOR); if(!c) return;
+  const out=document.getElementById('aiOutput');
+  out.innerHTML=`<div class="note"><span class="spin"></span> ${c.name}의 성장률·아카이브 콘텐츠 분석 중…</div>`;
+  clearTimeout(aiTimer);
+  aiTimer=setTimeout(()=>{
+    const cards=aiFeedback(c);
+    out.innerHTML=`<div style="font-size:12px;color:var(--faint);margin-bottom:10px">분석 대상: 팔로워 추이(12주) + 업로드 콘텐츠 ${creatorStats(c.name).ups.length}건</div>`+
+      cards.map(f=>`<div class="ai-card ai-${f.sev}"><span class="ic">${f.ic}</span><div><div class="t">${tr(f.t)}</div><div class="s">${f.s}</div></div></div>`).join('')+
+      `<div class="note" style="margin-top:8px"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z"/></svg>AI 생성 피드백 · 크리에이터에게 공유 가능</div>`;
+    applyLang();
+  },1100);
+}
+
+/* ---------- 계정·권한 ---------- */
+const ACCT_STATE={role:'',status:'',q:''};
+function scopeLabel(a){ return a.role==='admin'?'81degree':a.scope; }
+function buildAcctFilter(){
+  const bar=document.getElementById('acctFilter'); if(!bar) return;
+  const st=ACCT_STATE; const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  bar.innerHTML=
+    `<select data-af="role">${opt('','전체 역할',st.role)}${opt('admin','관리자',st.role)}${opt('brand','브랜드',st.role)}${opt('creator','크리에이터',st.role)}</select>`+
+    `<select data-af="status">${opt('','전체 상태',st.status)}${opt('active','활성',st.status)}${opt('pending','초대중',st.status)}${opt('disabled','비활성',st.status)}</select>`+
+    `<input data-af="q" placeholder="이메일·소속 검색" value="${st.q}">`+
+    `<span class="count" id="acctCnt"></span>`;
+  bar.querySelectorAll('[data-af]').forEach(el=>el.addEventListener(el.tagName==='INPUT'?'input':'change',()=>{st[el.dataset.af]=el.value; renderAccounts();}));
+}
+function renderAccounts(){
+  const tb=document.querySelector('#acctTable tbody'); if(!tb) return;
+  const st=ACCT_STATE; let list=ACCOUNTS.slice();
+  if(st.role) list=list.filter(a=>a.role===st.role);
+  if(st.status) list=list.filter(a=>a.status===st.status);
+  if(st.q){const q=st.q.toLowerCase(); list=list.filter(a=>a.email.toLowerCase().includes(q)||(a.scope||'').toLowerCase().includes(q));}
+  const rank={admin:0,brand:1,creator:2};
+  list.sort((a,b)=>rank[a.role]-rank[b.role]||a.email.localeCompare(b.email));
+  tb.innerHTML=list.map((a,i)=>{
+    const idx=ACCOUNTS.indexOf(a);
+    const stt=ACCT_STATUS[a.status];
+    return `<tr>
+      <td><b>${a.email}</b></td>
+      <td><span class="pill ${ROLE_PILL[a.role]}"><span class="d"></span>${ROLE_LABEL[a.role]}</span></td>
+      <td>${a.role==='admin'?'<span style="color:var(--muted)">81degree</span>':`<span class="chip">${a.scope}</span>`}</td>
+      <td><span class="pill ${stt[0]}"><span class="d"></span>${stt[1]}</span></td>
+      <td class="num" style="color:var(--muted)">${a.last?a.last.slice(2).replace(/-/g,'.'):'—'}</td>
+      <td><div style="display:flex;gap:6px;justify-content:flex-end">
+        ${a.status==='pending'?`<button class="btn sm" onclick="resendAcct(${idx})">재발송</button>`:''}
+        <button class="btn sm" onclick="toggleAcct(${idx})">${a.status==='disabled'?'활성화':'비활성'}</button>
+        <button class="btn sm" onclick="openAcct(${idx})">수정</button>
+        <button class="iconbtn" style="width:31px;height:31px" title="삭제" onclick="removeAcct(${idx})"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg></button>
+      </div></td>
+    </tr>`;}).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--faint);padding:30px">조건에 맞는 계정이 없어요.</td></tr>';
+  const cnt=document.getElementById('acctCnt'); if(cnt) cnt.textContent=list.length+'개';
+}
+function fillAcctScope(role,current){
+  const sel=document.getElementById('aScope'); const note=document.getElementById('aScopeNote');
+  if(role==='admin'){ sel.innerHTML='<option value="81degree">81degree (전체)</option>'; sel.disabled=true; note.textContent='관리자: 전체 데이터에 접근합니다.'; }
+  else if(role==='brand'){ sel.disabled=false; sel.innerHTML=ALL_BRANDS.map(b=>`<option value="${b}"${b===current?' selected':''}>${b}</option>`).join(''); note.textContent='브랜드: 자기 브랜드의 협업·성과만 볼 수 있어요.'; }
+  else { sel.disabled=false; sel.innerHTML=CREATORS.map(c=>`<option value="${c.name}"${c.name===current?' selected':''}>${c.name} · ${c.handle}</option>`).join(''); note.textContent='크리에이터: 본인 계정·콘텐츠만 볼 수 있어요.'; }
+}
+let ACCT_TARGET=null;
+function openAcct(idx){
+  const a=idx==null?null:ACCOUNTS[idx]; ACCT_TARGET=a;
+  document.getElementById('acctTitle').textContent=a?'계정 수정':'계정 초대';
+  document.getElementById('acctSaveTxt').textContent=a?'저장':'초대 보내기';
+  document.getElementById('aEmail').value=a?a.email:''; document.getElementById('aEmail').disabled=!!a;
+  document.getElementById('aRole').value=a?a.role:'brand';
+  fillAcctScope(a?a.role:'brand', a?a.scope:null);
+  document.getElementById('acctDelete').style.display=a?'':'none';
+  document.getElementById('acctBackdrop').classList.add('open'); applyLang();
+}
+document.getElementById('aRole') && (document.getElementById('aRole').onchange=e=>fillAcctScope(e.target.value,null));
+function closeAcct(){document.getElementById('acctBackdrop').classList.remove('open');}
+function saveAcct(){
+  const email=document.getElementById('aEmail').value.trim();
+  const role=document.getElementById('aRole').value;
+  const scope=role==='admin'?'81degree':document.getElementById('aScope').value;
+  if(!email){toast('이메일을 입력해주세요'); return;}
+  if(ACCT_TARGET){ ACCT_TARGET.role=role; ACCT_TARGET.scope=scope; toast(`${email} 권한 저장됨`); }
+  else { ACCOUNTS.push({email,role,scope,status:'pending',last:null}); toast(`${email} 초대 메일 발송됨`); }
+  closeAcct(); renderAccounts();
+}
+function resendAcct(idx){ toast(`${ACCOUNTS[idx].email} 초대 재발송됨`); }
+function toggleAcct(idx){ const a=ACCOUNTS[idx]; a.status = a.status==='disabled'?'active':'disabled'; renderAccounts(); toast(`${a.email} ${a.status==='disabled'?'비활성화':'활성화'}됨`); }
+function removeAcct(idx){ const a=ACCOUNTS[idx]; ACCOUNTS.splice(idx,1); renderAccounts(); toast(`${a.email} 삭제됨`); }
+document.getElementById('acctInvite').onclick=()=>openAcct(null);
+document.getElementById('acctCloseX').onclick=closeAcct;
+document.getElementById('acctCancel').onclick=closeAcct;
+document.getElementById('acctSave').onclick=saveAcct;
+document.getElementById('acctDelete').onclick=()=>{ if(ACCT_TARGET){removeAcct(ACCOUNTS.indexOf(ACCT_TARGET)); closeAcct();} };
+document.getElementById('acctBackdrop').onclick=e=>{if(e.target.id==='acctBackdrop')closeAcct();};
+
+/* ---------- SNS 계정 연동 (OAuth 시뮬레이션) ---------- */
+let CONN_TARGET=null;
+function openConn(name){
+  const c=CREATORS.find(x=>x.name===name); if(!c) return;
+  CONN_TARGET=c;
+  document.getElementById('connFor').textContent=`${c.name} · ${c.handle}`;
+  document.getElementById('connHandle2').textContent=c.handle;
+  document.getElementById('connStep1').style.display='';
+  document.getElementById('connStep2').style.display='none';
+  document.getElementById('connBackdrop').classList.add('open'); applyLang();
+}
+function closeConn(){document.getElementById('connBackdrop').classList.remove('open');}
+function connApprove(){
+  const c=CONN_TARGET; if(!c) return;
+  c.token='active'; c.linked='2026-08-22';
+  closeConn(); renderAdmin();
+  toast(`${c.name} 연동 완료 · 자동 수집 시작`);
+}
+document.getElementById('connCloseX').onclick=closeConn;
+document.getElementById('connBackdrop').onclick=e=>{if(e.target.id==='connBackdrop')closeConn();};
+document.getElementById('connSendLink').onclick=()=>{ if(CONN_TARGET) toast(`${CONN_TARGET.name}에게 연동 요청 링크를 발송했습니다`); closeConn(); };
+document.getElementById('connSimulate').onclick=()=>{ document.getElementById('connStep1').style.display='none'; document.getElementById('connStep2').style.display=''; applyLang(); };
+document.getElementById('connAllow').onclick=connApprove;
+document.getElementById('connDeny').onclick=closeConn;
+
+/* ---------- 월별 배정 관리 (contracts → assignments) ---------- */
+function buildAssignFilter(){
+  const ms=document.getElementById('assignMonth'), bs=document.getElementById('assignBrand');
+  if(!ms||!bs) return;
+  ms.innerHTML=ASSIGN_MONTHS.map(m=>`<option value="${m}"${m===ASSIGN_MONTH?' selected':''}>${m.replace('2026-','')+'월'} (2026)</option>`).join('');
+  bs.innerHTML=`<option value="__all__"${ASSIGN_BRAND==='__all__'?' selected':''}>전체 브랜드</option>`
+    +ALL_BRANDS.map(b=>`<option value="${b}"${b===ASSIGN_BRAND?' selected':''}>${b}</option>`).join('');
+  ms.onchange=()=>{ASSIGN_MONTH=ms.value; renderAdmin();};
+  bs.onchange=()=>{ASSIGN_BRAND=bs.value; renderAssign();};
+}
+function renderAssign(){
+  const el=document.getElementById('assignEditor'); if(!el) return;
+  const month=ASSIGN_MONTH, brand=ASSIGN_BRAND;
+  ASSIGN[month]=ASSIGN[month]||{};
+  if(brand==='__all__'){ renderAssignOverview(el,month); return; }
+  const target=(CONTRACTS[month]&&CONTRACTS[month][brand])||0;
+  const totalFor=name=>Object.entries(ASSIGN[month]).filter(([k])=>k.split('|')[1]===name).reduce((s,[,q])=>s+q,0);
+  const capOf=name=>{const c=CREATORS.find(x=>x.name===name); return c&&c.month!=null?c.month:0;};
+  // 활동중 + 이 브랜드에 이미 배정된 크리에이터
+  const names=[...new Set([...CREATORS.filter(c=>c.status==='활동중').map(c=>c.name),
+    ...Object.keys(ASSIGN[month]).filter(k=>k.split('|')[0]===brand).map(k=>k.split('|')[1])])];
+  let sum=0;
+  const rows=names.map(name=>{
+    const c=CREATORS.find(x=>x.name===name)||{handle:''};
+    const key=brand+'|'+name; const q=ASSIGN[month][key]||0; sum+=q;
+    const done=doneCount(month,brand,name);
+    const tot=totalFor(name), cap=capOf(name);
+    const capCls = tot>cap? 'style="color:var(--critical);font-weight:600"' : tot===cap&&cap>0? 'style="color:var(--success)"' : 'style="color:var(--muted)"';
+    return `<tr>
+      <td><b>${name}</b> <span class="num" style="color:var(--faint)">${c.handle}</span></td>
+      <td><div class="qstep">
+        <button onclick="bumpAssign('${key}',-1)" aria-label="감소">−</button>
+        <input type="number" min="0" value="${q}" onchange="setAssign('${key}',this.value)">
+        <button onclick="bumpAssign('${key}',1)" aria-label="증가">+</button>
+      </div></td>
+      <td class="num">${done}</td>
+      <td class="num" ${capCls} title="이번 달 전 브랜드 배정 합계 / 월 계약 수량">${tot}/${cap||'—'}${tot>cap?' ⚠':''}</td>
+    </tr>`;
+  }).join('');
+  const diff=sum-target;
+  const tcls = diff===0?'ok':'over';
+  const tmsg = diff===0? `계약 편수와 일치` : diff>0? `계약보다 ${diff}건 초과 배정` : `계약 대비 ${-diff}건 미배정`;
+  el.innerHTML=`
+    <div class="assign-target ${tcls}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span><b>${brand}</b> · ${month.replace('2026-','')}월 계약 <b>${target}</b>건 · 배정 합계 <b>${sum}</b>건 — ${tmsg}</span>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>크리에이터</th><th>${brand} 배정</th><th>완료</th><th>월 총배정/계약수량</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>맨 오른쪽은 크리에이터의 <b>모든 브랜드 배정 합계 / 월 계약 수량</b>입니다. 초과하면 ⚠로 표시돼요.</div>`;
+  const sm=document.getElementById('assignSum'); if(sm) sm.textContent=`배정 ${sum} / 계약 ${target}`;
+}
+function renderAssignOverview(el,month){
+  const brands=ALL_BRANDS, asg=ASSIGN[month]||{};
+  // 활동중 + 이번 달 배정된 크리에이터 모두
+  const names=[...new Set([...CREATORS.filter(c=>c.status==='활동중').map(c=>c.name), ...Object.keys(asg).map(k=>k.split('|')[1])])];
+  const brandSum={}; brands.forEach(b=>brandSum[b]=0);
+  const brandDone={}; brands.forEach(b=>brandDone[b]=0);
+  let grandQ=0, grandDone=0;
+  const rows=names.map(name=>{
+    let rowQ=0, rowDone=0;
+    const cells=brands.map(b=>{
+      const q=asg[b+'|'+name]||0;
+      if(!q) return `<td class="mx"><span class="cell" style="color:var(--faint);cursor:pointer" title="배정 추가" onclick="quickAssign('${b}','${name}')">·</span></td>`;
+      const d=doneCount(month,b,name); rowQ+=q; rowDone+=d; brandSum[b]+=q; brandDone[b]+=d;
+      const r=d/q; const bg=r>=1?'var(--success-weak)':r>0?'var(--warning-weak)':'var(--surface-2)'; const fg=r>=1?'var(--success)':r>0?'var(--warning)':'var(--ink)';
+      return `<td class="mx"><span class="cell" style="background:${bg};color:${fg};cursor:pointer" title="배정 편집" onclick="quickAssign('${b}','${name}')">${d}/${q}</span></td>`;
+    }).join('');
+    grandQ+=rowQ; grandDone+=rowDone;
+    const cc=CREATORS.find(x=>x.name===name); const cap=cc&&cc.month!=null?cc.month:0;
+    const capCls = rowQ>cap? 'style="color:var(--critical);font-weight:600"' : 'style="color:var(--muted)"';
+    return `<tr><td><b>${name}</b></td>${cells}<td class="mx" ${capCls} title="배정 합계 / 월 계약 수량">${rowQ}/${cap||'—'}${rowQ>cap?' ⚠':''}</td></tr>`;
+  }).join('');
+  const targetRow=`<tr style="border-top:2px solid var(--border-strong)"><td style="color:var(--muted);font-weight:600">계약 목표</td>`+
+    brands.map(b=>{const t=(CONTRACTS[month]&&CONTRACTS[month][b])||0; const over=brandSum[b]!==t;
+      return `<td class="mx" style="color:${over?'var(--warning)':'var(--muted)'}" title="배정 ${brandSum[b]} / 계약 ${t}">${brandSum[b]}/${t}</td>`;}).join('')+
+    `<td class="mx" style="color:var(--muted)"><b>${grandQ}</b></td></tr>`;
+  el.innerHTML=`
+    <div class="assign-target ${grandQ? 'ok':'over'}">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+      <span>${month.replace('2026-','')}월 전체 · 배정 <b>${grandQ}</b>건 / 완료 <b>${grandDone}</b>건 · 크리에이터 ${names.length}명 × 브랜드 ${brands.length}개</span>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>크리에이터 \\ 브랜드</th>${brands.map(b=>`<th style="text-align:center"><span class="chip" style="padding:2px 7px"><span class="sw" style="background:${BRAND_COLOR[b]}"></span>${b}</span></th>`).join('')}<th style="text-align:center">배정/계약</th></tr></thead>
+    <tbody>${rows}${targetRow}</tbody></table></div>
+    <div class="note" style="margin-top:12px"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>셀=완료/배정 · 맨 오른쪽=크리에이터 배정합계/월 계약수량(초과 시 ⚠) · 맨 아래=브랜드 배정/계약목표. 셀 클릭 시 편집.</div>`;
+  const sm=document.getElementById('assignSum'); if(sm) sm.textContent=`전체 배정 ${grandQ}건`;
+}
+function setAssign(key,val){ const v=Math.max(0,parseInt(val||0,10)||0); ASSIGN[ASSIGN_MONTH][key]=v; if(!v) delete ASSIGN[ASSIGN_MONTH][key]; renderAdmin(); renderCreator(); renderBrand(); }
+function bumpAssign(key,d){ const cur=ASSIGN[ASSIGN_MONTH][key]||0; const v=Math.max(0,cur+d); ASSIGN[ASSIGN_MONTH][key]=v; if(!v) delete ASSIGN[ASSIGN_MONTH][key]; renderAdmin(); renderCreator(); renderBrand(); }
+function quickAssign(brand,creator){ ASSIGN_BRAND=brand; selectPane('admin','a-assign',null); buildAssignFilter(); renderAssign(); toast(`${brand} 배정 편집`); }
+
+/* ---------- 크리에이터 관리 (로스터) ---------- */
+const STATUS_PILL={'활동중':'p-ok','계약준비':'p-acc','보류':'p-plan'};
+const STATUS_RANK={'활동중':0,'계약준비':1,'보류':2};
+const ROSTER_STATE={status:'',q:'',sort:'default'};
+const dashDate=d=>d? d.slice(2).replace(/-/g,'.') : '<span style="color:var(--faint)">—</span>';
+function buildRosterFilter(){
+  const bar=document.getElementById('rosterFilter'); if(!bar) return;
+  const st=ROSTER_STATE;
+  const opt=(v,l,cur)=>`<option value="${v}"${cur===v?' selected':''}>${l}</option>`;
+  bar.innerHTML=
+    `<select data-rf="status">${opt('','전체 상태',st.status)}${opt('활동중','활동중',st.status)}${opt('계약준비','계약준비',st.status)}${opt('보류','보류',st.status)}</select>`+
+    `<select data-rf="sort">${opt('default','활동중 우선',st.sort)}${opt('pic','번호순',st.sort)}${opt('followers','팔로워순',st.sort)}${opt('month','계약수량순',st.sort)}${opt('start','활동 시작순',st.sort)}</select>`+
+    `<input data-rf="q" placeholder="이름·핸들 검색" value="${st.q}">`+
+    `<span class="count" id="rosterCnt"></span>`;
+  bar.querySelectorAll('[data-rf]').forEach(el=>el.addEventListener(el.tagName==='INPUT'?'input':'change',()=>{st[el.dataset.rf]=el.value; renderRoster();}));
+}
+function renderRoster(){
+  const st=ROSTER_STATE; let list=CREATORS.slice();
+  if(st.status) list=list.filter(c=>c.status===st.status);
+  if(st.q){const q=st.q.toLowerCase(); list=list.filter(c=>c.name.toLowerCase().includes(q)||c.handle.toLowerCase().includes(q));}
+  list.sort((a,b)=>{
+    if(st.sort==='followers') return b.followers-a.followers;
+    if(st.sort==='month')     return (b.month||0)-(a.month||0);
+    if(st.sort==='pic')       return a.pic-b.pic;
+    if(st.sort==='start')     return (b.startDate||'0').localeCompare(a.startDate||'0');
+    // default: 활동중 우선 → 그 안에서 번호순
+    return STATUS_RANK[a.status]-STATUS_RANK[b.status] || a.pic-b.pic;
+  });
+  document.querySelector('#rosterTable tbody').innerHTML=list.map(c=>{
+    const brandChips=c.brands.length? c.brands.map(b=>`<span class="chip" style="padding:2px 7px"><span class="sw" style="background:${BRAND_COLOR[b]}"></span>${b}</span>`).join(' '):'<span style="color:var(--faint)">—</span>';
+    return `<tr>
+      <td class="num" style="color:var(--faint)">${c.pic}</td>
+      <td><div style="display:flex;align-items:center;gap:9px">${avatarEl(c.name,28,8)}<b>${c.name}</b></div></td>
+      <td class="num"><a href="${snsUrl('instagram',c.handle)}" target="_blank" rel="noopener" style="color:var(--accent-ink);text-decoration:none">${c.handle}</a></td>
+      <td style="white-space:nowrap">${snsBadges(c)}</td>
+      <td class="num">${fmt(c.followers)}</td>
+      <td><span class="pill ${STATUS_PILL[c.status]}"><span class="d"></span>${c.status}</span></td>
+      <td>${c.category||'<span style="color:var(--faint)">—</span>'}</td>
+      <td>${c.tone||'<span style="color:var(--faint)">—</span>'}</td>
+      <td style="white-space:normal;min-width:180px">${brandChips}</td>
+      <td class="num">${c.month??'—'}</td>
+      <td class="num" style="color:var(--muted)">${dashDate(c.contractDate)}</td>
+      <td class="num" style="color:var(--muted)">${dashDate(c.startDate)}</td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn sm" onclick="openRoster(${c.pic})"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>수정</button>
+        <button class="iconbtn" style="width:31px;height:31px" title="삭제" onclick="removeCreator(${c.pic})"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg></button>
+      </div></td>
+    </tr>`;}).join('');
+  const cnt=document.getElementById('rosterCnt'); if(cnt) cnt.textContent=list.length+'명';
+}
+function removeCreator(pic){
+  const i=CREATORS.findIndex(x=>x.pic===pic); if(i<0) return;
+  const n=CREATORS[i].name; CREATORS.splice(i,1);
+  renderAdmin(); toast(`${n} 삭제됐어요`);
+}
+function snsUrl(p,v){
+  if(!v) return '';
+  if(/^https?:\/\//i.test(v)) return v;
+  const h=v.replace(/^@/,'');
+  return ({
+    instagram:'https://instagram.com/'+h,
+    youtube:'https://youtube.com/@'+h,
+    tiktok:'https://tiktok.com/@'+h,
+    x:'https://x.com/'+h,
+    line:'https://line.me/ti/p/~'+h,
+  })[p]||'';
+}
+function snsBadge(cls,disp,label,p,val){
+  if(!val) return '';
+  return `<a class="snsb ${cls}" href="${snsUrl(p,val)}" target="_blank" rel="noopener" title="${label} ${val} · 클릭하면 새 탭에서 열림">${disp}</a>`;
+}
+function snsBadges(c){
+  const s=c.sns||{};
+  return [
+    snsBadge('ig','IG','인스타',   'instagram', c.handle),
+    snsBadge('yt','YT','유튜브',   'youtube',   s.youtube),
+    snsBadge('tt','TT','틱톡',     'tiktok',    s.tiktok),
+    snsBadge('x','X','X',          'x',         s.x),
+    snsBadge('ln','LINE','라인',   'line',      s.line),
+  ].filter(Boolean).join(' ');
+}
+
+/* 로스터 추가/수정 모달 */
+let ROSTER_TARGET=null;
+let ROSTER_PHOTO='';
+function renderPhotoPrev(){
+  const el=document.getElementById('rPhotoPrev'); if(!el) return;
+  const nm=document.getElementById('rName').value.trim();
+  el.style.overflow='hidden';
+  el.innerHTML = ROSTER_PHOTO? `<img src="${ROSTER_PHOTO}" alt="" style="width:56px;height:56px;object-fit:cover;display:block">` : avatarSVG(nm||'?',56);
+}
+function fillBrandChecks(selected){
+  document.getElementById('rBrands').innerHTML=ALL_BRANDS.map(b=>
+    `<label><input type="checkbox" value="${b}"${selected.includes(b)?' checked':''}>${b}</label>`).join('');
+}
+function openRoster(pic){
+  const c=CREATORS.find(x=>x.pic===pic)||null;
+  ROSTER_TARGET=c;
+  document.getElementById('rosterTitle').textContent=c?'크리에이터 수정':'크리에이터 추가';
+  document.getElementById('rName').value=c?c.name:'';
+  document.getElementById('rPic').value=c?c.pic:(Math.max(...CREATORS.map(x=>x.pic))+1);
+  document.getElementById('rHandle').value=c?c.handle:'';
+  document.getElementById('rFollowers').value=c?c.followers:'';
+  document.getElementById('rStatus').value=c?c.status:'활동중';
+  document.getElementById('rCategory').value=c?c.category:'';
+  document.getElementById('rTone').value=c?c.tone:'';
+  document.getElementById('rMonth').value=c&&c.month!=null?c.month:'';
+  document.getElementById('rContract').value=c&&c.contractDate?c.contractDate:'';
+  document.getElementById('rStart').value=c&&c.startDate?c.startDate:'';
+  const sns=c&&c.sns?c.sns:{};
+  document.getElementById('rYoutube').value=sns.youtube||'';
+  document.getElementById('rTiktok').value=sns.tiktok||'';
+  document.getElementById('rX').value=sns.x||'';
+  document.getElementById('rLine').value=sns.line||'';
+  const rt=c&&c.rates?c.rates:{};
+  document.getElementById('rReels').value=rt.reels??'';
+  document.getElementById('rSecondary').value=rt.secondary??'';
+  document.getElementById('rOffline').value=rt.offline??'';
+  document.getElementById('rEtc').value=rt.etc??'';
+  document.getElementById('rFixed').value=c&&c.fixedCost!=null?c.fixedCost:'';
+  fillBrandChecks(c?c.brands:[]);
+  ROSTER_PHOTO = c&&c.photo?c.photo:''; renderPhotoPrev();
+  document.getElementById('rosterDelete').style.display=c?'':'none';
+  document.getElementById('rosterBackdrop').classList.add('open'); applyLang();
+}
+function closeRoster(){document.getElementById('rosterBackdrop').classList.remove('open');}
+function saveRoster(){
+  const brands=[...document.querySelectorAll('#rBrands input:checked')].map(i=>i.value);
+  const monthVal=document.getElementById('rMonth').value;
+  const rec={
+    pic:parseInt(document.getElementById('rPic').value||0,10),
+    name:document.getElementById('rName').value.trim()||'무명',
+    handle:document.getElementById('rHandle').value.trim(),
+    followers:parseInt(document.getElementById('rFollowers').value||0,10),
+    status:document.getElementById('rStatus').value,
+    category:document.getElementById('rCategory').value.trim(),
+    tone:document.getElementById('rTone').value.trim(),
+    brands, month: monthVal===''?null:parseInt(monthVal,10),
+    contractDate:document.getElementById('rContract').value||null,
+    startDate:document.getElementById('rStart').value||null,
+    sns:{
+      youtube:document.getElementById('rYoutube').value.trim(),
+      tiktok:document.getElementById('rTiktok').value.trim(),
+      x:document.getElementById('rX').value.trim(),
+      line:document.getElementById('rLine').value.trim(),
+    },
+    rates:{
+      reels:parseInt(document.getElementById('rReels').value||0,10)||0,
+      secondary:parseInt(document.getElementById('rSecondary').value||0,10)||0,
+      offline:parseInt(document.getElementById('rOffline').value||0,10)||0,
+      etc:parseInt(document.getElementById('rEtc').value||0,10)||0,
+    },
+    fixedCost:parseInt(document.getElementById('rFixed').value||0,10)||0,
+    photo:ROSTER_PHOTO||null,
+  };
+  if(ROSTER_TARGET){
+    rec.token=ROSTER_TARGET.token; rec.linked=ROSTER_TARGET.linked;
+    Object.assign(ROSTER_TARGET,rec);
+    toast(`${rec.name} 정보가 저장됐어요`);
+  } else {
+    rec.token=null; rec.linked=null;
+    CREATORS.push(rec);
+    toast(`${rec.name} 추가됨 · 연동 대기`);
+  }
+  closeRoster();
+  renderAdmin();
+}
+function deleteRoster(){
+  if(!ROSTER_TARGET) return;
+  const i=CREATORS.indexOf(ROSTER_TARGET); if(i>=0)CREATORS.splice(i,1);
+  closeRoster(); renderAdmin(); toast('크리에이터가 삭제됐어요');
+}
+document.getElementById('rosterAdd').onclick=()=>openRoster(null);
+document.getElementById('rosterCloseX').onclick=closeRoster;
+document.getElementById('rosterCancel').onclick=closeRoster;
+document.getElementById('rosterSave').onclick=saveRoster;
+document.getElementById('rosterDelete').onclick=deleteRoster;
+document.getElementById('rosterBackdrop').onclick=e=>{if(e.target.id==='rosterBackdrop')closeRoster();};
+document.getElementById('rPhoto').onchange=e=>{
+  const f=e.target.files&&e.target.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=()=>{ ROSTER_PHOTO=rd.result; renderPhotoPrev(); }; rd.readAsDataURL(f);
+};
+document.getElementById('rPhotoClear').onclick=()=>{ ROSTER_PHOTO=''; document.getElementById('rPhoto').value=''; renderPhotoPrev(); };
+document.getElementById('rName').addEventListener('input',()=>{ if(!ROSTER_PHOTO) renderPhotoPrev(); });
+
+/* ---------- modal ---------- */
+let playTimer=null;
+let CURRENT_CONTENT=null;
+function openModal(c){
+  CURRENT_CONTENT=c;
+  const col=bcolor(c.brand);
+  document.getElementById('mPoster').style.background=grad(col);
+  document.getElementById('mProd').textContent=c.product;
+  document.getElementById('mTitle').textContent=c.product;
+  document.getElementById('mChips').innerHTML=`<span class="chip"><span class="sw" style="background:${col}"></span>${c.brand}</span>
+    <span class="chip">${c.creator}</span>${c.kind==='own'?'<span class="chip">개인</span>':'<span class="chip p-acc">PR</span>'}`;
+  document.getElementById('mDate').textContent=c.published? `게시 ${c.published}` : `업로드 예정 ${c.planned}`;
+  document.getElementById('mMetrics').innerHTML=
+    `<div class="m"><div class="l">조회수</div><div class="v">${c.views?fmt(c.views):'—'}</div></div>
+     <div class="m"><div class="l">도달</div><div class="v">${c.reach?fmt(c.reach):'—'}</div></div>
+     <div class="m"><div class="l">좋아요</div><div class="v">${c.likes?fmt(c.likes):'—'}</div></div>
+     <div class="m"><div class="l">저장</div><div class="v">${c.saves?fmt(c.saves):'—'}</div></div>
+     <div class="m"><div class="l">댓글</div><div class="v">${c.comments?fmt(c.comments):'—'}</div></div>
+     <div class="m"><div class="l">공유</div><div class="v">${c.shares?fmt(c.shares):'—'}</div></div>`;
+  document.getElementById('mEng').textContent=eng(c);
+  document.getElementById('mSave').textContent=savePct(c);
+  document.getElementById('mReach').textContent=reachPct(c);
+  const vs=document.getElementById('mVstat');
+  vs.innerHTML = c.video==='ready'?'<span class="pill p-ok"><span class="d"></span>재생 가능</span>'
+    : c.video==='pending'?'<span class="pill p-warn"><span class="d"></span>다운로드 중</span>'
+    : '<span class="pill p-plan"><span class="d"></span>미게시</span>';
+  const pl=document.getElementById('mPermalink');
+  if(c.permalink){pl.href=c.permalink; pl.style.display=''} else pl.style.display='none';
+  const canPlay=c.video==='ready';
+  document.getElementById('mPlayBtn').style.opacity=canPlay?1:.5;
+  document.getElementById('mPlayBtn').disabled=!canPlay;
+  // 2차 활용 요청 버튼: 브랜드 역할 + 게시 완료 콘텐츠에서만
+  const sb=document.getElementById('mSecBtn');
+  const canRequest = CURRENT_ROLE==='brand' && c.status==='uploaded';
+  sb.style.display = canRequest ? '' : 'none';
+  resetPlayer();
+  document.getElementById('backdrop').classList.add('open'); applyLang();
+}
+document.getElementById('mSecBtn').onclick=()=>openSecForm(CURRENT_CONTENT);
+
+/* ---------- 2차 활용 요청 폼 ---------- */
+let SEC_TARGET=null;
+function openSecForm(c){
+  if(!c) return;
+  SEC_TARGET=c;
+  document.getElementById('secFor').innerHTML=
+    `<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/></svg>${c.product} · ${c.creator} (${c.brand})`;
+  document.getElementById('backdrop').classList.remove('open');
+  document.getElementById('secBackdrop').classList.add('open'); applyLang();
+}
+function closeSecForm(){document.getElementById('secBackdrop').classList.remove('open');}
+document.getElementById('secClose').onclick=closeSecForm;
+document.getElementById('secCancel').onclick=closeSecForm;
+document.getElementById('secBackdrop').onclick=e=>{if(e.target.id==='secBackdrop')closeSecForm();};
+document.getElementById('secSubmit').onclick=()=>{
+  const c=SEC_TARGET; if(!c) return;
+  const channels=[...document.querySelectorAll('#secChannels input:checked')].map(i=>i.value);
+  SECONDARY.unshift({
+    p:c.product, c:c.creator, brand:c.brand,
+    scope:document.getElementById('secScope').value,
+    channels: channels.length?channels:['Instagram'],
+    start:document.getElementById('secStart').value,
+    end:document.getElementById('secEnd').value,
+    fee:parseInt(document.getElementById('secFee').value||0,10),
+    step:0
+  });
+  renderSecondary();
+  closeSecForm();
+  selectPane('brand','b-secondary',null);
+  toast('요청이 접수되었습니다 · 81degree 검토 대기');
+};
+
+/* toast */
+let toastT=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  document.getElementById('toastMsg').textContent=msg;
+  t.classList.add('show'); clearTimeout(toastT);
+  toastT=setTimeout(()=>t.classList.remove('show'),3200);
+}
+function resetPlayer(){clearInterval(playTimer);playTimer=null;
+  document.getElementById('pfill').style.width='0%';document.getElementById('tCur').textContent='0:00';
+  document.getElementById('bigPlay').style.display='grid';
+  document.getElementById('ppBtn').innerHTML='<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';}
+function togglePlay(){
+  if(playTimer){clearInterval(playTimer);playTimer=null;
+    document.getElementById('ppBtn').innerHTML='<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';return;}
+  document.getElementById('bigPlay').style.display='none';
+  document.getElementById('ppBtn').innerHTML='<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+  const dur=24; let t=parseFloat(document.getElementById('pfill').style.width||0)/100*dur;
+  playTimer=setInterval(()=>{t+=0.1; if(t>=dur){t=0;}
+    document.getElementById('pfill').style.width=(t/dur*100)+'%';
+    document.getElementById('tCur').textContent='0:'+String(Math.floor(t)).padStart(2,'0');},100);
+}
+document.getElementById('bigPlay').onclick=togglePlay;
+document.getElementById('ppBtn').onclick=togglePlay;
+document.getElementById('mPlayBtn').onclick=e=>{if(!e.currentTarget.disabled)togglePlay();};
+function closeModal(){document.getElementById('backdrop').classList.remove('open');clearInterval(playTimer);playTimer=null;}
+document.getElementById('mClose').onclick=closeModal;
+document.getElementById('backdrop').onclick=e=>{if(e.target.id==='backdrop')closeModal();};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeSecForm();closeSched();closeRoster();closeDeal();closeAcct();closeConn();}});
+
+/* ---------- i18n (KO / JA) ---------- */
+let LANG='ko';
+const PANE_LABEL={
+  'b-dash':{ko:'대시보드',ja:'ダッシュボード'}, 'b-archive':{ko:'콘텐츠 아카이브',ja:'コンテンツアーカイブ'},
+  'b-creators':{ko:'크리에이터별',ja:'クリエイター別'}, 'b-roster':{ko:'소속 크리에이터',ja:'所属クリエイター'}, 'b-secondary':{ko:'2차 활용',ja:'二次利用'},
+  'c-growth':{ko:'내 계정 성장',ja:'アカウント成長'}, 'c-content':{ko:'내 콘텐츠',ja:'マイコンテンツ'}, 'c-deals':{ko:'PR 안건',ja:'PR案件'}, 'c-revenue':{ko:'PR 매출',ja:'PR売上'}, 'c-todo':{ko:'이번 달 할 일',ja:'今月のタスク'},
+  'a-matrix':{ko:'브랜드×크리에이터',ja:'ブランド×クリエイター'}, 'a-assign':{ko:'배정 관리',ja:'配分管理'},
+  'a-deals':{ko:'PR 안건',ja:'PR案件'}, 'a-revenue':{ko:'매출 대시보드',ja:'売上ダッシュボード'},
+  'a-insights':{ko:'크리에이터 인사이트',ja:'クリエイターインサイト'}, 'a-roster':{ko:'크리에이터 관리',ja:'クリエイター管理'},
+  'a-cost':{ko:'비용 관리',ja:'費用管理'}, 'a-accounts':{ko:'계정·권한',ja:'アカウント·権限'},
+  'a-archive':{ko:'콘텐츠 아카이브',ja:'コンテンツアーカイブ'}, 'a-risk':{ko:'계약 리스크',ja:'契約リスク'}, 'a-conn':{ko:'연동 상태',ja:'連携状態'},
+};
+const ROLE_SW={brand:{ko:'브랜드',ja:'ブランド'}, creator:{ko:'크리에이터',ja:'クリエイター'}, admin:{ko:'관리자',ja:'管理者'}};
+const pl=(pane)=>{const o=PANE_LABEL[pane]; return o? o[LANG] : pane;};
+// 전체 번역 사전 (없으면 한국어 유지). 표준 텍스트는 DOM 워커가 자동 치환.
+const TX={
+  // 로그인
+  '로그인':'ログイン','이메일':'メールアドレス','로그인 링크 전송':'ログインリンクを送信','또는':'または','Google로 계속':'Googleで続ける',
+  '메일함을 확인하세요':'メールをご確認ください','로그인 링크 열기 (시뮬레이션)':'ログインリンクを開く(デモ)','← 다른 이메일로':'← 別のメールで','데모 빠른 로그인':'デモ・クイックログイン',
+  '관리자':'管理者','브랜드':'ブランド','크리에이터':'クリエイター',
+  // 페이지/섹션 제목
+  '이번 달 대시보드':'今月のダッシュボード','전체 현황':'全体状況','내 계정 성장':'アカウント成長',
+  '업로드 예정':'アップロード予定','이번 달 계약 진척':'今月の契約進捗','이번 달 제작 일정':'今月の制作スケジュール',
+  '콘텐츠 아카이브':'コンテンツアーカイブ','전체 콘텐츠 아카이브':'全体コンテンツアーカイブ','크리에이터별 성과':'クリエイター別成果','2차 활용 요청':'二次利用リクエスト',
+  '팔로워 추이':'フォロワー推移','오디언스 · 성별':'オーディエンス・性別','오디언스 형성':'オーディエンス構成','연령대':'年齢層','주요 지역':'主要地域',
+  '내 콘텐츠':'マイコンテンツ','브랜드별 진행':'ブランド別進捗','제작 일정':'制作スケジュール',
+  '이행률 매트릭스':'達成率マトリクス','제작 일정 (전체)':'制作スケジュール(全体)','월별 배정 관리':'月別配分管理',
+  'PR 안건 관리':'PR案件管理','매출 대시보드':'売上ダッシュボード','브랜드 월 계약 매출':'ブランド月契約売上','크리에이터별 PR 회사매출':'クリエイター別PR会社売上','크리에이터별 기여 손익':'クリエイター別貢献損益',
+  '크리에이터 인사이트':'クリエイターインサイト','✨ AI 성장 코치':'✨ AI成長コーチ','크리에이터 관리':'クリエイター管理','크리에이터 PR 비용':'クリエイターPR費用',
+  '계정·권한':'アカウント·権限','계약 리스크 알림':'契約リスク通知','크리에이터 계정 연동 상태':'クリエイターアカウント連携状態',
+  '브랜드별 성과':'ブランド別成果',
+  // 버튼/액션
+  '계정 초대':'アカウント招待','크리에이터 추가':'クリエイター追加','안건 추가':'案件追加','분석 실행':'分析実行',
+  '수정':'編集','삭제':'削除','취소':'キャンセル','저장':'保存','초대':'招待','재발송':'再送信','활성화':'有効化','비활성':'無効化',
+  '다음 단계 →':'次のステップ →','요청 보내기':'リクエスト送信','일정 편집':'スケジュール編集','2차 활용 요청':'二次利用リクエスト',
+  '아카이브 재생':'アーカイブ再生','원본 게시물':'元の投稿','아카이브에서 보기':'アーカイブで見る','초대 보내기':'招待を送信','계정 추가':'アカウント追加',
+  // 상태/칩
+  '활동중':'稼働中','계약준비':'契約準備','보류':'保留','완료':'完了','진행중':'進行中','시작 전':'開始前','정상':'正常','초대중':'招待中','예정':'予定','게시완료':'投稿済み',
+  '승인·사용중':'承認·使用中','승인 대기':'承認待ち','크리에이터 확인중':'クリエイター確認中','81degree 검토중':'81degree審査中','요청 접수':'リクエスト受付',
+  '토큰 만료':'トークン期限切れ','연동 해제':'連携解除','흑자':'黒字','적자':'赤字','개인':'個人','외부 PR':'外部PR','아카이브':'アーカイブ','다운로드 중':'ダウンロード中','재생 가능':'再生可能','미게시':'未投稿',
+  // PR 안건 단계·경로·유형
+  '인입':'流入','매니저 검토':'マネージャー審査','크리에이터 협의':'クリエイター協議','의뢰사 전달':'依頼社へ連携','계약 성사':'契約成立','제작·업로드':'制作·投稿',
+  '크리에이터 이메일':'クリエイターのメール','인스타 DM':'インスタDM','회사 이메일':'会社メール','ah!channel 인입':'ah!channel流入','크리에이터 개별':'クリエイター個別','개별':'個別',
+  '요청 콘텐츠 브리핑':'依頼コンテンツブリーフ',
+  // 테이블 헤더
+  'PIC':'PIC','핸들':'ハンドル','팔로워':'フォロワー','상태':'ステータス','카테고리':'カテゴリー','톤':'トーン','담당 브랜드':'担当ブランド','월 계약수량':'月契約数','계약일':'契約日','활동 시작':'活動開始',
+  '게시':'投稿','총 조회':'総再生','평균 저장률':'平均保存率','평균 참여율':'平均エンゲージ率','안건 수':'案件数','총 안건액':'総案件額','회사 매출':'会社売上','크리에이터 정산':'クリエイター精算','월 고정비':'月固定費','순이익':'純利益',
+  '브랜드계약 배정':'ブランド契約配分','PR 회사매출':'PR会社売上','기여이익':'貢献利益','릴스 1건당':'リール1本あたり','2차 활용':'二次利用','오프라인 방문 PR':'オフライン訪問PR','기타':'その他','월 예상(릴스)':'月予想(リール)',
+  '역할':'役割','소속':'所属','마지막 로그인':'最終ログイン','배정 편수':'配分本数','잔여':'残り','월 총배정/계약수량':'月合計配分/契約数','배정/계약':'配分/契約','합계':'合計','계약 목표':'契約目標',
+  // 필터/옵션/플레이스홀더
+  '모든 크리에이터':'全クリエイター','모든 브랜드':'全ブランド','전체 기간':'全期間','최신순':'新着順','조회수순':'再生数順','저장순':'保存数順','참여율순':'エンゲージ順','전체 상태':'全ステータス',
+  '상품 검색':'商品検索','이름·핸들 검색':'名前·ハンドル検索','이메일·소속 검색':'メール·所属検索','안건·의뢰사 검색':'案件·依頼社検索','활동중 우선':'稼働中優先','번호순':'番号順','팔로워순':'フォロワー順','계약수량순':'契約数順','활동 시작순':'活動開始順',
+  '전체 역할':'全役割','전체 매니저':'全マネージャー','전체 단계':'全ステップ','전체 브랜드':'全ブランド',
+  // KPI
+  '총 조회수':'総再生数','총 도달':'総リーチ','저장 합계':'保存合計','이번 달 조회':'今月の再生','이번 달 배정':'今月の配分','순증 (12주)':'純増(12週)','평균 조회':'平均再生',
+  '전체 이행률':'全体達成率','활성 크리에이터':'稼働クリエイター','리스크 계약':'リスク契約','연동 이슈':'連携問題','총 매출':'総売上','순이익 (−고정비)':'純利益(−固定費)',
+  // 모달 라벨
+  'PR 안건 추가':'PR案件追加','PR 안건 수정':'PR案件編集','크리에이터 수정':'クリエイター編集','계정 수정':'アカウント編集','제작 일정 편집':'制作スケジュール編集',
+  '안건명':'案件名','요청사 콘텐츠 브리핑':'依頼社コンテンツブリーフ','안건 유형':'案件タイプ','의뢰 회사':'依頼会社','담당 매니저':'担当マネージャー','인입 경로':'流入経路','진행 단계':'進行ステップ','회사 쉐어 (%)':'会社シェア(%)','크리에이터 쉐어 (%)':'クリエイターシェア(%)','콘텐츠 납기일':'コンテンツ納期','업로드 일자':'投稿日',
+  '크리에이터명':'クリエイター名','담당 PIC (번호)':'担当PIC(番号)','인스타 핸들':'インスタハンドル','주력 카테고리':'主力カテゴリー','콘텐츠 톤':'コンテンツトーン','월 계약 수량':'月契約数','활동 시작일':'活動開始日','추가 SNS 계정 (인스타는 위 핸들)':'追加SNSアカウント(インスタは上のハンドル)','유튜브':'YouTube','틱톡':'TikTok','X (트위터)':'X (Twitter)','라인 ID':'LINE ID',
+  'PR 단가 (¥)':'PR単価(¥)','활용 범위':'利用範囲','노출 채널 (복수 선택)':'掲載チャンネル(複数選択)','사용 시작':'利用開始','사용 종료':'利用終了','제안 비용 (¥)':'提案費用(¥)','비고 (선택)':'備考(任意)','기획':'企画','촬영':'撮影','편집':'編集','업로드 예정':'投稿予定',
+  '활용 범위':'利用範囲','광고 소재 (유료 광고)':'広告素材(有料広告)','자사 SNS 리그램':'自社SNSリグラム','오프라인 매장 (매장 영상)':'オフライン店舗(店舗映像)','자사몰 / 웹사이트':'自社EC/ウェブ',
+  '오프라인 매장':'オフライン店舗','자사몰':'自社EC','오프라인':'オフライン',
+  '새 요청은 아카이브에서 콘텐츠를 열어 시작':'新規リクエストはアーカイブからコンテンツを開いて開始',
+  // 재생 모달
+  '조회수':'再生数','도달':'リーチ','좋아요':'いいね','저장':'保存','댓글':'コメント','공유':'シェア',
+  '참여율 (ENG%)':'エンゲージ率(ENG%)','저장률 (Save%)':'保存率(Save%)','도달률 (Reach%)':'リーチ率(Reach%)','아카이브 상태':'アーカイブ状態',
+  '영상은 permalink에서 자동 다운로드 후 우리 스토리지에 보관됩니다.':'動画はpermalinkから自動ダウンロードし当社ストレージに保管されます。',
+  // 계정 모달
+  '관리자 (81degree)':'管理者 (81degree)',
+  '관리자: 전체 데이터에 접근합니다.':'管理者:全データにアクセスします。',
+  '브랜드: 자기 브랜드의 협업·성과만 볼 수 있어요.':'ブランド:自社ブランドの協業·成果のみ閲覧できます。',
+  '크리에이터: 본인 계정·콘텐츠만 볼 수 있어요.':'クリエイター:本人のアカウント·コンテンツのみ閲覧できます。',
+  '역할에 따라 볼 수 있는 데이터가 자동 격리됩니다':'役割に応じて閲覧データが自動的に分離されます',
+  // 상단 배너/노트
+  '자동 수집 기준 · 확정 성과는 게시 후 D+7 스냅샷입니다. 실시간 값과 다를 수 있어요.':'自動収集基準 · 確定成果は投稿後D+7スナップショットです。リアルタイム値と異なる場合があります。',
+  '카드를 눌러 인앱 재생 · 원본 삭제돼도 유지':'カードをタップでアプリ内再生 · 元投稿が削除されても保持',
+  '모든 브랜드 · 크리에이터':'全ブランド · クリエイター','계약 성사 이상':'契約成立以上','건당 ¥500,000':'1本あたり¥500,000',
+  '기획·촬영·편집·업로드 예정일 입력 → 브랜드·관리자와 자동 공유':'企画·撮影·編集·投稿予定日を入力 → ブランド·管理者と自動共有',
+  'Meta 연동 데이터':'Meta連携データ','단일 원본 동기화':'単一ソース同期','크리에이터 입력 실시간 반영':'クリエイター入力をリアルタイム反映',
+  '초대 시 이메일 매직링크 발송 → 수락하면 역할·소속에 맞춰 데이터가 자동 격리됩니다(RLS). 권한 변경은 감사 로그에 기록.':'招待時にマジックリンクを送信 → 承諾すると役割·所属に応じてデータが自動分離(RLS)。権限変更は監査ログに記録。',
+  '셀을 눌러 배정 편집':'セルをクリックで配分編集','브랜드 계약 편수를 크리에이터별로 배분 · 모든 화면에 반영':'ブランド契約本数をクリエイター別に配分 · 全画面に反映',
+  '크리에이터별 단가 · 셀에 직접 입력하면 저장':'クリエイター別単価 · セルに直接入力で保存',
+  'PR 안건 매출 − 고정비 = 순이익':'PR案件売上 − 固定費 = 純利益','① ah!channel PR ② 브랜드 월계약 ③ 개별 PR':'① ah!channel PR ② ブランド月契約 ③ 個別PR',
+  '브랜드계약 배정 + PR 회사매출 − 고정비':'ブランド契約配分 + PR会社売上 − 固定費',
+  // SNS 연동
+  'SNS 계정 연동':'SNSアカウント連携','Instagram(Meta) Graph API · check_token_health 1일 1회':'Instagram(Meta) Graph API · check_token_health 1日1回',
+  '연동 방법 (4단계)':'連携方法(4ステップ)','연동 요청 발송':'連携リクエスト送信','관리자가 크리에이터에게 연동 링크를 보냅니다.':'管理者がクリエイターに連携リンクを送ります。',
+  'Instagram 로그인·동의':'Instagramログイン·同意','크리에이터가 링크를 열어 Instagram 계정으로 로그인하고 권한을 허용합니다.':'クリエイターがリンクを開き、Instagramアカウントでログインして権限を許可します。',
+  '토큰 저장':'トークン保存','시스템이 액세스 토큰을 암호화해 저장하고 상태가 ‘활성’이 됩니다.':'システムがアクセストークンを暗号化して保存し、ステータスが「有効」になります。',
+  '자동 수집 시작':'自動収集開始','이후 릴스·지표·오디언스가 매일 자동 수집됩니다.':'以降、リール·指標·オーディエンスが毎日自動収集されます。',
+  '사전 준비':'事前準備','Instagram이 ‘비즈니스/크리에이터’ 계정이어야 하고 Facebook 페이지에 연결돼 있어야 인사이트를 가져올 수 있습니다.':'Instagramが「ビジネス/クリエイター」アカウントで、Facebookページに連携されている必要があります。',
+  '토큰은 60일 후 만료되며 만료 전 자동으로 재연동을 안내합니다.':'トークンは60日後に期限切れとなり、期限前に自動で再連携を案内します。',
+  '토큰 만료':'トークン期限','갱신 필요':'更新が必要','연동됨':'連携済み','재연동':'再連携','갱신':'更新','연동 해제':'連携解除','미연동':'未連携','연동하기':'連携する',
+  'Instagram 계정 연동':'Instagramアカウント連携','연동 요청 링크를 크리에이터에게 발송합니다':'連携リクエストリンクをクリエイターに送信します','크리에이터가 링크를 열어 본인 Instagram 계정으로 직접 허용합니다.':'クリエイターがリンクを開き、本人のInstagramアカウントで直接許可します。',
+  '지금 연동 (시뮬레이션)':'今すぐ連携(デモ)','creatorOS가 접근을 요청합니다':'creatorOSがアクセスを要求しています','요청 권한':'要求する権限',
+  '프로필·팔로워 정보 조회':'プロフィール·フォロワー情報の取得','게시물(릴스)·미디어 조회':'投稿(リール)·メディアの取得','인사이트(조회·도달·저장 등) 조회':'インサイト(再生·リーチ·保存など)の取得',
+  '거부':'拒否','Instagram으로 허용':'Instagramで許可',
+  '크리에이터 계정 연동 상태':'クリエイターアカウント連携状態',
+  '소속 크리에이터':'所属クリエイター','81degree 소속 · 협업 가능한 크리에이터':'81degree所属 · コラボ可能なクリエイター','모든 카테고리':'全カテゴリー','콘텐츠 보기':'コンテンツを見る','팔로워':'フォロワー',
+  '프로필 사진':'プロフィール写真','사진 업로드':'写真アップロード','제거':'削除',
+  '내 PR 안건':'マイPR案件','81degree가 진행 중인 내 안건 (관리자와 실시간 연동)':'81degreeが進行中のマイ案件(管理者とリアルタイム連携)',
+  'PR 매출 · 내 정산':'PR売上 · マイ精算','계약 성사 이상 안건의 내 쉐어':'契約成立以上の案件のマイシェア','정산은 계약 성사(4단계) 이후 안건 기준입니다.':'精算は契約成立(4段階)以降の案件が対象です。',
+  '내 콘텐츠 아카이브':'マイコンテンツアーカイブ','최근 게시물 · 클릭하면 재생':'最新投稿 · タップで再生',
+  '총 PR 정산':'PR精算合計','계약 성사 안건':'契約成立案件','진행 중 안건':'進行中案件','업로드 완료':'投稿完了','유형':'タイプ','안건':'案件','내 쉐어':'マイシェア','내 정산':'マイ精算','PR 비용':'PR費用','진행 중인 PR 안건이 없어요.':'進行中のPR案件はありません。',
+};
+function tr(s){ if(LANG!=='ja'||s==null) return s; const k=(''+s).trim(); return TX[k]!==undefined?TX[k]:s; }
+function walkTranslate(root){
+  const wk=document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {acceptNode(n){
+    const p=n.parentNode; if(!p) return NodeFilter.FILTER_REJECT;
+    const tag=p.nodeName; if(tag==='SCRIPT'||tag==='STYLE') return NodeFilter.FILTER_REJECT;
+    return n.nodeValue && n.nodeValue.trim()? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+  }});
+  const nodes=[]; let n; while(n=wk.nextNode()) nodes.push(n);
+  nodes.forEach(node=>{
+    if(node.__ko===undefined) node.__ko=node.nodeValue;
+    const koTrim=node.__ko.trim();
+    if(LANG==='ja' && TX[koTrim]!==undefined) node.nodeValue=node.__ko.replace(koTrim,TX[koTrim]);
+    else node.nodeValue=node.__ko;
+  });
+  root.querySelectorAll('input[placeholder],textarea[placeholder]').forEach(el=>{
+    if(el.__koPh===undefined) el.__koPh=el.getAttribute('placeholder')||'';
+    const k=el.__koPh.trim();
+    el.setAttribute('placeholder', LANG==='ja'&&TX[k]!==undefined?TX[k]:el.__koPh);
+  });
+}
+function applyLang(){
+  document.querySelectorAll('#roleswitch button').forEach(b=>{b.innerHTML=`<span class="dot"></span>${ROLE_SW[b.dataset.role][LANG]}`;});
+  document.querySelectorAll('.subtabs button').forEach(b=>{const p=b.dataset.pane; if(PANE_LABEL[p]) b.textContent=pl(p);});
+  walkTranslate(document.body);
+  const active=document.querySelector('#nav .navitem.active');
+  if(active&&PANE_LABEL[active.dataset.pane]) document.getElementById('pageTitle').textContent=pl(active.dataset.pane);
+  const lb=document.getElementById('langBtn'); if(lb) lb.textContent = LANG==='ja'?'KO':'日本語';
+}
+function setLang(l){ LANG=l; try{localStorage.setItem('creatoros.lang',l);}catch(e){} buildNav(CURRENT_ROLE); applyLang(); }
+
+/* ---------- nav + role ---------- */
+const NAV={
+  brand:[['대시보드','b-dash','grid'],['콘텐츠 아카이브','b-archive','play'],['크리에이터별','b-creators','users'],['소속 크리에이터','b-roster','users'],['2차 활용','b-secondary','repeat']],
+  creator:[['내 계정 성장','c-growth','trend'],['내 콘텐츠','c-content','play'],['PR 안건','c-deals','deal'],['PR 매출','c-revenue','chart'],['이번 달 할 일','c-todo','check']],
+  admin:[['브랜드×크리에이터','a-matrix','grid'],['배정 관리','a-assign','repeat'],['PR 안건','a-deals','deal'],['매출 대시보드','a-revenue','chart'],['크리에이터 인사이트','a-insights','trend'],['크리에이터 관리','a-roster','users'],['비용 관리','a-cost','cost'],['계정·권한','a-accounts','key'],['콘텐츠 아카이브','a-archive','play'],['계약 리스크','a-risk','alert'],['연동 상태','a-conn','link']],
+};
+const NAVICON={
+  grid:'<path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"/>',
+  play:'<path d="M8 5v14l11-7z"/>',users:'<circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0M17 6a3 3 0 0 1 0 6M22 20a5 5 0 0 0-4-5"/>',
+  repeat:'<path d="M17 2l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"/>',
+  trend:'<path d="M3 17l6-6 4 4 8-8M21 7h-5M21 7v5"/>',check:'<path d="M20 6L9 17l-5-5"/>',
+  alert:'<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>',
+  link:'<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+  cost:'<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0l-7.2-7.2A2 2 0 0 1 2.8 12V4a1 1 0 0 1 1-1h8a2 2 0 0 1 1.4.6l7.4 7.4a2 2 0 0 1 0 3.4z"/><circle cx="7.5" cy="7.5" r="1.3"/>',
+  deal:'<path d="M20 7h-9M14 17H5M17 3l3 4-3 4M7 21l-3-4 3-4"/>',
+  chart:'<path d="M3 3v18h18M7 15l4-4 3 3 5-6"/>',
+  key:'<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M17 6l2 2M14 9l2 2"/>',
+};
+const ROLEMETA={
+  brand:{title:'이번 달 대시보드',sub:'2026년 8월 · abib',who:'ABIB 마케팅팀',role:'브랜드 담당자',av:'A',avc:'#0E9E9A'},
+  creator:{title:'내 계정 성장',sub:'2026년 8월 · @hinamiru',who:'hina',role:'크리에이터',av:'H',avc:'#E0518A'},
+  admin:{title:'전체 현황',sub:'2026년 8월 · 81degree',who:'81degree',role:'관리자',av:'8',avc:'#6C5CE7'},
+};
+/* ----- 탭 순서 저장/적용 (드래그로 변경, localStorage 유지) ----- */
+function tabKey(g){return 'creatoros.taborder.'+g;}
+function loadTabOrder(g){try{return JSON.parse(localStorage.getItem(tabKey(g))||'null');}catch(e){return null;}}
+function saveTabOrder(g,arr){try{localStorage.setItem(tabKey(g),JSON.stringify(arr));}catch(e){}}
+function orderedNav(role){
+  const order=loadTabOrder(role); let items=NAV[role].slice();
+  if(order) items.sort((a,b)=>{const ia=order.indexOf(a[1]),ib=order.indexOf(b[1]);return (ia<0?99:ia)-(ib<0?99:ib);});
+  return items;
+}
+function applyTabOrder(group){
+  const order=loadTabOrder(group); if(!order) return;
+  const bar=document.querySelector(`.subtabs[data-group="${group}"]`); if(!bar) return;
+  order.forEach(pane=>{const btn=bar.querySelector(`button[data-pane="${pane}"]`); if(btn) bar.appendChild(btn);});
+}
+function persistTabOrder(bar){
+  const g=bar.dataset.group;
+  saveTabOrder(g,[...bar.querySelectorAll('button')].map(b=>b.dataset.pane));
+  if(CURRENT_ROLE===g) buildNav(g);
+}
+function initTabDnD(bar){
+  let dragEl=null;
+  bar.querySelectorAll('button').forEach(b=>{
+    b.setAttribute('draggable','true');
+    b.addEventListener('dragstart',e=>{dragEl=b; b.classList.add('dragging'); e.dataTransfer.effectAllowed='move';});
+    b.addEventListener('dragend',()=>{ if(dragEl)dragEl.classList.remove('dragging'); const d=dragEl; dragEl=null; if(d)persistTabOrder(bar);});
+    b.addEventListener('dragover',e=>{e.preventDefault(); const t=e.currentTarget; if(!dragEl||t===dragEl)return;
+      const r=t.getBoundingClientRect(); const after=e.clientX>r.left+r.width/2;
+      bar.insertBefore(dragEl, after? t.nextSibling : t);});
+  });
+}
+function buildNav(role){
+  document.getElementById('nav').innerHTML=`<div class="navlabel">${ROLE_SW[role][LANG]}</div>`+
+    orderedNav(role).map((n,i)=>`<button class="navitem ${i===0?'active':''}" data-pane="${n[1]}">
+      <svg viewBox="0 0 24 24">${NAVICON[n[2]]}</svg>${pl(n[1])}</button>`).join('');
+  document.querySelectorAll('#nav .navitem').forEach(b=>b.onclick=()=>selectPane(role,b.dataset.pane,b));
+}
+function selectPane(role,pane,navBtn){
+  document.querySelectorAll(`#view-${role} .pane`).forEach(p=>p.classList.toggle('active',p.id===pane));
+  document.querySelectorAll(`.subtabs[data-group="${role}"] button`).forEach(b=>b.classList.toggle('active',b.dataset.pane===pane));
+  document.querySelectorAll('#nav .navitem').forEach(b=>b.classList.toggle('active',b.dataset.pane===pane));
+  if(PANE_LABEL[pane]) document.getElementById('pageTitle').textContent=pl(pane);
+  applyLang();
+}
+let CURRENT_ROLE='brand';
+function setRole(role){
+  CURRENT_ROLE=role;
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+role));
+  document.querySelectorAll('#roleswitch button').forEach(b=>b.classList.toggle('active',b.dataset.role===role));
+  const m=ROLEMETA[role];
+  document.getElementById('pageTitle').textContent=m.title;
+  document.getElementById('pageSub').textContent=m.sub;
+  document.getElementById('whoname').textContent=m.who;
+  document.getElementById('whorole').textContent=m.role;
+  const av=document.getElementById('whoav'); av.textContent=m.av; av.style.background=grad(m.avc);
+  buildNav(role);
+  applyLang();
+}
+document.querySelectorAll('#roleswitch button').forEach(b=>b.onclick=()=>setRole(b.dataset.role));
+document.querySelectorAll('.subtabs').forEach(g=>{
+  applyTabOrder(g.dataset.group);
+  g.querySelectorAll('button').forEach(b=>b.onclick=()=>selectPane(g.dataset.group,b.dataset.pane,null));
+  initTabDnD(g);
+  const hint=document.createElement('span'); hint.className='tabhint'; hint.textContent='⇄ 드래그로 순서 변경'; g.appendChild(hint);
+});
+
+/* theme toggle */
+document.getElementById('themeBtn').onclick=()=>{
+  const cur=document.documentElement.getAttribute('data-theme');
+  const sysDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const next = cur? (cur==='dark'?'light':'dark') : (sysDark?'light':'dark');
+  document.documentElement.setAttribute('data-theme',next);
+  renderAll();
+};
+
+function renderAll(){renderBrand();renderCreator();renderAdmin();applyLang();}
+document.getElementById('langBtn').onclick=()=>setLang(LANG==='ko'?'ja':'ko');
+
+/* ---------- 로그인 ---------- */
+function findAccount(email){return ACCOUNTS.find(a=>a.email.toLowerCase()===(email||'').toLowerCase());}
+function sessionSave(s){try{localStorage.setItem('creatoros.session',JSON.stringify(s));}catch(e){}}
+function sessionLoad(){try{return JSON.parse(localStorage.getItem('creatoros.session')||'null');}catch(e){return null;}}
+function applySession(acct){
+  document.getElementById('login').style.display='none';
+  setRole(acct.role);
+  document.getElementById('whoname').textContent = acct.role==='admin'?'81degree' : acct.scope;
+  document.getElementById('whorole').innerHTML = `${ROLE_LABEL[acct.role]} · <span style="opacity:.8">${acct.email}</span>`;
+  const av=document.getElementById('whoav'); av.textContent=(acct.scope||'A')[0].toUpperCase();
+  av.style.background=grad(acct.role==='admin'?'#6C5CE7':bcolor(acct.scope));
+}
+function doLogin(acct){ sessionSave({email:acct.email,role:acct.role,scope:acct.scope}); applySession(acct); toast(`${acct.email} 로그인`); }
+function tryLoginEmail(email){
+  const acct=findAccount(email);
+  if(acct){ if(acct.status==='disabled'){toast('비활성화된 계정입니다'); return;} doLogin(acct); }
+  else { toast('초대되지 않은 이메일입니다. 관리자에게 초대를 요청하세요.'); }
+}
+function logout(){ try{localStorage.removeItem('creatoros.session')}catch(e){};
+  document.getElementById('login').style.display='flex';
+  document.getElementById('loginForm').style.display=''; document.getElementById('loginSent').style.display='none';
+  document.getElementById('loginEmail').value='';
+}
+let PENDING_EMAIL='';
+document.getElementById('loginSend').onclick=()=>{
+  const e=document.getElementById('loginEmail').value.trim();
+  if(!e){toast('이메일을 입력해주세요'); return;}
+  PENDING_EMAIL=e;
+  document.getElementById('loginSentTo').textContent=`${e} 로 로그인 링크를 보냈습니다.`;
+  document.getElementById('loginForm').style.display='none';
+  document.getElementById('loginSent').style.display='';
+};
+document.getElementById('loginOpen').onclick=()=>tryLoginEmail(PENDING_EMAIL);
+document.getElementById('loginBack').onclick=()=>{document.getElementById('loginForm').style.display=''; document.getElementById('loginSent').style.display='none';};
+document.getElementById('loginGoogle').onclick=()=>{const e=document.getElementById('loginEmail').value.trim(); tryLoginEmail(e||'hmpark@81degree.com');};
+document.querySelectorAll('.quick .qrow button').forEach(b=>b.onclick=()=>tryLoginEmail(b.dataset.email));
+document.getElementById('logoutBtn').onclick=logout;
+
+try{const l=localStorage.getItem('creatoros.lang'); if(l==='ja'||l==='ko')LANG=l;}catch(e){}
+// 모든 렌더 함수 뒤에 자동 번역 적용
+['renderBrand','renderCreator','renderAdmin','renderSecondary','renderAssign','renderAssignOverview','renderDeals','renderRevenue','renderAccounts','renderCost','renderRoster','renderInsight'].forEach(name=>{
+  const orig=window[name]; if(typeof orig==='function') window[name]=function(){const r=orig.apply(this,arguments); applyLang(); return r;};
+});
+renderAll();
+setRole('brand');
+applyLang();
+// 세션 있으면 자동 로그인, 없으면 로그인 화면
+const _sess=sessionLoad();
+if(_sess && findAccount(_sess.email)) applySession(_sess);
+else document.getElementById('login').style.display='flex';
+</script>

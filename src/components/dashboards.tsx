@@ -1,0 +1,866 @@
+"use client";
+import { useState } from "react";
+import type { Brand, Creator, Content, Deal, Contract, Assignment } from "@/lib/types";
+import { Avatar } from "./Avatar";
+import { Modal, Field, inp } from "./Modal";
+import { ContentArchive } from "./ContentArchive";
+import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./charts";
+import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL } from "@/lib/format";
+import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
+import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment } from "@/lib/data/writes";
+
+export interface Bundle {
+  brands: Brand[]; creators: Creator[]; contents: Content[];
+  deals: Deal[]; contracts: Contract[]; assignments: Assignment[];
+}
+
+function Kpi({ lab, val, unit, delta, dir, spark }: { lab: string; val: string | number; unit?: string; delta?: string; dir?: "up" | "down"; spark?: number[] }) {
+  return (
+    <div className="kpi">
+      <div className="lab">{lab}</div>
+      <div className="val">{val}{unit && <small> {unit}</small>}</div>
+      {delta && <div className={`delta ${dir}`}>{dir === "up" ? "▲" : "▼"} {delta}</div>}
+      {spark && <div className="spark"><MiniSpark data={spark} /></div>}
+    </div>
+  );
+}
+const Placeholder = ({ name }: { name: string }) => (
+  <div className="placeholder">{name} — 화면 구현 예정 (프로토타입 참고)</div>
+);
+const statusPill = (s: Creator["status"]) => {
+  const cls = s === "active" ? "p-ok" : s === "preparing" ? "p-acc" : "p-plan";
+  return <span className={`pill ${cls}`}><span className="d" />{CREATOR_STATUS_LABEL[s]}</span>;
+};
+const md = (dt?: string) => dt ? `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}` : "—";
+
+function Ring({ p, label }: { p: number; label: string }) {
+  return <div className="ring" style={{ ["--p" as string]: p }}><b>{label}</b></div>;
+}
+const SPK = { views: [62, 58, 70, 66, 80, 88, 120], reach: [40, 52, 48, 60, 58, 72, 86], eng: [21, 24, 22, 26, 25, 28, 29], save: [120, 140, 130, 180, 210, 260, 311], fol: [131, 132, 133, 135, 136, 138, 140] };
+
+const STAGES: [keyof Content["sched"], string][] = [["plan", "기획"], ["shoot", "촬영"], ["edit", "편집"], ["upload", "업로드"]];
+function ScheduleRows({ items }: { items: Content[] }) {
+  if (!items.length) return <div className="empty">예정된 제작 일정이 없어요.</div>;
+  return (<>{items.map((c) => {
+    let currentSet = false;
+    return (
+      <div className="schedrow" key={c.id}>
+        <div className="hd">
+          <Avatar name={c.creatorName} size={34} radius={9} />
+          <div style={{ flex: 1, minWidth: 0 }}><div className="t">{c.product}</div><div className="s">{c.creatorName} · {c.brandName}</div></div>
+          {c.status === "uploaded" ? <span className="pill p-ok"><span className="d" />완료</span> : <span className="pill p-warn"><span className="d" />업로드 {md(c.sched.upload)}</span>}
+        </div>
+        <div className="sgtrack">
+          {STAGES.map(([k, label]) => {
+            const dt = c.sched[k]; let cls = "";
+            if (c.status === "uploaded") cls = "done";
+            else if (dt && dt < "2026-08-23") cls = "done";
+            else if (!currentSet && dt) { cls = "now"; currentSet = true; }
+            return <span key={k} className={`sgstage ${cls}`}><span className="sgk">{cls === "done" ? "✓ " : ""}{label}</span><span className="sgd">{md(dt)}</span></span>;
+          })}
+        </div>
+      </div>
+    );
+  })}</>);
+}
+
+/* ── ADMIN ─────────────────────────────── */
+export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
+  if (pane === "a-matrix") {
+    const active = d.creators.filter((c) => c.status === "active").length;
+    const issues = d.creators.filter((c) => c.ig?.status === "expired" || c.ig?.status === "revoked").length;
+    const asg = d.assignments.filter((a) => a.yearMonth === "2026-08");
+    const totQ = asg.reduce((s, a) => s + a.quota, 0);
+    const totDone = asg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === "2026-08").length, 0);
+    const crs = [...new Set(asg.map((a) => a.creatorId))];
+    const cellStyle = (r: number) => r >= 1 ? ["var(--success-weak)", "var(--success)"] : r > 0 ? ["var(--warning-weak)", "var(--warning)"] : ["var(--critical-weak)", "var(--critical)"];
+    const sched = d.contents.filter((c) => c.status === "planned").sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    return (
+      <>
+        <div className="grid-kpi">
+          <Kpi lab="전체 이행률" val={totQ ? Math.round(totDone / totQ * 100) : 0} unit="%" spark={[48, 52, 55, 58, 60, 62, 63]} />
+          <Kpi lab="활성 크리에이터" val={active} unit="명" />
+          <Kpi lab="진행 PR 안건" val={d.deals.length} unit="건" />
+          <Kpi lab="연동 이슈" val={issues} unit="계정" />
+        </div>
+        <div className="sec-h"><h2>이행률 매트릭스</h2><span className="hint">완료 / 배정</span></div>
+        <div className="tablewrap"><table><thead><tr><th>브랜드 \ 크리에이터</th>{crs.map((c) => <th key={c} style={{ textAlign: "center" }}>{c}</th>)}</tr></thead><tbody>
+          {ALL_BRANDS.map((b) => (<tr key={b}><td><span className="chip"><span className="sw" style={{ background: BRAND_COLOR[b] }} />{b}</span></td>
+            {crs.map((cName) => {
+              const a = asg.find((x) => x.brandId === b && x.creatorId === cName);
+              if (!a) return <td key={cName} className="mx" style={{ color: "var(--faint)" }}>·</td>;
+              const done = d.contents.filter((c) => c.brandId === b && c.creatorName === cName && c.status === "uploaded" && monthOf(c) === "2026-08").length;
+              const [bg, fg] = cellStyle(a.quota ? done / a.quota : 0);
+              return <td key={cName} className="mx"><span className="cell" style={{ background: bg, color: fg }}>{done}/{a.quota}</span></td>;
+            })}
+          </tr>))}
+        </tbody></table></div>
+        <div className="sec-h"><h2>제작 일정 (전체)</h2><span className="hint"><span className="synced">🔄 단일 원본 동기화</span></span></div>
+        <ScheduleRows items={sched} />
+      </>
+    );
+  }
+  if (pane === "a-roster") return <RosterTable creators={d.creators} full />;
+  if (pane === "a-assign") return <AssignEditor d={d} />;
+  if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
+  if (pane === "a-revenue") return <RevenueTable d={d} />;
+  if (pane === "a-cost") return <CostTable creators={d.creators} />;
+  if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} />;
+  if (pane === "a-accounts") return <AccountsTable creators={d.creators} />;
+  if (pane === "a-archive") return <ContentArchive contents={d.contents} />;
+  if (pane === "a-conn") return <ConnTable creators={d.creators} />;
+  if (pane === "a-risk") return <RiskList d={d} />;
+  return <Placeholder name={pane} />;
+}
+
+function RosterTable({ creators, full }: { creators: Creator[]; full?: boolean }) {
+  const [, setTick] = useState(0);
+  const [edit, setEdit] = useState<Creator | null | undefined>(undefined); // undefined=닫힘, null=추가
+  const list = [...creators].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
+  return (<>
+    {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>크리에이터 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 크리에이터 추가</button></div>}
+    <div className="tablewrap"><table><thead><tr>
+      <th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
+    </tr></thead><tbody>
+      {list.map((c) => (
+        <tr key={c.id}>
+          <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} /><b>{c.name}</b></span></td>
+          <td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
+          <td><SnsBadges c={c} /></td>
+          <td className="num">{fmt(c.followers)}</td>
+          <td>{statusPill(c.status)}</td>
+          <td>{c.category ?? "—"}</td>
+          {full && <><td className="num">{c.monthlyQuota ?? "—"}</td>
+            <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(c)}>수정</button></td></>}
+        </tr>
+      ))}
+    </tbody></table></div>
+    {edit !== undefined && <CreatorEditModal creator={edit} all={creators} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+  </>);
+}
+
+const SNS_URL: Record<string, (h: string) => string> = {
+  ig: (h) => "https://instagram.com/" + h.replace(/^@/, ""),
+  youtube: (h) => "https://youtube.com/@" + h.replace(/^@/, ""),
+  tiktok: (h) => "https://tiktok.com/@" + h.replace(/^@/, ""),
+  x: (h) => "https://x.com/" + h.replace(/^@/, ""),
+  line: (h) => "https://line.me/ti/p/~" + h.replace(/^@/, ""),
+};
+function SnsBadge({ k, disp, val }: { k: string; disp: string; val?: string }) {
+  if (!val) return null;
+  return <a href={SNS_URL[k](val)} target="_blank" rel="noopener" title={val}
+    style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 5px", borderRadius: 5, background: k === "ig" ? "var(--accent-weak)" : "var(--surface-3)", color: k === "ig" ? "var(--accent-ink)" : "var(--muted)", textDecoration: "none", marginRight: 4, display: "inline-block" }}>{disp}</a>;
+}
+function SnsBadges({ c }: { c: Creator }) {
+  return (<span style={{ whiteSpace: "nowrap" }}>
+    <SnsBadge k="ig" disp="IG" val={c.handle} />
+    <SnsBadge k="youtube" disp="YT" val={c.sns.youtube} />
+    <SnsBadge k="tiktok" disp="TT" val={c.sns.tiktok} />
+    <SnsBadge k="x" disp="X" val={c.sns.x} />
+    <SnsBadge k="line" disp="LINE" val={c.sns.line} />
+  </span>);
+}
+
+function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator | null; all: Creator[]; onClose: () => void; onSaved: () => void }) {
+  const isNew = !creator;
+  const [f, setF] = useState<Creator>(creator ? { ...creator, sns: { ...creator.sns }, rates: { ...creator.rates } } : {
+    id: "", pic: Math.max(0, ...all.map((c) => c.pic ?? 0)) + 1, name: "", aliases: [], handle: "", followers: 0,
+    status: "active", fixedCost: 0, sns: {}, rates: { reels: 0, secondary: 0, offline: 0, etc: 0 }, monthlyQuota: null,
+  });
+  const up = (k: keyof Creator, v: unknown) => setF((s) => ({ ...s, [k]: v } as Creator));
+  function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const rd = new FileReader(); rd.onload = () => up("photoUrl", rd.result as string); rd.readAsDataURL(file);
+  }
+  async function save() {
+    try {
+      if (creator) { const saved = await saveCreator(f, false); Object.assign(creator, saved); }
+      else { const saved = await saveCreator({ ...f, id: f.name || "new-" + f.pic }, true); all.push(saved); }
+      onSaved(); onClose();
+    } catch (e) { alert("저장 실패: " + (e as Error).message); }
+  }
+  async function del() {
+    if (!creator) return;
+    try { await deleteCreator(creator.id); const i = all.indexOf(creator); if (i >= 0) all.splice(i, 1); onSaved(); onClose(); }
+    catch (e) { alert("삭제 실패: " + (e as Error).message); }
+  }
+  return (
+    <Modal title={isNew ? "크리에이터 추가" : "크리에이터 수정"} onClose={onClose}
+      footer={<>
+        {!isNew && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)", marginRight: "auto" }} onClick={del}>삭제</button>}
+        <button className="btn" onClick={onClose}>취소</button>
+        <button className="btn acc" onClick={save}>저장</button>
+      </>}>
+      <Field label="프로필 사진">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Avatar creator={f} name={f.name} size={56} radius={15} />
+          <label className="btn" style={{ cursor: "pointer" }}>사진 업로드<input type="file" accept="image/*" style={{ display: "none" }} onChange={pickPhoto} /></label>
+          {f.photoUrl && <button className="btn" onClick={() => up("photoUrl", null)}>제거</button>}
+        </div>
+      </Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label="크리에이터명"><input style={inp} value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
+        <Field label="인스타 핸들"><input style={inp} value={f.handle ?? ""} onChange={(e) => up("handle", e.target.value)} /></Field>
+        <Field label="팔로워"><input style={inp} type="number" value={f.followers} onChange={(e) => up("followers", +e.target.value)} /></Field>
+        <Field label="상태"><select style={inp} value={f.status} onChange={(e) => up("status", e.target.value)}><option value="active">활동중</option><option value="preparing">계약준비</option><option value="on_hold">보류</option></select></Field>
+        <Field label="주력 카테고리"><input style={inp} value={f.category ?? ""} onChange={(e) => up("category", e.target.value)} /></Field>
+        <Field label="콘텐츠 톤"><input style={inp} value={f.tone ?? ""} onChange={(e) => up("tone", e.target.value)} /></Field>
+        <Field label="월 계약 수량"><input style={inp} type="number" value={f.monthlyQuota ?? ""} onChange={(e) => up("monthlyQuota", e.target.value === "" ? null : +e.target.value)} /></Field>
+        <Field label="월 고정비"><input style={inp} type="number" value={f.fixedCost} onChange={(e) => up("fixedCost", +e.target.value)} /></Field>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "4px 0 8px" }}>추가 SNS</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        {(["youtube", "tiktok", "x", "line"] as const).map((k) => (
+          <Field key={k} label={k === "x" ? "X" : k}><input style={inp} value={f.sns[k] ?? ""} onChange={(e) => setF((s) => ({ ...s, sns: { ...s.sns, [k]: e.target.value } }))} /></Field>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "4px 0 8px" }}>PR 단가 (¥)</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        {(["reels", "secondary", "offline", "etc"] as const).map((k) => (
+          <Field key={k} label={{ reels: "릴스 1건당", secondary: "2차 활용", offline: "오프라인 PR", etc: "기타" }[k]}>
+            <input style={inp} type="number" value={f.rates[k]} onChange={(e) => setF((s) => ({ ...s, rates: { ...s.rates, [k]: +e.target.value } }))} /></Field>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
+function ConnTable({ creators }: { creators: Creator[] }) {
+  const [, setTick] = useState(0);
+  const [conn, setConn] = useState<Creator | null>(null);
+  const list = creators.filter((c) => c.status === "active" || c.ig);
+  return (<>
+    <div className="card pad" style={{ marginBottom: 18 }}>
+      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>연동 방법 (4단계)</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 12, fontSize: 12.5, color: "var(--muted)" }}>
+        {["① 연동 요청 발송", "② Instagram 로그인·동의", "③ 토큰 저장 (활성)", "④ 자동 수집 시작"].map((s) => (
+          <div key={s} style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9 }}>{s}</div>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 12 }}>※ Instagram 비즈니스/크리에이터 계정 + Facebook 페이지 연결 필요 · 토큰 60일 만료</div>
+    </div>
+    <div className="tablewrap"><table><thead><tr>
+      <th>크리에이터</th><th>IG 핸들</th><th>연동일</th><th>상태</th><th></th>
+    </tr></thead><tbody>
+      {list.map((c) => {
+        const s = c.ig?.status;
+        const [cls, lab] = s === "active" ? ["p-ok", "연동됨"] : s === "expired" ? ["p-warn", "토큰 만료"] : s === "revoked" ? ["p-plan", "연동 해제"] : ["p-plan", "미연동"];
+        return (<tr key={c.id}><td><b>{c.name}</b></td><td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
+          <td className="num" style={{ color: "var(--muted)" }}>{c.ig?.linkedAt ?? "—"}</td>
+          <td><span className={`pill ${cls}`}><span className="d" />{lab}</span></td>
+          <td style={{ textAlign: "right" }}><button className={`btn ${s === "active" ? "" : "acc"}`} style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setConn(c)}>{s === "active" ? "재연동" : "연동하기"}</button></td></tr>);
+      })}
+    </tbody></table></div>
+    {conn && <ConnModal creator={conn} onClose={() => setConn(null)} onDone={() => setTick((t) => t + 1)} />}
+  </>);
+}
+
+function ConnModal({ creator, onClose, onDone }: { creator: Creator; onClose: () => void; onDone: () => void }) {
+  const [stage, setStage] = useState<1 | 2>(1);
+  function approve() {
+    creator.ig = { status: "active", linkedAt: "2026-08-23", expiresAt: "2026-10-22" };
+    onDone(); onClose();
+  }
+  return (
+    <Modal title="Instagram 계정 연동" onClose={onClose} width={440}>
+      <div className="note" style={{ color: "var(--faint)", fontSize: 12.5, marginBottom: 14 }}>{creator.name} · {creator.handle}</div>
+      {stage === 1 ? (
+        <>
+          <div style={{ background: "var(--surface-2)", borderRadius: 11, padding: "14px 16px", fontSize: 13 }}>
+            <b>연동 요청 링크를 크리에이터에게 발송</b>
+            <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 4 }}>크리에이터가 링크를 열어 본인 Instagram 계정으로 직접 허용합니다.</div>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+            <button className="btn" onClick={onClose}>연동 요청 발송</button>
+            <button className="btn acc" onClick={() => setStage(2)}>지금 연동 (시뮬레이션)</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ textAlign: "center", padding: "10px 0" }}>
+            <div style={{ width: 54, height: 54, borderRadius: 15, margin: "0 auto 12px", background: "linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)" }} />
+            <b style={{ fontSize: 15 }}>creatorOS가 접근을 요청합니다</b>
+            <div style={{ color: "var(--faint)", fontSize: 12.5, marginTop: 4 }}>{creator.handle}</div>
+          </div>
+          <div style={{ background: "var(--surface-2)", borderRadius: 11, padding: "14px 16px", fontSize: 13 }}>
+            <b style={{ display: "block", marginBottom: 8 }}>요청 권한</b>
+            {["프로필·팔로워 정보 조회", "게시물(릴스)·미디어 조회", "인사이트(조회·도달·저장) 조회"].map((p) => (
+              <div key={p} style={{ display: "flex", gap: 8, padding: "4px 0", fontSize: 12.5 }}><span style={{ color: "var(--accent-ink)" }}>✓</span>{p}</div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
+            <button className="btn" onClick={onClose}>거부</button>
+            <button className="btn acc" onClick={approve}>Instagram으로 허용</button>
+          </div>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function RevenueTable({ d }: { d: Bundle }) {
+  const live = d.deals.filter((x) => x.step >= 4);
+  const comp = (x: Deal) => Math.round(x.fee * x.shareCompany / 100);
+  const ah = live.filter((x) => x.type === "ahchannel").reduce((s, x) => s + comp(x), 0);
+  const cr = live.filter((x) => x.type !== "ahchannel").reduce((s, x) => s + comp(x), 0);
+  const brandRev = d.assignments.reduce((s, a) => s + a.quota * UNIT_PRICE, 0);
+  const fixed = d.creators.reduce((s, c) => s + (c.fixedCost || 0), 0);
+  const total = ah + brandRev + cr;
+  // 크리에이터별 기여
+  const per = d.creators.map((c) => {
+    const ds = live.filter((x) => x.creatorName === c.name);
+    const prComp = ds.reduce((s, x) => s + comp(x), 0);
+    const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name).reduce((s, a) => s + a.quota * UNIT_PRICE, 0);
+    return { name: c.name, prComp, brandAlloc, fixed: c.fixedCost || 0, contrib: prComp + brandAlloc - (c.fixedCost || 0) };
+  }).filter((p) => p.prComp || p.brandAlloc || p.fixed).sort((a, b) => b.contrib - a.contrib);
+  return (<>
+    <div className="grid-kpi">
+      <Kpi lab="① ah!channel PR" val={yen(ah)} /><Kpi lab="② 브랜드 월계약" val={yen(brandRev)} />
+      <Kpi lab="③ 개별 PR" val={yen(cr)} /><Kpi lab="총 매출" val={yen(total)} /><Kpi lab="순이익 (−고정비)" val={yen(total - fixed)} />
+    </div>
+    <div className="sec-h"><h2>크리에이터별 기여 손익</h2><span className="hint">브랜드계약 배정 + PR 회사매출 − 고정비</span></div>
+    <div className="tablewrap"><table><thead><tr>
+      <th>크리에이터</th><th>브랜드계약 배정</th><th>PR 회사매출</th><th>월 고정비</th><th>기여이익</th>
+    </tr></thead><tbody>
+      {per.map((p) => (
+        <tr key={p.name}><td><b>{p.name}</b></td><td className="num">{yen(p.brandAlloc)}</td><td className="num">{yen(p.prComp)}</td>
+          <td className="num" style={{ color: "var(--muted)" }}>{yen(p.fixed)}</td>
+          <td className="num" style={{ fontWeight: 600, color: p.contrib >= 0 ? "var(--accent-ink)" : "var(--critical)" }}>{yen(p.contrib)}</td></tr>
+      ))}
+    </tbody></table></div>
+  </>);
+}
+
+/* 배정 관리 (월 · 브랜드별 크리에이터 배분) */
+function AssignEditor({ d }: { d: Bundle }) {
+  const [, setTick] = useState(0);
+  const [brand, setBrand] = useState("abib");
+  const month = "2026-08";
+  const actives = d.creators.filter((c) => c.status === "active");
+  const contract = d.contracts.find((c) => c.brandId === brand && c.yearMonth === month);
+  const target = contract?.quota ?? 0;
+  const qOf = (name: string) => d.assignments.find((a) => a.brandId === brand && a.creatorId === name && a.yearMonth === month)?.quota ?? 0;
+  const totalFor = (name: string) => d.assignments.filter((a) => a.creatorId === name && a.yearMonth === month).reduce((s, a) => s + a.quota, 0);
+  const capOf = (name: string) => d.creators.find((c) => c.name === name)?.monthlyQuota ?? 0;
+  const sum = actives.reduce((s, c) => s + qOf(c.name), 0);
+  function set(name: string, delta: number) {
+    const a = d.assignments.find((x) => x.brandId === brand && x.creatorId === name && x.yearMonth === month);
+    let finalQ = 0;
+    if (a) { a.quota = Math.max(0, a.quota + delta); finalQ = a.quota; if (!a.quota) d.assignments.splice(d.assignments.indexOf(a), 1); }
+    else if (delta > 0) { finalQ = delta; d.assignments.push({ id: `${brand}|${name}`, brandId: brand, creatorId: name, yearMonth: month, quota: delta }); }
+    setTick((t) => t + 1);
+    setAssignment(brand, name, month, finalQ, d.brands, d.creators).catch((e) => console.warn(e.message));
+  }
+  const diff = sum - target;
+  return (<>
+    <div className="filterbar">
+      <select value={brand} onChange={(e) => setBrand(e.target.value)}>{ALL_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}</select>
+      <span className="num" style={{ alignSelf: "center", color: "var(--faint)", fontSize: 12.5 }}>{month.replace("2026-", "")}월</span>
+    </div>
+    <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
+      <b>{brand}</b> · {month.replace("2026-", "")}월 계약 <b>{target}</b>건 · 배정 합계 <b>{sum}</b>건 — {diff === 0 ? "계약과 일치" : diff > 0 ? `${diff}건 초과` : `${-diff}건 미배정`}
+    </div>
+    <div className="tablewrap"><table><thead><tr><th>크리에이터</th><th>{brand} 배정</th><th>완료</th><th>월 총배정/계약수량</th></tr></thead><tbody>
+      {actives.map((c) => {
+        const q = qOf(c.name); const tot = totalFor(c.name); const cap = capOf(c.name);
+        const done = d.contents.filter((ct) => ct.brandId === brand && ct.creatorName === c.name && ct.status === "uploaded" && monthOf(ct) === month).length;
+        const over = tot > cap;
+        return (<tr key={c.id}><td><b>{c.name}</b></td>
+          <td><span className="qstep">
+            <button onClick={() => set(c.name, -1)}>−</button>
+            <input value={q} readOnly />
+            <button onClick={() => set(c.name, 1)}>+</button>
+          </span></td>
+          <td className="num">{done}</td>
+          <td className="num" style={{ color: over ? "var(--critical)" : "var(--muted)", fontWeight: over ? 600 : 400 }}>{tot}/{cap || "—"}{over ? " ⚠" : ""}</td></tr>);
+      })}
+    </tbody></table></div>
+  </>);
+}
+
+/* 비용 관리 (단가 · 고정비 편집) */
+function CostTable({ creators }: { creators: Creator[] }) {
+  const [, setTick] = useState(0);
+  const list = [...creators].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
+  return (
+    <div className="tablewrap"><table><thead><tr>
+      <th>크리에이터</th><th>릴스 1건당</th><th>2차 활용</th><th>오프라인 방문 PR</th><th>월 고정비</th><th>월 예상(릴스)</th>
+    </tr></thead><tbody>
+      {list.map((c) => (
+        <tr key={c.id}><td><b>{c.name}</b></td>
+          {(["reels", "secondary", "offline"] as const).map((k) => (
+            <td key={k}><input className="rate-in" type="number" defaultValue={c.rates[k]} onChange={(e) => { c.rates[k] = +e.target.value || 0; setTick((t) => t + 1); }}
+              onBlur={() => patchCreator(c.id, { rates: c.rates }).catch(() => { })} /></td>
+          ))}
+          <td><input className="rate-in" type="number" defaultValue={c.fixedCost} onChange={(e) => { c.fixedCost = +e.target.value || 0; setTick((t) => t + 1); }}
+            onBlur={() => patchCreator(c.id, { fixed_cost: c.fixedCost }).catch(() => { })} /></td>
+          <td className="num" style={{ fontWeight: 600 }}>{yen(c.rates.reels * (c.monthlyQuota ?? 0))}</td></tr>
+      ))}
+    </tbody></table></div>
+  );
+}
+
+/* 크리에이터 인사이트 + AI 코치 */
+function Insights({ creators, contents }: { creators: Creator[]; contents: Content[] }) {
+  const actives = creators.filter((c) => c.status === "active");
+  const [name, setName] = useState(actives[0]?.name ?? "hina");
+  const [ai, setAi] = useState<{ t: string; s: string }[] | null>(null);
+  const c = creators.find((x) => x.name === name)!;
+  const series = growthSeries(name, c.followers);
+  const pct = ((series[series.length - 1] - series[0]) / series[0] * 100);
+  const aud = audienceOf(name);
+  const ups = contents.filter((x) => x.creatorName === name && x.status === "uploaded" && x.views > 0);
+  const avgEng = ups.length ? ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length : 0;
+  const sel = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", fontWeight: 500 } as const;
+  function runAI() {
+    const cards: { t: string; s: string }[] = [];
+    if (pct >= 40) cards.push({ t: "성장 가속 중", s: `최근 12주 팔로워 +${pct.toFixed(0)}%. 상위 성장세, 현재 포맷 유지·시리즈화 권장.` });
+    else if (pct >= 15) cards.push({ t: "안정적 성장", s: `+${pct.toFixed(0)}% 성장. 업로드 빈도를 늘리면 곡선을 끌어올릴 수 있습니다.` });
+    else cards.push({ t: "성장 정체", s: `+${pct.toFixed(0)}%. 새 훅·주제 실험, 트렌드 오디오 활용 권장.` });
+    if (ups.length) { const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0]; cards.push({ t: "베스트 콘텐츠", s: `‘${best.product}’가 참여율 ${engRate(best)}로 최고. 유사 포맷 반복 추천.` }); }
+    cards.push({ t: "오디언스 제안", s: `주 시청층 여성 ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} 중심. 해당 층 주제 강화.` });
+    setAi(cards);
+  }
+  return (<>
+    <div className="filterbar"><select value={name} onChange={(e) => { setName(e.target.value); setAi(null); }}>{actives.map((x) => <option key={x.id} value={x.name}>{x.name} · {x.handle}</option>)}</select></div>
+    <div className="grid-kpi">
+      <Kpi lab="팔로워" val={fmt(c.followers)} delta={`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (12주)`} dir={pct >= 0 ? "up" : "down"} spark={series.map((v) => v / 1000)} />
+      <Kpi lab="순증 (12주)" val={`+${fmt(series[series.length - 1] - series[0])}`} />
+      <Kpi lab="평균 참여율" val={avgEng.toFixed(1)} unit="%" /><Kpi lab="업로드" val={ups.length} unit="건" />
+    </div>
+    <div className="two">
+      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>팔로워 추이</h2><span className="hint">{c.handle} · 최근 12주</span></div><div style={{ marginTop: 8 }}><Spark data={series} /></div></div>
+      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 14px" }}><h2>오디언스</h2></div>
+        <div className="donut-wrap"><Donut pct={aud.female} label="여성" /><div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />여성 <b className="num">{aud.female}%</b></div><div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />남성 <b className="num">{100 - aud.female}%</b></div></div></div>
+        <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>연령대</h2></div>
+        <Bars items={aud.ages} />
+      </div>
+    </div>
+    <div className="card pad" style={{ marginTop: 18 }}>
+      <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>✨ AI 성장 코치</h2><button className="btn acc" onClick={runAI}>분석 실행</button></div>
+      {!ai ? <div className="note">‘분석 실행’을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.</div>
+        : ai.map((f, i) => <div key={i} className="ai-card"><span className="ic">★</span><div><div className="t">{f.t}</div><div className="s">{f.s}</div></div></div>)}
+    </div>
+  </>);
+}
+
+/* 계정·권한 */
+function AccountsTable({ creators }: { creators: Creator[] }) {
+  const [, setTick] = useState(0);
+  const [invite, setInvite] = useState(false);
+  const accts = ACCOUNTS;
+  const ROLE: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터" };
+  const ST: Record<string, [string, string]> = { active: ["p-ok", "활성"], pending: ["p-warn", "초대중"], disabled: ["p-plan", "비활성"] };
+  return (<>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>계정·권한</h2><button className="btn acc" onClick={() => setInvite(true)}>+ 계정 초대</button></div>
+    <div className="tablewrap"><table><thead><tr><th>이메일</th><th>역할</th><th>소속</th><th>상태</th><th>마지막 로그인</th><th></th></tr></thead><tbody>
+      {accts.map((a, i) => (
+        <tr key={a.email}><td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
+          <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
+          <td><span className={`pill ${ST[a.status][0]}`}><span className="d" />{ST[a.status][1]}</span></td>
+          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ?? "—"}</td>
+          <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => { a.status = a.status === "disabled" ? "active" : "disabled"; setTick((t) => t + 1); }}>{a.status === "disabled" ? "활성화" : "비활성"}</button></td></tr>
+      ))}
+    </tbody></table></div>
+    {invite && <InviteModal creators={creators} onClose={() => setInvite(false)} onSaved={() => setTick((t) => t + 1)} />}
+  </>);
+}
+
+function InviteModal({ onClose, onSaved, creators }: { onClose: () => void; onSaved: () => void; creators: Creator[] }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"admin" | "brand" | "creator">("brand");
+  const [scope, setScope] = useState("abib");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState(false);
+  const creatorNames = creators.map((c) => c.name);
+  const scopes = role === "admin" ? ["81degree"] : role === "brand" ? ALL_BRANDS : (creatorNames.length ? creatorNames : ["hina"]);
+  async function save() {
+    if (!email.trim()) { setErr("이메일을 입력해주세요"); return; }
+    const finalScope = role === "admin" ? "81degree" : scope;
+    if (supabaseConfigured()) {
+      setBusy(true); setErr("");
+      const { data: { session } } = await getSupabase().auth.getSession();
+      if (!session) { setErr("관리자 로그인이 필요합니다 (매직링크/비밀번호로 로그인 후)"); setBusy(false); return; }
+      const res = await fetch("/api/invite", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ email: email.trim(), role, scope: finalScope }),
+      });
+      const j = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) { setErr(j.error || "초대 실패"); return; }
+      setOk(true); onSaved();
+      return;
+    }
+    ACCOUNTS.push({ email: email.trim(), role, scope: finalScope, status: "pending", lastLogin: null });
+    onSaved(); onClose();
+  }
+  return (
+    <Modal title="계정 초대" onClose={onClose} width={440}
+      footer={ok ? <button className="btn acc" onClick={onClose}>완료</button>
+        : <><button className="btn" onClick={onClose}>취소</button><button className="btn acc" disabled={busy} onClick={save}>{busy ? "초대 중…" : "초대 보내기"}</button></>}>
+      {ok ? <div className="note" style={{ color: "var(--accent-ink)" }}>✓ {email} 초대 발송 완료. 상대가 링크를 클릭하면 {role === "brand" ? scope + " 브랜드" : role === "creator" ? scope : "관리자"} 권한으로 로그인됩니다.</div> : <>
+        <Field label="이메일"><input style={inp} type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+          <Field label="역할"><select style={inp} value={role} onChange={(e) => { setRole(e.target.value as "admin" | "brand" | "creator"); }}><option value="admin">관리자</option><option value="brand">브랜드</option><option value="creator">크리에이터</option></select></Field>
+          <Field label="소속"><select style={inp} value={scope} onChange={(e) => setScope(e.target.value)} disabled={role === "admin"}>{scopes.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--faint)" }}>초대 메일 발송 + 역할·소속 자동 연결. 수락 시 RLS로 데이터가 격리됩니다.</div>
+        {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
+      </>}
+    </Modal>
+  );
+}
+
+function RiskList({ d }: { d: Bundle }) {
+  const risks = [
+    { t: "whipped × rui — 토큰 만료로 자동수집 중단", s: "연동 갱신 요청 필요.", cls: "var(--critical)" },
+    { t: "naming × momo — 잔여 D-2, 진척 부진", s: "월말 마감 대비 리마인드 권장.", cls: "var(--warning)" },
+  ];
+  return (<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    {risks.map((r, i) => (<div key={i} className="card pad" style={{ borderLeft: `3px solid ${r.cls}` }}>
+      <div style={{ fontWeight: 600, fontSize: 13 }}>{r.t}</div><div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>{r.s}</div></div>))}
+  </div>);
+}
+
+/* ── DEAL LIST (admin & creator 공용) ───── */
+const DEAL_STEPS = ["인입", "매니저 검토", "크리에이터 협의", "의뢰사 전달", "계약 성사", "제작·업로드"];
+export function DealList({ deals, contents, readonly, creators }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[] }) {
+  const [, setTick] = useState(0);
+  const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
+  const STEPS = DEAL_STEPS;
+  const sorted = [...deals].sort((a, b) => b.step - a.step);
+  return (
+    <>
+      {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>PR 안건 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 안건 추가</button></div>}
+      {!sorted.length ? <div className="placeholder">진행 중인 PR 안건이 없어요.</div> :
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {sorted.map((dl) => {
+        const ct = dl.contentId ? contents.find((c) => c.id === dl.contentId) : null;
+        return (
+          <div key={dl.id} className="srow" style={{ marginBottom: 0 }}>
+            <div className="hd">
+              <Avatar name={dl.client} size={36} radius={9} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{dl.title} <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ marginLeft: 4 }}>{dl.type === "ahchannel" ? "ah!channel" : "개별"}</span></div>
+                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2 }}>{dl.client} · {dl.creatorName} · 담당 {dl.manager}</div>
+              </div>
+              <span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span>
+            </div>
+            {dl.brief && <div className="callout" style={{ background: "var(--surface-2)", marginTop: 12 }}><div><div className="t" style={{ fontSize: 12 }}>요청 콘텐츠 브리핑</div><div className="s">{dl.brief}</div></div></div>}
+            <div className="stepper">
+              {STEPS.map((s, i) => { const cls = i < dl.step ? "done" : i === dl.step ? "now" : "";
+                return <div className={`step ${cls}`} key={i}><span className="dot">{i < dl.step ? "✓" : i + 1}</span><span className="lbl">{s}</span>{i < STEPS.length - 1 && <span className="line" />}</div>; })}
+            </div>
+            <div className="row" style={{ marginTop: 12, gap: 22, fontSize: 12.5 }}>
+              <span>PR 비용 <b className="num">{yen(dl.fee)}</b></span>
+              <span>쉐어 <b className="num">{dl.shareCompany}:{dl.shareCreator}</b></span>
+              <span>납기 <b className="num">{md(dl.dueDate ?? undefined)}</b></span>
+              <span>업로드 <b className="num">{md(dl.uploadDate ?? undefined)}</b></span>
+            </div>
+            {ct && <div className="note" style={{ marginTop: 10 }}>조회 <b className="num">{fmt(ct.views)}</b> · 참여율 <b className="num">{engRate(ct)}</b></div>}
+            {!readonly && <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+              {dl.step < 5 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>다음 단계 →</button>}
+              <button className="btn sm" onClick={() => setEdit(dl)}>수정</button>
+            </div>}
+          </div>
+        );
+      })}
+    </div>}
+    {edit !== undefined && <DealEditModal deal={edit} deals={deals} creators={creators ?? []} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+  </>
+  );
+}
+
+function DealEditModal({ deal, deals, creators, onClose, onSaved }: { deal: Deal | null; deals: Deal[]; creators: Creator[]; onClose: () => void; onSaved: () => void }) {
+  const isNew = !deal;
+  const [f, setF] = useState<Deal>(deal ? { ...deal } : {
+    id: "D-" + (100 + deals.length + 1), title: "", client: "", creatorName: creators[0]?.name ?? "hina",
+    manager: "mai", source: "company_email", type: "ahchannel", fee: 1000000, shareCompany: 50, shareCreator: 50, step: 0,
+  });
+  const up = (k: keyof Deal, v: unknown) => setF((s) => ({ ...s, [k]: v } as Deal));
+  async function save() {
+    try {
+      if (deal) { const saved = await saveDeal(f, false, creators); Object.assign(deal, saved); }
+      else { const saved = await saveDeal(f, true, creators); deals.unshift(saved); }
+      onSaved(); onClose();
+    } catch (e) { alert("저장 실패: " + (e as Error).message); }
+  }
+  async function del() {
+    if (!deal) return;
+    try { await deleteDeal(deal.id); const i = deals.indexOf(deal); if (i >= 0) deals.splice(i, 1); onSaved(); onClose(); }
+    catch (e) { alert("삭제 실패: " + (e as Error).message); }
+  }
+  return (
+    <Modal title={isNew ? "PR 안건 추가" : "PR 안건 수정"} onClose={onClose}
+      footer={<>{!isNew && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)", marginRight: "auto" }} onClick={del}>삭제</button>}
+        <button className="btn" onClick={onClose}>취소</button><button className="btn acc" onClick={save}>저장</button></>}>
+      <Field label="안건명"><input style={inp} value={f.title} onChange={(e) => up("title", e.target.value)} /></Field>
+      <Field label="요청사 콘텐츠 브리핑"><textarea style={{ ...inp, minHeight: 64 }} value={f.brief ?? ""} onChange={(e) => up("brief", e.target.value)} /></Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label="안건 유형"><select style={inp} value={f.type} onChange={(e) => up("type", e.target.value)}><option value="ahchannel">ah!channel 인입</option><option value="creator">크리에이터 개별</option></select></Field>
+        <Field label="의뢰 회사"><input style={inp} value={f.client} onChange={(e) => up("client", e.target.value)} /></Field>
+        <Field label="크리에이터"><select style={inp} value={f.creatorName} onChange={(e) => up("creatorName", e.target.value)}>{creators.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+        <Field label="담당 매니저"><select style={inp} value={f.manager} onChange={(e) => up("manager", e.target.value)}><option value="mai">mai</option><option value="yuta">yuta</option></select></Field>
+        <Field label="인입 경로"><select style={inp} value={f.source} onChange={(e) => up("source", e.target.value)}><option value="creator_email">크리에이터 이메일</option><option value="creator_dm">인스타 DM</option><option value="company_email">회사 이메일</option></select></Field>
+        <Field label="PR 비용 (¥)"><input style={inp} type="number" value={f.fee} onChange={(e) => up("fee", +e.target.value)} /></Field>
+        <Field label="회사 쉐어 (%)"><input style={inp} type="number" value={f.shareCompany} onChange={(e) => up("shareCompany", +e.target.value)} /></Field>
+        <Field label="크리에이터 쉐어 (%)"><input style={inp} type="number" value={f.shareCreator} onChange={(e) => up("shareCreator", +e.target.value)} /></Field>
+        <Field label="진행 단계"><select style={inp} value={f.step} onChange={(e) => up("step", +e.target.value)}>{DEAL_STEPS.map((s, i) => <option key={i} value={i}>{i + 1}. {s}</option>)}</select></Field>
+        <Field label="납기일"><input style={inp} type="date" value={f.dueDate ?? ""} onChange={(e) => up("dueDate", e.target.value)} /></Field>
+        <Field label="업로드 일자"><input style={inp} type="date" value={f.uploadDate ?? ""} onChange={(e) => up("uploadDate", e.target.value)} /></Field>
+      </div>
+    </Modal>
+  );
+}
+
+/* ── BRAND ─────────────────────────────── */
+export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
+  const rows = d.contents.filter((c) => c.brandId === scope && c.status === "uploaded" && c.views > 0);
+  if (pane === "b-dash") {
+    const tv = rows.reduce((s, c) => s + c.views, 0), tr = rows.reduce((s, c) => s + c.reach, 0), ts = rows.reduce((s, c) => s + c.saves, 0);
+    const engAvg = rows.length ? (rows.reduce((s, c) => s + parseFloat(engRate(c)), 0) / rows.length).toFixed(1) : "0";
+    const upcoming = d.contents.filter((c) => c.brandId === scope && c.status === "planned")
+      .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    // 계약 진척 (배정 대비 완료)
+    const bAsg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === "2026-08");
+    const bQ = bAsg.reduce((s, a) => s + a.quota, 0);
+    const bDone = bAsg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === scope && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === "2026-08").length, 0);
+    const byCr: Record<string, number> = {};
+    rows.forEach((c) => { byCr[c.creatorName] = (byCr[c.creatorName] ?? 0) + c.views; });
+    const sched = d.contents.filter((c) => c.brandId === scope && (c.status === "planned" || monthOf(c) === "2026-08")).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    return (<>
+      <div className="banner">✦ 자동 수집 기준 · 확정 성과는 게시 후 D+7 스냅샷입니다. 실시간 값과 다를 수 있어요.</div>
+      <div className="grid-kpi">
+        <Kpi lab="총 조회수" val={fmt(tv)} delta="18.2% vs 지난달" dir="up" spark={SPK.views} />
+        <Kpi lab="총 도달" val={fmt(tr)} delta="12.4%" dir="up" spark={SPK.reach} />
+        <Kpi lab="평균 참여율" val={engAvg} unit="%" delta="0.3%p" dir="up" spark={SPK.eng} />
+        <Kpi lab="저장 합계" val={fmt(ts)} spark={SPK.save} />
+      </div>
+      <div className="two">
+        <div className="card pad">
+          <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>업로드 예정</h2><span className="hint">마감 임박순</span></div>
+          <div className="list">
+            {upcoming.slice(0, 5).map((c, i) => (
+              <div className="li" key={c.id}><Avatar name={c.creatorName} size={34} radius={9} />
+                <div className="main"><div className="t">{c.product}</div><div className="s">{c.creatorName} · {c.brandName}</div></div>
+                <div className="r"><span className={`pill ${i < 2 ? "p-warn" : "p-plan"}`}><span className="d" />{["D-2", "D-4", "D-6", "D-8", "D-9"][i] ?? "D-9"}</span></div></div>
+            ))}
+            {!upcoming.length && <div className="empty" style={{ border: 0 }}>예정 콘텐츠 없음</div>}
+          </div>
+        </div>
+        <div className="card pad">
+          <div className="sec-h" style={{ margin: "0 0 14px" }}><h2>이번 달 계약 진척</h2></div>
+          <div className="ring-wrap" style={{ marginBottom: 18 }}>
+            <Ring p={bQ ? Math.round(bDone / bQ * 100) : 0} label={`${bDone}/${bQ}`} />
+            <div><div style={{ fontWeight: 600 }}>{bQ}건 배정 중 {bDone}건 게시</div>
+              <div className="note">남은 {Math.max(0, bQ - bDone)}건 · 8월 배정 기준</div></div>
+          </div>
+          <div className="list">
+            {Object.entries(byCr).map(([n, v]) => (
+              <div className="li" key={n}><Avatar name={n} size={34} radius={9} />
+                <div className="main"><div className="t">{n}</div><div className="s">{rows.filter((c) => c.creatorName === n).length}건 게시</div></div>
+                <div className="r"><div className="n">{kfmt(v)}</div><div className="u">조회</div></div></div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="sec-h"><h2>이번 달 제작 일정</h2><span className="hint"><span className="synced">🔄 크리에이터 입력 실시간 반영</span></span></div>
+      <ScheduleRows items={sched} />
+    </>);
+  }
+  if (pane === "b-roster") return <CreatorDirectory creators={d.creators.filter((c) => c.status === "active")} allContents={d.contents} />;
+  if (pane === "b-creators") return <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />;
+  if (pane === "b-archive") return <ContentArchive contents={d.contents.filter((c) => c.brandId === scope)} showBrand={false} />;
+  if (pane === "b-secondary") return <SecondaryList />;
+  return <Placeholder name={pane} />;
+}
+
+function SecondaryList() {
+  const rows = [
+    { p: "ヒアルロニックブームセラム", c: "hina", scope: "광고 소재", step: 3 },
+    { p: "アビブ ガムシートマスク", c: "rui", scope: "자사 SNS 리그램", step: 2 },
+    { p: "ヒアルロニックブームクリーム", c: "merumi", scope: "오프라인 매장", step: 1 },
+  ];
+  const STEPS = ["요청", "81degree 검토", "크리에이터 동의", "승인"];
+  return (<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    {rows.map((r, i) => (
+      <div key={i} className="card pad">
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Avatar name={r.c} size={34} radius={9} />
+          <div style={{ flex: 1 }}><div style={{ fontWeight: 600 }}>{r.p}</div><div style={{ color: "var(--faint)", fontSize: 12 }}>{r.c} · {r.scope}</div></div>
+          <span className={`pill ${r.step >= 3 ? "p-ok" : "p-warn"}`}><span className="d" />{STEPS[r.step]}</span>
+        </div>
+        <div style={{ display: "flex", gap: 6, marginTop: 12, fontSize: 11.5 }}>
+          {STEPS.map((s, si) => (<span key={si} style={{ flex: 1, textAlign: "center", padding: "5px 4px", borderRadius: 7, background: si < r.step ? "var(--accent-weak)" : si === r.step ? "var(--accent-weak)" : "var(--surface-2)", color: si <= r.step ? "var(--accent-ink)" : "var(--faint)", fontWeight: si <= r.step ? 600 : 400 }}>{si < r.step ? "✓ " : ""}{s}</span>))}
+        </div>
+      </div>
+    ))}
+  </div>);
+}
+
+function BrandCreatorTable({ rows, allContents }: { rows: Content[]; allContents?: Content[] }) {
+  const [month, setMonth] = useState("");
+  const [creator, setCreator] = useState("");
+  const [open, setOpen] = useState<string>("");
+  const months = [...new Set(rows.map(monthOf).filter(Boolean))].sort().reverse() as string[];
+  const creatorNames = [...new Set(rows.map((c) => c.creatorName))];
+  let f = rows;
+  if (month) f = f.filter((c) => monthOf(c) === month);
+  if (creator) f = f.filter((c) => c.creatorName === creator);
+  const byCr: Record<string, { v: number; s: number; cnt: number; eng: number }> = {};
+  f.forEach((c) => { (byCr[c.creatorName] ??= { v: 0, s: 0, cnt: 0, eng: 0 }); const b = byCr[c.creatorName]; b.v += c.views; b.s += c.saves; b.eng += parseFloat(engRate(c)); b.cnt++; });
+  const entries = Object.entries(byCr).sort((a, b) => b[1].v - a[1].v);
+  return (<>
+    <div className="filterbar">
+      <select value={month} onChange={(e) => setMonth(e.target.value)}><option value="">전체 기간</option>{months.map((m) => <option key={m} value={m}>{+m.slice(5)}월</option>)}</select>
+      <select value={creator} onChange={(e) => setCreator(e.target.value)}><option value="">모든 크리에이터</option>{creatorNames.map((n) => <option key={n} value={n}>{n}</option>)}</select>
+      <span className="count">{entries.length}명</span>
+    </div>
+    <div className="tablewrap"><table><thead><tr>
+      <th>크리에이터</th><th>게시</th><th>총 조회</th><th>평균 저장률</th><th>평균 참여율</th>
+    </tr></thead><tbody>
+      {entries.length ? entries.map(([n, b]) => (
+        <tr key={n} style={{ cursor: "pointer" }} onClick={() => setOpen(open === n ? "" : n)} title={`${n} 콘텐츠 보기`}>
+          <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar name={n} size={26} radius={8} /><b>{n}</b> <span style={{ color: "var(--faint)" }}>›</span></span></td>
+          <td className="num">{b.cnt}</td><td className="num">{fmt(b.v)}</td>
+          <td className="num">{(b.s / b.v * 100).toFixed(1)}%</td><td className="num">{(b.eng / b.cnt).toFixed(1)}%</td></tr>
+      )) : <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--faint)", padding: 24 }}>데이터 없음</td></tr>}
+    </tbody></table></div>
+    {open && allContents && <div style={{ marginTop: 18 }}>
+      <div className="sec-h"><h2>{open} · 콘텐츠</h2></div>
+      <ContentArchive contents={allContents.filter((c) => c.creatorName === open)} showCreator={false} showBrand={false} />
+    </div>}
+  </>);
+}
+
+function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allContents?: Content[] }) {
+  const [cat, setCat] = useState(""); const [q, setQ] = useState("");
+  const [open, setOpen] = useState<string>("");
+  const cats = [...new Set(creators.map((c) => c.category).filter(Boolean))] as string[];
+  let list = [...creators].sort((a, b) => b.followers - a.followers);
+  if (cat) list = list.filter((c) => c.category === cat);
+  if (q) list = list.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()) || (c.handle ?? "").toLowerCase().includes(q.toLowerCase()));
+  return (<>
+    <div className="filterbar">
+      <select value={cat} onChange={(e) => setCat(e.target.value)}><option value="">모든 카테고리</option>{cats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+      <input placeholder="이름·핸들 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+      <span className="count">{list.length}명</span>
+    </div>
+    <div className="crgrid">
+      {list.map((c) => (
+        <div key={c.id} className="crcard">
+          <div className="top">
+            <Avatar creator={c} size={46} radius={13} />
+            <div style={{ minWidth: 0 }}><div className="nm">{c.name}</div><div className="hd">{c.handle}</div></div>
+            <div className="fol"><b>{kfmt(c.followers)}</b><small>팔로워</small></div>
+          </div>
+          <div><SnsBadges c={c} /></div>
+          <div className="tags">
+            {c.category && <span className="chip"><span className="sw" style={{ background: "var(--accent)" }} />{c.category}</span>}
+            {c.tone && <span className="chip">{c.tone}</span>}
+          </div>
+          <div className="intro">{c.intro}</div>
+          <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 12 }}>
+            <button className="btn sm" style={{ flex: 1 }} onClick={() => setOpen(open === c.name ? "" : c.name)}>▶ 콘텐츠 보기</button>
+          </div>
+        </div>
+      ))}
+    </div>
+    {open && allContents && <div style={{ marginTop: 18 }}>
+      <div className="sec-h"><h2>{open} · 콘텐츠</h2></div>
+      <ContentArchive contents={allContents.filter((c) => c.creatorName === open)} showCreator={false} showBrand={false} />
+    </div>}
+  </>);
+}
+
+/* ── CREATOR ───────────────────────────── */
+export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
+  const me = scope;
+  const mine = d.contents.filter((c) => c.creatorName === me);
+  if (pane === "c-growth") {
+    const cr = d.creators.find((x) => x.name === me)!;
+    const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
+    const series = growthSeries(me, cr?.followers ?? 0);
+    const aud = audienceOf(me);
+    const maxAge = Math.max(...aud.ages.map((a) => a[1]));
+    return (<>
+      <div className="grid-kpi">
+        <Kpi lab="팔로워" val={fmt(cr?.followers ?? 0)} delta={`+${fmt(series[series.length - 1] - series[series.length - 4])} (30일)`} dir="up" spark={SPK.fol} />
+        <Kpi lab="이번 달 조회" val={fmt(monthViews)} delta="24%" dir="up" spark={SPK.views} />
+        <Kpi lab="평균 저장률" val="1.9" unit="%" delta="0.2%p" dir="up" spark={[1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.9]} />
+        <Kpi lab="업로드" val={mine.filter((c) => c.status === "uploaded").length} unit="건" />
+      </div>
+      <div className="two">
+        <div className="card pad">
+          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>팔로워 추이</h2><span className="hint">{cr?.handle} · 최근 12주</span></div>
+          <div style={{ marginTop: 8 }}><Spark data={series} /></div>
+        </div>
+        <div className="card pad">
+          <div className="sec-h" style={{ margin: "0 0 14px" }}><h2>오디언스 · 성별</h2></div>
+          <div className="donut-wrap"><Donut pct={aud.female} label="여성" />
+            <div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />여성 <b className="num">{aud.female}%</b></div>
+              <div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />남성 <b className="num">{100 - aud.female}%</b></div></div>
+          </div>
+          <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>연령대</h2></div>
+          <div className="bars">{aud.ages.map(([l, v]) => (<div className="bar" key={l}><span>{l}</span><div className="track"><div className="fill" style={{ width: `${v / maxAge * 100}%` }} /></div><span className="pct">{v}%</span></div>))}</div>
+        </div>
+      </div>
+      <div className="card pad" style={{ marginTop: 18 }}>
+        <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>주요 지역</h2></div>
+        <div className="row">{aud.regions.map(([r, v]) => (<span className="chip" key={r}><span className="sw" style={{ background: "var(--accent)" }} />{r} {v}%</span>))}</div>
+      </div>
+      <div className="sec-h"><h2>내 콘텐츠 아카이브</h2><span className="hint">최근 게시물 · 클릭하면 재생</span></div>
+      <ContentArchive contents={mine} showCreator={false} showBrand={false} />
+    </>);
+  }
+  if (pane === "c-deals") return <DealList deals={d.deals.filter((x) => x.creatorName === me)} contents={d.contents} readonly />;
+  if (pane === "c-revenue") {
+    const my = d.deals.filter((x) => x.creatorName === me);
+    return (
+      <div className="tablewrap"><table><thead><tr>
+        <th>안건</th><th>유형</th><th>PR 비용</th><th>내 쉐어</th><th>내 정산</th><th>상태</th>
+      </tr></thead><tbody>
+        {my.map((x) => (
+          <tr key={x.id}><td><b>{x.title}</b></td><td><span className="chip">{x.type === "ahchannel" ? "ah!channel" : "개별"}</span></td>
+            <td className="num">{yen(x.fee)}</td><td className="num">{x.shareCreator}%</td>
+            <td className="num" style={{ fontWeight: 600, color: x.step >= 4 ? "var(--accent-ink)" : "var(--muted)" }}>{yen(x.fee * x.shareCreator / 100)}</td>
+            <td><span className={`pill ${x.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{x.step >= 4 ? "정산 대상" : "진행중"}</span></td></tr>
+        ))}
+      </tbody></table></div>
+    );
+  }
+  if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
+  if (pane === "c-todo") return <CreatorTodo d={d} me={me} />;
+  return <Placeholder name={pane} />;
+}
+
+function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
+  const asg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === "2026-08")
+    .map((a) => {
+      const done = d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === me && c.status === "uploaded" && monthOf(c) === "2026-08").length;
+      return { brand: a.brandId, q: a.quota, done };
+    });
+  const totalQ = asg.reduce((s, a) => s + a.q, 0), totalDone = asg.reduce((s, a) => s + a.done, 0);
+  const sched = d.contents.filter((c) => c.creatorName === me && (c.status === "planned" || monthOf(c) === "2026-08"))
+    .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+  return (<>
+    <div className="card pad" style={{ marginBottom: 18 }}>
+      <div className="ring-wrap" style={{ marginBottom: 6 }}>
+        <Ring p={totalQ ? Math.round(totalDone / totalQ * 100) : 0} label={`${totalDone}/${totalQ}`} />
+        <div><div style={{ fontWeight: 600, fontSize: 15 }}>이번 달 배정 {totalQ}건 중 {totalDone}건 완료</div>
+          <div className="note">남은 {Math.max(0, totalQ - totalDone)}건 · 관리자가 배정한 브랜드별 편수</div></div>
+      </div>
+    </div>
+    <div className="sec-h"><h2>제작 일정</h2><span className="hint">기획·촬영·편집·업로드 예정일</span></div>
+    <ScheduleRows items={sched} />
+    <div className="sec-h"><h2>브랜드별 진행</h2></div>
+    <div className="list card pad">
+      {asg.map((a) => (<div className="li" key={a.brand}><Avatar name={a.brand!} size={34} radius={9} />
+        <div className="main"><div className="t">{a.brand}</div><div className="s">{a.done}/{a.q} 완료</div></div>
+        <div className="r"><span className={`pill ${a.done >= a.q ? "p-ok" : "p-plan"}`}><span className="d" />{a.done >= a.q ? "완료" : "진행중"}</span></div></div>))}
+    </div>
+  </>);
+}
+
