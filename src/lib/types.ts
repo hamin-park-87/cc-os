@@ -32,6 +32,7 @@ export type EntityType = "individual" | "corporation"; // 개인/법인
 
 export interface Creator {
   id: string;
+  code?: string | null;           // 고유번호 (CC001…)
   pic?: number;
   name: string;
   aliases: string[];

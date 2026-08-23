@@ -2,6 +2,7 @@
 -- Supabase SQL Editor에서 1회 실행. 추가형(add if not exists)이라 안전하게 재실행 가능.
 
 alter table creators
+  add column if not exists code           text,   -- 고유번호 (CC001…)
   add column if not exists email          text,
   add column if not exists phone          text,
   add column if not exists address        text,

@@ -119,7 +119,8 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
   const [edit, setEdit] = useState<Creator | null | undefined>(undefined); // undefined=닫힘, null=추가
   const [detail, setDetail] = useState<Creator | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const list = [...creators].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
+  const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
+  const list = [...creators].sort((a, b) => codeNum(a) - codeNum(b) || (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const allChecked = list.length > 0 && list.every((c) => sel.has(c.id));
   const toggleAll = () => setSel(allChecked ? new Set() : new Set(list.map((c) => c.id)));
@@ -149,11 +150,12 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
     </div>}
     <div className="tablewrap"><table><thead><tr>
       {full && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" /></th>}
-      <th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
+      <th>번호</th><th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
     </tr></thead><tbody>
       {list.map((c) => (
         <tr key={c.id} style={full && sel.has(c.id) ? { background: "var(--accent-weak)" } : undefined}>
           {full && <td><input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} 선택`} /></td>}
+          <td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{c.code ?? "—"}</td>
           <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} />
             {full ? <b style={{ cursor: "pointer", color: "var(--accent-ink)", textDecoration: "underline", textUnderlineOffset: 2 }} onClick={() => setDetail(c)}>{c.name}</b> : <b>{c.name}</b>}</span></td>
           <td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
@@ -188,7 +190,7 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
       <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
         <Avatar creator={c} name={c.name} size={56} radius={15} />
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>{c.name} {statusPill(c.status)}</div>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>{c.code ? <span style={{ color: "var(--faint)", fontWeight: 600, marginRight: 6 }}>{c.code}</span> : null}{c.name} {statusPill(c.status)}</div>
           <div style={{ color: "var(--faint)", fontSize: 12.5, marginTop: 3 }}>{c.handle} · 팔로워 {fmt(c.followers)} · {c.category ?? "—"}</div>
           <div style={{ marginTop: 6 }}><SnsBadges c={c} /></div>
         </div>
@@ -240,8 +242,9 @@ function SnsBadges({ c }: { c: Creator }) {
 
 function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator | null; all: Creator[]; onClose: () => void; onSaved: () => void }) {
   const isNew = !creator;
+  const nextCode = "CC" + String(Math.max(0, ...all.map((c) => { const m = c.code?.match(/\d+/); return m ? +m[0] : 0; })) + 1).padStart(3, "0");
   const [f, setF] = useState<Creator>(creator ? { ...creator, sns: { ...creator.sns }, rates: { ...creator.rates } } : {
-    id: "", pic: Math.max(0, ...all.map((c) => c.pic ?? 0)) + 1, name: "", aliases: [], handle: "", followers: 0,
+    id: "", code: nextCode, pic: Math.max(0, ...all.map((c) => c.pic ?? 0)) + 1, name: "", aliases: [], handle: "", followers: 0,
     status: "active", fixedCost: 0, sns: {}, rates: { reels: 0, secondary: 0, offline: 0, etc: 0 }, monthlyQuota: null,
   });
   const up = (k: keyof Creator, v: unknown) => setF((s) => ({ ...s, [k]: v } as Creator));
@@ -276,6 +279,7 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
         </div>
       </Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label="고유번호 (CC번호)"><input style={inp} placeholder="CC001" value={f.code ?? ""} onChange={(e) => up("code", e.target.value)} /></Field>
         <Field label="크리에이터명"><input style={inp} value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
         <Field label="인스타 핸들"><input style={inp} value={f.handle ?? ""} onChange={(e) => up("handle", e.target.value)} /></Field>
         <Field label="팔로워"><input style={inp} type="number" value={f.followers} onChange={(e) => up("followers", +e.target.value)} /></Field>
