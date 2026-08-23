@@ -1,6 +1,6 @@
 "use client";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase/client";
-import type { Creator, Deal } from "@/lib/types";
+import type { Creator, Deal, Content } from "@/lib/types";
 
 // supabase 모드일 때만 실제 DB 쓰기. mock 모드면 no-op(메모리 변경은 호출부에서 처리).
 export const isDb = () =>
@@ -62,6 +62,28 @@ export async function deleteDeal(id: string) {
 }
 export async function setDealStep(id: string, step: number) {
   if (!isDb()) return; const { error } = await getSupabase().from("deals").update({ step }).eq("id", id); if (error) throw error;
+}
+
+// PR 안건 완료 콘텐츠 URL → contents 생성/링크 (아카이브에 노출)
+export async function createDealContent(deal: Deal, url: string, creators: Creator[]): Promise<Content> {
+  const creator = creators.find((c) => c.name === deal.creatorName);
+  const published = deal.uploadDate || "2026-08-23";
+  const content: Content = {
+    id: deal.id + "-c", brandId: null, brandName: deal.client, creatorId: deal.creatorName, creatorName: deal.creatorName,
+    client: deal.client, product: deal.title, kind: "deal", permalink: url, status: "uploaded", publishedAt: published,
+    sched: {}, videoStatus: "ready", views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0, dealId: deal.id,
+  };
+  if (isDb()) {
+    const sb = getSupabase();
+    const { data, error } = await sb.from("contents").insert({
+      creator_id: creator?.id ?? null, client: deal.client, product: deal.title, kind: "deal",
+      permalink: url, status: "uploaded", published_at: deal.uploadDate || null, video_status: "ready", deal_id: deal.id,
+    }).select("id").single();
+    if (error) throw error;
+    content.id = data.id;
+    await sb.from("deals").update({ content_id: content.id }).eq("id", deal.id);
+  }
+  return content;
 }
 
 // 배정: brand/creator 이름 → uuid 해석 후 upsert/delete

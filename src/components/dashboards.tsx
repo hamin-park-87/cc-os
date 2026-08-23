@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent } from "@/lib/data/writes";
 
 export interface Bundle {
   brands: Brand[]; creators: Creator[]; contents: Content[];
@@ -552,14 +552,40 @@ const DEAL_STEPS = ["인입", "매니저 검토", "크리에이터 협의", "의
 export function DealList({ deals, contents, readonly, creators }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[] }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
+  const [invoice, setInvoice] = useState<Deal | null>(null);
+  const [fStep, setFStep] = useState(""); const [fManager, setFManager] = useState(""); const [fCreator, setFCreator] = useState(""); const [q, setQ] = useState("");
   const STEPS = DEAL_STEPS;
-  const sorted = [...deals].sort((a, b) => b.step - a.step);
+  const managers = [...new Set(deals.map((d) => d.manager).filter(Boolean))] as string[];
+  const dealCreators = [...new Set(deals.map((d) => d.creatorName))];
+  let list = deals.filter((d) =>
+    (fStep === "" || d.step === +fStep) && (!fManager || d.manager === fManager) && (!fCreator || d.creatorName === fCreator) &&
+    (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.client.toLowerCase().includes(q.toLowerCase())));
+  list = [...list].sort((a, b) => b.step - a.step);
+  // 단계별 요약
+  const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
+
   return (
     <>
       {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>PR 안건 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 안건 추가</button></div>}
-      {!sorted.length ? <div className="placeholder">진행 중인 PR 안건이 없어요.</div> :
+      {!readonly && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+          <button className={`chip ${fStep === "" ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setFStep("")}>전체 {deals.length}</button>
+          {STEPS.map((s, i) => (
+            <button key={i} className={`chip ${fStep === String(i) ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setFStep(fStep === String(i) ? "" : String(i))}>{s} {counts[i]}</button>
+          ))}
+        </div>
+      )}
+      {!readonly && (
+        <div className="filterbar">
+          <select value={fManager} onChange={(e) => setFManager(e.target.value)}><option value="">전체 매니저</option>{managers.map((m) => <option key={m} value={m}>{m}</option>)}</select>
+          <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">전체 크리에이터</option>{dealCreators.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          <input placeholder="안건·의뢰사 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+          <span className="count">{list.length}건</span>
+        </div>
+      )}
+      {!list.length ? <div className="placeholder">조건에 맞는 PR 안건이 없어요.</div> :
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {sorted.map((dl) => {
+      {list.map((dl) => {
         const ct = dl.contentId ? contents.find((c) => c.id === dl.contentId) : null;
         return (
           <div key={dl.id} className="srow" style={{ marginBottom: 0 }}>
@@ -582,8 +608,9 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <span>납기 <b className="num">{md(dl.dueDate ?? undefined)}</b></span>
               <span>업로드 <b className="num">{md(dl.uploadDate ?? undefined)}</b></span>
             </div>
-            {ct && <div className="note" style={{ marginTop: 10 }}>조회 <b className="num">{fmt(ct.views)}</b> · 참여율 <b className="num">{engRate(ct)}</b></div>}
+            {ct && <div className="note" style={{ marginTop: 10 }}>업로드 콘텐츠: {ct.permalink ? <a href={ct.permalink} target="_blank" rel="noopener" style={{ color: "var(--accent-ink)" }}>{ct.permalink}</a> : "—"} · 조회 <b className="num">{fmt(ct.views)}</b></div>}
             {!readonly && <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+              {dl.step >= 4 && <button className="btn sm" onClick={() => setInvoice(dl)}>청구서</button>}
               {dl.step < 5 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>다음 단계 →</button>}
               <button className="btn sm" onClick={() => setEdit(dl)}>수정</button>
             </div>}
@@ -591,22 +618,69 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
         );
       })}
     </div>}
-    {edit !== undefined && <DealEditModal deal={edit} deals={deals} creators={creators ?? []} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+    {edit !== undefined && <DealEditModal deal={edit} deals={deals} contents={contents} creators={creators ?? []} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+    {invoice && <InvoiceModal deal={invoice} onClose={() => setInvoice(null)} />}
   </>
   );
 }
 
-function DealEditModal({ deal, deals, creators, onClose, onSaved }: { deal: Deal | null; deals: Deal[]; creators: Creator[]; onClose: () => void; onSaved: () => void }) {
+function InvoiceModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
+  const compRev = Math.round(deal.fee * deal.shareCompany / 100);
+  const crRev = Math.round(deal.fee * deal.shareCreator / 100);
+  const no = `INV-${deal.code ?? deal.id.slice(0, 6)}`;
+  return (
+    <Modal title="청구서" onClose={onClose} width={560}
+      footer={<><button className="btn" onClick={onClose}>닫기</button><button className="btn acc" onClick={() => window.print()}>인쇄 / PDF 저장</button></>}>
+      <div id="invoice" style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 24, background: "var(--surface)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div><div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 22, color: "var(--accent)" }}>81&apos;DEGREE</div>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>81degree.inc</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 18 }}>청구서 / INVOICE</div>
+            <div className="num" style={{ fontSize: 12, color: "var(--faint)" }}>{no}</div></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 18 }}>
+          <div><span style={{ color: "var(--faint)" }}>To (의뢰사)</span><div style={{ fontWeight: 600 }}>{deal.client}</div></div>
+          <div><span style={{ color: "var(--faint)" }}>발행일</span><div className="num">{deal.uploadDate || "2026-08-23"}</div></div>
+          <div><span style={{ color: "var(--faint)" }}>크리에이터</span><div>{deal.creatorName}</div></div>
+          <div><span style={{ color: "var(--faint)" }}>담당</span><div>{deal.manager}</div></div>
+        </div>
+        <table style={{ minWidth: 0 }}><thead><tr><th>항목</th><th style={{ textAlign: "right" }}>금액</th></tr></thead>
+          <tbody>
+            <tr><td>{deal.title} (PR 콘텐츠 제작)</td><td className="num" style={{ textAlign: "right" }}>{yen(deal.fee)}</td></tr>
+          </tbody></table>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14, fontSize: 13 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--faint)" }}>합계 (PR 비용)</span><b className="num">{yen(deal.fee)}</b></div>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>쉐어 (회사 {deal.shareCompany}% / 크리에이터 {deal.shareCreator}%)</span><span className="num">회사 {yen(compRev)} · 크리 {yen(crRev)}</span></div>
+        </div>
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)", fontSize: 11.5, color: "var(--faint)" }}>
+          입금 계좌 / 문의: hmpark@81degree.com · 본 청구서는 데모 샘플입니다.
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { deal: Deal | null; deals: Deal[]; contents: Content[]; creators: Creator[]; onClose: () => void; onSaved: () => void }) {
   const isNew = !deal;
   const [f, setF] = useState<Deal>(deal ? { ...deal } : {
     id: "D-" + (100 + deals.length + 1), title: "", client: "", creatorName: creators[0]?.name ?? "hina",
     manager: "mai", source: "company_email", type: "ahchannel", fee: 1000000, shareCompany: 50, shareCreator: 50, step: 0,
   });
+  const existingContent = deal?.contentId ? contents.find((c) => c.id === deal.contentId) : null;
+  const [contentUrl, setContentUrl] = useState(existingContent?.permalink ?? "");
   const up = (k: keyof Deal, v: unknown) => setF((s) => ({ ...s, [k]: v } as Deal));
   async function save() {
     try {
-      if (deal) { const saved = await saveDeal(f, false, creators); Object.assign(deal, saved); }
-      else { const saved = await saveDeal(f, true, creators); deals.unshift(saved); }
+      let target: Deal;
+      if (deal) { const saved = await saveDeal(f, false, creators); Object.assign(deal, saved); target = deal; }
+      else { const saved = await saveDeal(f, true, creators); deals.unshift(saved); target = saved; }
+      // 완료 콘텐츠 URL 입력 시 콘텐츠 생성/링크
+      if (contentUrl.trim() && !existingContent) {
+        const ct = await createDealContent(target, contentUrl.trim(), creators);
+        contents.push(ct); target.contentId = ct.id;
+      } else if (contentUrl.trim() && existingContent) {
+        existingContent.permalink = contentUrl.trim();
+      }
       onSaved(); onClose();
     } catch (e) { alert("저장 실패: " + (e as Error).message); }
   }
@@ -634,6 +708,10 @@ function DealEditModal({ deal, deals, creators, onClose, onSaved }: { deal: Deal
         <Field label="납기일"><input style={inp} type="date" value={f.dueDate ?? ""} onChange={(e) => up("dueDate", e.target.value)} /></Field>
         <Field label="업로드 일자"><input style={inp} type="date" value={f.uploadDate ?? ""} onChange={(e) => up("uploadDate", e.target.value)} /></Field>
       </div>
+      <Field label="완료 콘텐츠 URL (permalink)">
+        <input style={inp} placeholder="https://www.instagram.com/reel/..." value={contentUrl} onChange={(e) => setContentUrl(e.target.value)} />
+      </Field>
+      <div style={{ fontSize: 12, color: "var(--faint)" }}>업로드된 콘텐츠 URL을 넣으면 아카이브에 자동 등록되고 안건에 연결됩니다.</div>
     </Modal>
   );
 }
