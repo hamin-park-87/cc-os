@@ -6,16 +6,33 @@ import { t, type Lang } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { AdminView, BrandView, CreatorView, type Bundle } from "./dashboards";
 
-const NAV: Record<string, [string, string][]> = {
-  admin: [["a-matrix", "대시보드"], ["a-assign", "배정 관리"], ["a-deals", "PR 안건"], ["a-revenue", "매출 대시보드"], ["a-insights", "크리에이터 인사이트"], ["a-roster", "크리에이터 관리"], ["a-brands", "브랜드 관리"], ["a-cost", "비용 관리"], ["a-accounts", "계정·권한"], ["a-archive", "콘텐츠 아카이브"], ["a-risk", "계약 리스크"], ["a-conn", "연동 상태"]],
-  brand: [["b-dash", "대시보드"], ["b-creators", "크리에이터별"], ["b-roster", "소속 크리에이터"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]],
-  creator: [["c-growth", "내 계정 성장"], ["c-deals", "PR 안건"], ["c-revenue", "PR 매출"], ["c-content", "내 콘텐츠"], ["c-todo", "이번 달 할 일"]],
+type NavItem = [string, string];               // [key, 중분류 라벨]
+type NavGroup = { group: string; items: NavItem[] }; // group="" 이면 대분류 헤더 없이 단독 노출
+const NAV: Record<string, NavGroup[]> = {
+  admin: [
+    { group: "", items: [["a-matrix", "대시보드"]] },
+    { group: "크리에이터", items: [["a-roster", "크리에이터 관리"], ["a-insights", "크리에이터 인사이트"], ["a-cost", "비용 관리"], ["a-conn", "연동 상태"]] },
+    { group: "브랜드", items: [["a-brands", "브랜드 관리"]] },
+    { group: "PR · 콘텐츠", items: [["a-deals", "PR 안건"], ["a-assign", "배정 관리"], ["a-archive", "콘텐츠 아카이브"], ["a-risk", "계약 리스크"]] },
+    { group: "매출 · 운영", items: [["a-revenue", "매출 대시보드"], ["a-accounts", "계정·권한"]] },
+  ],
+  brand: [
+    { group: "", items: [["b-dash", "대시보드"]] },
+    { group: "크리에이터", items: [["b-creators", "크리에이터별"], ["b-roster", "소속 크리에이터"]] },
+    { group: "콘텐츠", items: [["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
+  ],
+  creator: [
+    { group: "", items: [["c-growth", "내 계정 성장"]] },
+    { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 매출"]] },
+    { group: "콘텐츠", items: [["c-content", "내 콘텐츠"], ["c-todo", "이번 달 할 일"]] },
+  ],
 };
+const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
 const ROLE_LABEL: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터" };
 
 export function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const [d, setD] = useState<Bundle | null>(null);
-  const [pane, setPane] = useState(NAV[session.role][0][0]);
+  const [pane, setPane] = useState(flatNav(session.role)[0][0]);
   const [lang, setLang] = useState<Lang>("ko");
   const [theme, setTheme] = useState<string>("");
 
@@ -31,8 +48,8 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
     try { const th = localStorage.getItem("creatoros.theme"); if (th) { setTheme(th); document.documentElement.setAttribute("data-theme", th); } } catch { }
   }, []);
 
-  const nav = NAV[session.role];
-  const currentLabel = nav.find((n) => n[0] === pane)?.[1] ?? "";
+  const groups = NAV[session.role];
+  const currentLabel = flatNav(session.role).find((n) => n[0] === pane)?.[1] ?? "";
 
   function toggleTheme() {
     const cur = document.documentElement.getAttribute("data-theme");
@@ -51,10 +68,15 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       <aside className="sidebar">
         <div className="brandmark"><b className="logo">81'<span>DEGREE</span></b></div>
         <div className="navlabel">{t(ROLE_LABEL[session.role], lang)}</div>
-        {nav.map(([key, label]) => (
-          <button key={key} className={`navitem ${pane === key ? "active" : ""}`} onClick={() => setPane(key)}>
-            {t(label, lang)}
-          </button>
+        {groups.map((g, gi) => (
+          <div key={gi} className="navgroup">
+            {g.group && <div className="navgroup-h">{t(g.group, lang)}</div>}
+            {g.items.map(([key, label]) => (
+              <button key={key} className={`navitem ${g.group ? "sub" : ""} ${pane === key ? "active" : ""}`} onClick={() => setPane(key)}>
+                {t(label, lang)}
+              </button>
+            ))}
+          </div>
         ))}
         <div className="sidebar-foot">
           <Avatar name={session.role === "creator" ? session.scope : session.scope[0]} size={32} radius={8} />

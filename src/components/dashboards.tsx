@@ -169,7 +169,7 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
     </div>}
     <div className="tablewrap"><table><thead><tr>
       {full && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" /></th>}
-      <th>번호</th><th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
+      <th>번호</th><th>크리에이터</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
     </tr></thead><tbody>
       {list.map((c) => (
         <tr key={c.id} style={full && sel.has(c.id) ? { background: "var(--accent-weak)" } : undefined}>
@@ -177,7 +177,6 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
           <td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{c.code ?? "—"}</td>
           <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} />
             {full ? <b style={{ cursor: "pointer", color: "var(--accent-ink)", textDecoration: "underline", textUnderlineOffset: 2 }} onClick={() => setDetail(c)}>{c.name}</b> : <b>{c.name}</b>}</span></td>
-          <td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
           <td><SnsBadges c={c} /></td>
           <td className="num">{fmt(c.followers)}</td>
           <td>{statusPill(c.status)}</td>

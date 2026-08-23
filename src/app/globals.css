@@ -73,6 +73,12 @@
   .navitem.active{background:var(--accent-weak); color:var(--accent-ink); font-weight:600}
   :root[data-theme="dark"] .navitem.active,
   :root:not([data-theme="light"]) .navitem.active{color:var(--accent)}
+  .navgroup{display:flex; flex-direction:column; gap:1px}
+  .navgroup + .navgroup{margin-top:6px}
+  .navgroup-h{font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); padding:10px 10px 4px; font-weight:700}
+  .navitem.sub{padding-left:18px; font-size:13px}
+  .navitem.sub::before{content:""; width:3px; height:3px; border-radius:50%; background:var(--faint); flex:none; margin-right:-3px; opacity:.5}
+  .navitem.sub.active::before{background:var(--accent); opacity:1}
   .sidebar-foot{margin-top:auto; padding-top:12px; border-top:1px solid var(--border)}
   .who{display:flex; align-items:center; gap:10px; padding:8px 6px}
   .who small{display:block; color:var(--faint); font-size:11.5px}
