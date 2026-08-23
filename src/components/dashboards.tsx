@@ -806,7 +806,8 @@ function CostTable({ creators }: { creators: Creator[] }) {
 
 /* 크리에이터 인사이트 + AI 코치 */
 function Insights({ creators, contents }: { creators: Creator[]; contents: Content[] }) {
-  const actives = creators.filter((c) => c.status === "active");
+  const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
+  const actives = creators.filter((c) => c.status === "active").sort((a, b) => codeNum(a) - codeNum(b) || a.name.localeCompare(b.name));
   const [name, setName] = useState(actives[0]?.name ?? "hina");
   const [ai, setAi] = useState<{ t: string; s: string }[] | null>(null);
   const c = creators.find((x) => x.name === name)!;
