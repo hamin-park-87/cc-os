@@ -997,15 +997,25 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
   const [invoice, setInvoice] = useState<Deal | null>(null);
   const [fStep, setFStep] = useState(""); const [fManager, setFManager] = useState(""); const [fCreator, setFCreator] = useState(""); const [q, setQ] = useState("");
+  const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "step">("date_desc");
   const [view, setView] = useState<"list" | "card">("list");
   const [sel, setSel] = useState<Set<string>>(new Set());
   const STEPS = DEAL_STEPS;
+  const dealDate = (d: Deal) => d.uploadDate || d.dueDate || "";
+  const dealMonth = (d: Deal) => dealDate(d).slice(0, 7);
   const managers = [...new Set(deals.map((d) => d.manager).filter(Boolean))] as string[];
   const dealCreators = [...new Set(deals.map((d) => d.creatorName))];
+  const months = [...new Set(deals.map(dealMonth).filter(Boolean))].sort().reverse();
   let list = deals.filter((d) =>
     (fStep === "" || d.step === +fStep) && (!fManager || d.manager === fManager) && (!fCreator || d.creatorName === fCreator) &&
+    (!fMonth || dealMonth(d) === fMonth) &&
     (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.client.toLowerCase().includes(q.toLowerCase())));
-  list = [...list].sort((a, b) => b.step - a.step);
+  list = [...list].sort((a, b) => {
+    if (sortBy === "step") return b.step - a.step;
+    const da = dealDate(a), db = dealDate(b);
+    if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; // 날짜 없으면 뒤로
+    return sortBy === "date_asc" ? da.localeCompare(db) : db.localeCompare(da);
+  });
   // 단계별 요약
   const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -1035,8 +1045,14 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
       )}
       {!readonly && (
         <div className="filterbar">
+          <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}><option value="">전체 월</option>{months.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}월</option>)}</select>
           <select value={fManager} onChange={(e) => setFManager(e.target.value)}><option value="">전체 매니저</option>{managers.map((m) => <option key={m} value={m}>{m}</option>)}</select>
           <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">전체 크리에이터</option>{dealCreators.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+            <option value="date_desc">최신 날짜순</option>
+            <option value="date_asc">오래된 날짜순</option>
+            <option value="step">진행 단계순</option>
+          </select>
           <input placeholder="안건·의뢰사 검색" value={q} onChange={(e) => setQ(e.target.value)} />
           <span className="count">{list.length}건</span>
         </div>
