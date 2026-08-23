@@ -1,6 +1,6 @@
 "use client";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase/client";
-import type { Creator, Deal, Content } from "@/lib/types";
+import type { Brand, Creator, Deal, Content } from "@/lib/types";
 
 // supabase 모드일 때만 실제 DB 쓰기. mock 모드면 no-op(메모리 변경은 호출부에서 처리).
 export const isDb = () =>
@@ -37,6 +37,26 @@ export async function deleteCreator(id: string) {
 // 비용/고정비 등 부분 업데이트
 export async function patchCreator(id: string, fields: Record<string, unknown>) {
   if (!isDb()) return; const { error } = await getSupabase().from("creators").update(fields).eq("id", id); if (error) throw error;
+}
+
+// 브랜드 CRUD
+function brandRow(b: Brand) {
+  return { name: b.name, color: b.color ?? null, aliases: b.aliases ?? [], domain_allowlist: b.domainAllowlist ?? [] };
+}
+export async function saveBrand(b: Brand, isNew: boolean): Promise<Brand> {
+  if (!isDb()) return b;
+  const sb = getSupabase();
+  if (isNew) {
+    const { data, error } = await sb.from("brands").insert(brandRow(b)).select("id").single();
+    if (error) throw error;
+    return { ...b, id: data.id };
+  }
+  const { error } = await sb.from("brands").update(brandRow(b)).eq("id", b.id);
+  if (error) throw error;
+  return b;
+}
+export async function deleteBrand(id: string) {
+  if (!isDb()) return; const { error } = await getSupabase().from("brands").delete().eq("id", id); if (error) throw error;
 }
 
 function dealRow(d: Deal, creatorId: string | null) {

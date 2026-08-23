@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand } from "@/lib/data/writes";
 
 export interface Bundle {
   brands: Brand[]; creators: Creator[]; contents: Content[];
@@ -86,7 +86,7 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
         </div>
         <div className="sec-h"><h2>이행률 매트릭스</h2><span className="hint">완료 / 배정</span></div>
         <div className="tablewrap"><table><thead><tr><th>브랜드 \ 크리에이터</th>{crs.map((c) => <th key={c} style={{ textAlign: "center" }}>{c}</th>)}</tr></thead><tbody>
-          {ALL_BRANDS.map((b) => (<tr key={b}><td><span className="chip"><span className="sw" style={{ background: BRAND_COLOR[b] }} />{b}</span></td>
+          {(d.brands.length ? d.brands.map((x) => x.name) : ALL_BRANDS).map((b) => (<tr key={b}><td><span className="chip"><span className="sw" style={{ background: d.brands.find((x) => x.name === b)?.color ?? BRAND_COLOR[b] ?? "var(--surface-3)" }} />{b}</span></td>
             {crs.map((cName) => {
               const a = asg.find((x) => x.brandId === b && x.creatorId === cName);
               if (!a) return <td key={cName} className="mx" style={{ color: "var(--faint)" }}>·</td>;
@@ -102,12 +102,13 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
     );
   }
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
+  if (pane === "a-brands") return <BrandAdmin d={d} />;
   if (pane === "a-assign") return <AssignEditor d={d} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} />;
-  if (pane === "a-accounts") return <AccountsTable creators={d.creators} />;
+  if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} />;
   if (pane === "a-archive") return <ContentArchive contents={d.contents} />;
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
   if (pane === "a-risk") return <RiskList d={d} />;
@@ -315,6 +316,65 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
             : ai.map((f, i) => <div key={i} className="ai-card"><span className="ic">★</span><div><div className="t">{f.t}</div><div className="s">{f.s}</div></div></div>)}
         </div>
       </>}
+    </Modal>
+  );
+}
+
+/* ── 브랜드 관리 ───── */
+function BrandAdmin({ d }: { d: Bundle }) {
+  const [, setTick] = useState(0);
+  const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
+  const list = d.brands;
+  return (<>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>브랜드 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 브랜드 추가</button></div>
+    {!list.length ? <div className="placeholder">등록된 브랜드가 없어요. ‘+ 브랜드 추가’로 시작하세요.</div> :
+      <div className="tablewrap"><table><thead><tr>
+        <th>브랜드</th><th>별칭</th><th>로그인 이메일 도메인</th><th></th>
+      </tr></thead><tbody>
+        {list.map((b) => (
+          <tr key={b.id}>
+            <td><span className="chip"><span className="sw" style={{ background: b.color ?? BRAND_COLOR[b.name] ?? "var(--surface-3)" }} /><b>{b.name}</b></span></td>
+            <td style={{ color: "var(--muted)" }}>{b.aliases?.length ? b.aliases.join(", ") : "—"}</td>
+            <td style={{ color: "var(--muted)" }}>{b.domainAllowlist?.length ? b.domainAllowlist.join(", ") : "—"}</td>
+            <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(b)}>수정</button></td>
+          </tr>
+        ))}
+      </tbody></table></div>}
+    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>브랜드를 추가하면 배정 관리·PR 안건·계정 초대의 브랜드 선택에도 자동 반영됩니다.</div>
+    {edit !== undefined && <BrandEditModal brand={edit} all={d.brands} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+  </>);
+}
+
+function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null; all: Brand[]; onClose: () => void; onSaved: () => void }) {
+  const isNew = !brand;
+  const [f, setF] = useState<Brand>(brand ? { ...brand } : { id: "", name: "", aliases: [], color: "#22B24E", domainAllowlist: [] });
+  const up = (k: keyof Brand, v: unknown) => setF((s) => ({ ...s, [k]: v } as Brand));
+  const toList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+  async function save() {
+    if (!f.name.trim()) { alert("브랜드명을 입력해주세요"); return; }
+    try {
+      if (brand) { const saved = await saveBrand(f, false); Object.assign(brand, saved); }
+      else { const saved = await saveBrand({ ...f, id: f.name }, true); all.push(saved); }
+      onSaved(); onClose();
+    } catch (e) { alert("저장 실패: " + (e as Error).message); }
+  }
+  async function del() {
+    if (!brand) return;
+    if (!confirm(`'${brand.name}' 브랜드를 삭제할까요? 연결된 계약/배정이 있으면 영향이 있을 수 있습니다.`)) return;
+    try { await deleteBrand(brand.id); const i = all.indexOf(brand); if (i >= 0) all.splice(i, 1); onSaved(); onClose(); }
+    catch (e) { alert("삭제 실패: " + (e as Error).message); }
+  }
+  return (
+    <Modal title={isNew ? "브랜드 추가" : "브랜드 수정"} onClose={onClose}
+      footer={<>{!isNew && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)", marginRight: "auto" }} onClick={del}>삭제</button>}
+        <button className="btn" onClick={onClose}>취소</button><button className="btn acc" onClick={save}>저장</button></>}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0 14px", alignItems: "end" }}>
+        <Field label="브랜드명"><input style={inp} placeholder="예: abib" value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
+        <Field label="색상"><input type="color" style={{ ...inp, width: 56, padding: 4, height: 40 }} value={f.color ?? "#22B24E"} onChange={(e) => up("color", e.target.value)} /></Field>
+      </div>
+      <Field label="별칭 (쉼표로 구분)"><input style={inp} placeholder="아비브, ABIB" value={f.aliases?.join(", ") ?? ""} onChange={(e) => up("aliases", toList(e.target.value))} /></Field>
+      <Field label="로그인 이메일 도메인 (쉼표로 구분)"><input style={inp} placeholder="abib.com" value={f.domainAllowlist?.join(", ") ?? ""} onChange={(e) => up("domainAllowlist", toList(e.target.value))} /></Field>
+      <div style={{ fontSize: 12, color: "var(--faint)" }}>도메인을 넣으면 해당 브랜드 담당자가 그 이메일로 가입/로그인 시 자동으로 이 브랜드에 매칭됩니다.</div>
     </Modal>
   );
 }
@@ -562,7 +622,7 @@ function AssignEditor({ d }: { d: Bundle }) {
   const diff = sum - target;
   return (<>
     <div className="filterbar">
-      <select value={brand} onChange={(e) => setBrand(e.target.value)}>{ALL_BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}</select>
+      <select value={brand} onChange={(e) => setBrand(e.target.value)}>{(d.brands.length ? d.brands.map((x) => x.name) : ALL_BRANDS).map((b) => <option key={b} value={b}>{b}</option>)}</select>
       <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.replace("-", ". ")}</option>)}</select>
     </div>
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
@@ -653,7 +713,7 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
 }
 
 /* 계정·권한 */
-function AccountsTable({ creators }: { creators: Creator[] }) {
+function AccountsTable({ creators, brands }: { creators: Creator[]; brands?: Brand[] }) {
   const [, setTick] = useState(0);
   const [invite, setInvite] = useState(false);
   const accts = ACCOUNTS;
@@ -670,7 +730,7 @@ function AccountsTable({ creators }: { creators: Creator[] }) {
           <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => { a.status = a.status === "disabled" ? "active" : "disabled"; setTick((t) => t + 1); }}>{a.status === "disabled" ? "활성화" : "비활성"}</button></td></tr>
       ))}
     </tbody></table></div>
-    {invite && <InviteModal creators={creators} onClose={() => setInvite(false)} onSaved={() => setTick((t) => t + 1)} />}
+    {invite && <InviteModal creators={creators} brands={brands} onClose={() => setInvite(false)} onSaved={() => setTick((t) => t + 1)} />}
   </>);
 }
 
@@ -679,7 +739,7 @@ function genPassword() {
   let s = ""; for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
   return s;
 }
-function InviteModal({ onClose, onSaved, creators }: { onClose: () => void; onSaved: () => void; creators: Creator[] }) {
+function InviteModal({ onClose, onSaved, creators, brands }: { onClose: () => void; onSaved: () => void; creators: Creator[]; brands?: Brand[] }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "brand" | "creator">("brand");
   const [scope, setScope] = useState("abib");
@@ -688,7 +748,8 @@ function InviteModal({ onClose, onSaved, creators }: { onClose: () => void; onSa
   const [err, setErr] = useState("");
   const [ok, setOk] = useState(false);
   const creatorNames = creators.map((c) => c.name);
-  const scopes = role === "admin" ? ["81degree"] : role === "brand" ? ALL_BRANDS : (creatorNames.length ? creatorNames : ["hina"]);
+  const brandNames = brands?.length ? brands.map((b) => b.name) : ALL_BRANDS;
+  const scopes = role === "admin" ? ["81degree"] : role === "brand" ? brandNames : (creatorNames.length ? creatorNames : ["hina"]);
   const finalScope = role === "admin" ? "81degree" : scope;
   async function save() {
     if (!email.trim()) { setErr("이메일을 입력해주세요"); return; }
