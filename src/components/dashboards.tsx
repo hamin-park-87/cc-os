@@ -118,9 +118,16 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Creator | null | undefined>(undefined); // undefined=닫힘, null=추가
   const [detail, setDetail] = useState<Creator | null>(null);
+  const [bulk, setBulk] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<"code" | "followers" | "name" | "status">("code");
   const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
-  const list = [...creators].sort((a, b) => codeNum(a) - codeNum(b) || (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
+  const list = [...creators].sort((a, b) => {
+    if (sortBy === "followers") return (b.followers ?? 0) - (a.followers ?? 0);
+    if (sortBy === "name") return a.name.localeCompare(b.name);
+    if (sortBy === "status") return (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || codeNum(a) - codeNum(b);
+    return codeNum(a) - codeNum(b) || (a.pic ?? 0) - (b.pic ?? 0); // code
+  });
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const allChecked = list.length > 0 && list.every((c) => sel.has(c.id));
   const toggleAll = () => setSel(allChecked ? new Set() : new Set(list.map((c) => c.id)));
@@ -140,6 +147,7 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
     {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>크리에이터 관리</h2>
       <span style={{ display: "flex", gap: 8 }}>
         {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>선택 삭제 ({sel.size})</button>}
+        <button className="btn" onClick={() => setBulk(true)}>일괄 등록</button>
         <button className="btn acc" onClick={() => setEdit(null)}>+ 크리에이터 추가</button>
       </span></div>}
     {full && <div className="grid-kpi" style={{ marginBottom: 16 }}>
@@ -147,6 +155,15 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
       <Kpi lab="활동중" val={String(nActive)} />
       <Kpi lab="계약준비" val={String(nPreparing)} />
       <Kpi lab="보류" val={String(nHold)} />
+    </div>}
+    {full && <div className="filterbar">
+      <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+        <option value="code">번호순</option>
+        <option value="followers">팔로워순</option>
+        <option value="name">이름순</option>
+        <option value="status">상태순</option>
+      </select>
+      <span className="count">{list.length}명</span>
     </div>}
     <div className="tablewrap"><table><thead><tr>
       {full && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" /></th>}
@@ -172,7 +189,55 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
     </tbody></table></div>
     {edit !== undefined && <CreatorEditModal creator={edit} all={creators} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
     {detail && <CreatorDetailModal creator={detail} contents={contents ?? []} onClose={() => setDetail(null)} onEdit={() => { setEdit(detail); setDetail(null); }} />}
+    {bulk && <BulkCreatorModal all={creators} onClose={() => setBulk(false)} onSaved={() => setTick((t) => t + 1)} />}
   </>);
+}
+
+function BulkCreatorModal({ all, onClose, onSaved }: { all: Creator[]; onClose: () => void; onSaved: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [ok, setOk] = useState(0);
+  const rows = text.split("\n").map((l) => l.trim()).filter(Boolean)
+    .map((l) => (l.includes("\t") ? l.split("\t") : l.split(",")).map((s) => s.trim()));
+  const valid = rows.filter((r) => r[0]);
+  async function run() {
+    if (!valid.length) { setErr("등록할 행이 없습니다"); return; }
+    setBusy(true); setErr(""); setOk(0);
+    let n = Math.max(0, ...all.map((c) => { const m = c.code?.match(/\d+/); return m ? +m[0] : 0; }));
+    let pic = Math.max(0, ...all.map((c) => c.pic ?? 0));
+    try {
+      for (const r of valid) {
+        n++; pic++;
+        const followers = +(r[2] ?? "").replace(/[^0-9]/g, "") || 0;
+        const baseFee = r[4] ? +r[4].replace(/[^0-9]/g, "") || null : null;
+        const c: Creator = {
+          id: "", code: "CC" + String(n).padStart(3, "0"), pic, name: r[0], aliases: [], handle: r[1] || "",
+          followers, status: "active", category: r[3] || undefined, fixedCost: 0, baseFee,
+          sns: {}, rates: { reels: 0, secondary: 0, offline: 0, etc: 0 }, monthlyQuota: null,
+        };
+        const saved = await saveCreator({ ...c, id: c.name || "new-" + pic }, true);
+        all.push(saved); setOk((v) => v + 1);
+      }
+      onSaved(); onClose();
+    } catch (e) { setErr((e as Error).message); }
+    setBusy(false);
+  }
+  return (
+    <Modal title="크리에이터 일괄 등록" onClose={onClose} width={560}
+      footer={<><button className="btn" onClick={onClose}>취소</button>
+        <button className="btn acc" disabled={busy || !valid.length} onClick={run}>{busy ? `등록 중… (${ok}/${valid.length})` : `${valid.length}명 등록`}</button></>}>
+      <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 8 }}>
+        스프레드시트에서 복사해 붙여넣으세요 (한 줄에 한 명, 탭 또는 콤마 구분). 고유번호(CC)는 자동 부여됩니다.<br />
+        순서: <b>이름 · 인스타핸들 · 팔로워 · 카테고리 · 기본보수(¥)</b> — 이름 외에는 비워도 됩니다.
+      </div>
+      <textarea style={{ ...inp, minHeight: 180, fontFamily: "var(--mono)", fontSize: 12.5 }}
+        placeholder={"merumi\t@merumichandayo\t50000\t뷰티\t250000\nrico\t@rico\t32000\t라이프\t200000"}
+        value={text} onChange={(e) => setText(e.target.value)} />
+      <div className="note" style={{ marginTop: 8 }}>인식된 행: <b className="num">{valid.length}</b>명</div>
+      {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
+    </Modal>
+  );
 }
 
 function DRow({ k, v }: { k: string; v?: React.ReactNode }) {
@@ -181,9 +246,25 @@ function DRow({ k, v }: { k: string; v?: React.ReactNode }) {
     <span style={{ flex: 1, wordBreak: "break-word" }}>{v ?? "—"}</span></div>;
 }
 function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator: Creator; contents: Content[]; onClose: () => void; onEdit: () => void }) {
+  const [tab, setTab] = useState<"info" | "insight">("info");
+  const [ai, setAi] = useState<{ t: string; s: string }[] | null>(null);
   const mine = contents.filter((x) => x.creatorName === c.name);
   const uploaded = mine.filter((x) => x.status === "uploaded");
   const totalViews = uploaded.reduce((s, x) => s + (x.views || 0), 0);
+  const series = growthSeries(c.name, c.followers);
+  const pct = ((series[series.length - 1] - series[0]) / series[0]) * 100;
+  const aud = audienceOf(c.name);
+  const ups = uploaded.filter((x) => x.views > 0);
+  const avgEng = ups.length ? ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length : 0;
+  function runAI() {
+    const cards: { t: string; s: string }[] = [];
+    if (pct >= 40) cards.push({ t: "성장 가속 중", s: `최근 12주 팔로워 +${pct.toFixed(0)}%. 상위 성장세, 현재 포맷 유지·시리즈화 권장.` });
+    else if (pct >= 15) cards.push({ t: "안정적 성장", s: `+${pct.toFixed(0)}% 성장. 업로드 빈도를 늘리면 곡선을 끌어올릴 수 있습니다.` });
+    else cards.push({ t: "성장 정체", s: `+${pct.toFixed(0)}%. 새 훅·주제 실험, 트렌드 오디오 활용 권장.` });
+    if (ups.length) { const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0]; cards.push({ t: "베스트 콘텐츠", s: `'${best.product}'가 참여율 ${engRate(best)}로 최고. 유사 포맷 반복 추천.` }); }
+    cards.push({ t: "오디언스 제안", s: `주 시청층 여성 ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} 중심. 해당 층 주제 강화.` });
+    setAi(cards);
+  }
   return (
     <Modal title="크리에이터 상세" onClose={onClose} width={560}
       footer={<><button className="btn" onClick={onClose}>닫기</button><button className="btn acc" onClick={onEdit}>수정</button></>}>
@@ -196,24 +277,44 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
         </div>
       </div>
       {c.intro && <div className="note" style={{ marginBottom: 14 }}>{c.intro}</div>}
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "0 0 4px" }}>계약·정산 정보</div>
-      <DRow k="구분" v={c.entityType === "corporation" ? "법인" : "개인"} />
-      <DRow k="이메일" v={c.email} />
-      <DRow k="전화번호" v={c.phone} />
-      <DRow k="주소" v={c.address} />
-      <DRow k="은행계좌" v={c.bankAccount} />
-      <DRow k="인보이스 등록번호" v={c.invoiceRegNo} />
-      <DRow k="원천징수" v={c.withholding == null ? "—" : c.withholding ? "대상 (10.21%)" : "대상외"} />
-      <DRow k="계약기간" v={c.contractDate || c.contractEnd ? `${c.contractDate ?? "—"} ~ ${c.contractEnd ?? "—"}` : undefined} />
-      <DRow k="기본보수 (세전/월)" v={c.baseFee != null ? yen(c.baseFee) : undefined} />
-      <DRow k="지급사이클" v={c.payCycle} />
-      <DRow k="월 계약 수량" v={c.monthlyQuota != null ? `${c.monthlyQuota}건` : undefined} />
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "14px 0 4px" }}>PR 단가</div>
-      <DRow k="릴스 1건당" v={yen(c.rates.reels)} />
-      <DRow k="2차 활용" v={yen(c.rates.secondary)} />
-      <DRow k="오프라인 PR" v={yen(c.rates.offline)} />
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "14px 0 4px" }}>콘텐츠 현황</div>
-      <div className="note">업로드 <b className="num">{uploaded.length}</b>건 · 누적 조회 <b className="num">{fmt(totalViews)}</b></div>
+      <div className="segmented" style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        <button className={`btn sm ${tab === "info" ? "acc" : ""}`} onClick={() => setTab("info")}>정보</button>
+        <button className={`btn sm ${tab === "insight" ? "acc" : ""}`} onClick={() => setTab("insight")}>인사이트</button>
+      </div>
+      {tab === "info" ? <>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "0 0 4px" }}>계약·정산 정보</div>
+        <DRow k="구분" v={c.entityType === "corporation" ? "법인" : "개인"} />
+        <DRow k="이메일" v={c.email} />
+        <DRow k="전화번호" v={c.phone} />
+        <DRow k="주소" v={c.address} />
+        <DRow k="은행계좌" v={c.bankAccount} />
+        <DRow k="인보이스 등록번호" v={c.invoiceRegNo} />
+        <DRow k="원천징수" v={c.withholding == null ? "—" : c.withholding ? "대상 (10.21%)" : "대상외"} />
+        <DRow k="계약기간" v={c.contractDate || c.contractEnd ? `${c.contractDate ?? "—"} ~ ${c.contractEnd ?? "—"}` : undefined} />
+        <DRow k="기본보수 (세전/월)" v={c.baseFee != null ? yen(c.baseFee) : undefined} />
+        <DRow k="지급사이클" v={c.payCycle} />
+        <DRow k="월 계약 수량" v={c.monthlyQuota != null ? `${c.monthlyQuota}건` : undefined} />
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", margin: "14px 0 4px" }}>PR 단가</div>
+        <DRow k="릴스 1건당" v={yen(c.rates.reels)} />
+        <DRow k="2차 활용" v={yen(c.rates.secondary)} />
+        <DRow k="오프라인 PR" v={yen(c.rates.offline)} />
+      </> : <>
+        <div className="grid-kpi" style={{ marginBottom: 14 }}>
+          <Kpi lab="팔로워" val={fmt(c.followers)} delta={`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (12주)`} dir={pct >= 0 ? "up" : "down"} spark={series.map((v) => v / 1000)} />
+          <Kpi lab="순증 (12주)" val={`+${fmt(series[series.length - 1] - series[0])}`} />
+          <Kpi lab="평균 참여율" val={avgEng.toFixed(1)} unit="%" />
+          <Kpi lab="업로드" val={uploaded.length} unit="건" />
+        </div>
+        <div className="card pad" style={{ marginBottom: 14 }}>
+          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>팔로워 추이</h2><span className="hint">{c.handle} · 최근 12주</span></div>
+          <div style={{ marginTop: 8 }}><Spark data={series} /></div>
+        </div>
+        <div className="card pad">
+          <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>✨ AI 성장 코치</h2><button className="btn acc" onClick={runAI}>분석 실행</button></div>
+          {!ai ? <div className="note">'분석 실행'을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.</div>
+            : ai.map((f, i) => <div key={i} className="ai-card"><span className="ic">★</span><div><div className="t">{f.t}</div><div className="s">{f.s}</div></div></div>)}
+        </div>
+      </>}
     </Modal>
   );
 }
