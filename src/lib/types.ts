@@ -20,10 +20,25 @@ export const DEAL_STEP_KEYS = [
 
 export interface Brand {
   id: string;
+  code?: string | null;            // 고유번호 (BR001…)
   name: string;
   aliases: string[];
   color?: string;
   domainAllowlist: string[];
+  // 계약
+  contractStart?: string | null;   // 계약 시작월 (YYYY-MM)
+  contractEnd?: string | null;     // 계약 종료월 (YYYY-MM)
+  monthlyQuota?: number | null;    // 월 콘텐츠 계약 수량
+  monthlyAmount?: number | null;   // 월간 계약 금액 (¥)
+}
+
+// 월별 브랜드 PR 상품
+export interface BrandProduct {
+  id: string;
+  brandId: string;                 // 표시용 브랜드명
+  yearMonth: string;               // YYYY-MM
+  name: string;
+  url?: string | null;
 }
 
 export interface CreatorSns { youtube?: string; tiktok?: string; x?: string; line?: string }

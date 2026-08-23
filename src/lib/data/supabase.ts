@@ -17,7 +17,9 @@ async function q(table: string, cols = "*"): Promise<Row[]> {
 export const supabaseProvider: DataProvider = {
   async brands() {
     return (await q("brands")).map((r): Brand => ({
-      id: r.id, name: r.name, aliases: r.aliases ?? [], color: r.color, domainAllowlist: r.domain_allowlist ?? [],
+      id: r.id, code: r.code, name: r.name, aliases: r.aliases ?? [], color: r.color, domainAllowlist: r.domain_allowlist ?? [],
+      contractStart: r.contract_start, contractEnd: r.contract_end,
+      monthlyQuota: r.monthly_quota, monthlyAmount: r.monthly_amount != null ? Number(r.monthly_amount) : null,
     }));
   },
   async creators() {

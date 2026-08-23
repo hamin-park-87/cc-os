@@ -1,6 +1,6 @@
 "use client";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase/client";
-import type { Brand, Creator, Deal, Content } from "@/lib/types";
+import type { Brand, BrandProduct, Creator, Deal, Content } from "@/lib/types";
 
 // supabase 모드일 때만 실제 DB 쓰기. mock 모드면 no-op(메모리 변경은 호출부에서 처리).
 export const isDb = () =>
@@ -41,7 +41,11 @@ export async function patchCreator(id: string, fields: Record<string, unknown>) 
 
 // 브랜드 CRUD
 function brandRow(b: Brand) {
-  return { name: b.name, color: b.color ?? null, aliases: b.aliases ?? [], domain_allowlist: b.domainAllowlist ?? [] };
+  return {
+    code: b.code ?? null, name: b.name, color: b.color ?? null, aliases: b.aliases ?? [], domain_allowlist: b.domainAllowlist ?? [],
+    contract_start: b.contractStart ?? null, contract_end: b.contractEnd ?? null,
+    monthly_quota: b.monthlyQuota ?? null, monthly_amount: b.monthlyAmount ?? null,
+  };
 }
 export async function saveBrand(b: Brand, isNew: boolean): Promise<Brand> {
   if (!isDb()) return b;
@@ -57,6 +61,30 @@ export async function saveBrand(b: Brand, isNew: boolean): Promise<Brand> {
 }
 export async function deleteBrand(id: string) {
   if (!isDb()) return; const { error } = await getSupabase().from("brands").delete().eq("id", id); if (error) throw error;
+}
+
+// 월별 브랜드 PR 상품 (mock: 메모리 / db: brand_products)
+const mockProducts: BrandProduct[] = [];
+export async function getBrandProducts(brandName: string, month: string, brands: { id: string; name: string }[]): Promise<BrandProduct[]> {
+  if (!isDb()) return mockProducts.filter((p) => p.brandId === brandName && p.yearMonth === month);
+  const brand_id = brands.find((b) => b.name === brandName)?.id;
+  if (!brand_id) return [];
+  const { data, error } = await getSupabase().from("brand_products").select("*").eq("brand_id", brand_id).eq("year_month", month).order("created_at");
+  if (error) { console.warn("[brand_products]", error.message); return []; }
+  return (data ?? []).map((r): BrandProduct => ({ id: r.id, brandId: brandName, yearMonth: r.year_month, name: r.name, url: r.url }));
+}
+export async function addBrandProduct(brandName: string, month: string, name: string, url: string, brands: { id: string; name: string }[]): Promise<BrandProduct> {
+  const p: BrandProduct = { id: `${brandName}|${month}|${name}|${mockProducts.length}`, brandId: brandName, yearMonth: month, name, url: url || null };
+  if (!isDb()) { mockProducts.push(p); return p; }
+  const brand_id = brands.find((b) => b.name === brandName)?.id;
+  if (!brand_id) throw new Error("브랜드를 찾을 수 없습니다");
+  const { data, error } = await getSupabase().from("brand_products").insert({ brand_id, year_month: month, name, url: url || null }).select("id").single();
+  if (error) throw error;
+  p.id = data.id; return p;
+}
+export async function deleteBrandProduct(id: string) {
+  if (!isDb()) { const i = mockProducts.findIndex((p) => p.id === id); if (i >= 0) mockProducts.splice(i, 1); return; }
+  const { error } = await getSupabase().from("brand_products").delete().eq("id", id); if (error) throw error;
 }
 
 function dealRow(d: Deal, creatorId: string | null) {

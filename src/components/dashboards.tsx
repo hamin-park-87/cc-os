@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import type { Brand, Creator, Content, Deal, Contract, Assignment } from "@/lib/types";
+import { useState, useEffect, useCallback } from "react";
+import type { Brand, BrandProduct, Creator, Content, Deal, Contract, Assignment } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct } from "@/lib/data/writes";
 
 export interface Bundle {
   brands: Brand[]; creators: Creator[]; contents: Content[];
@@ -324,37 +324,63 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
 function BrandAdmin({ d }: { d: Bundle }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
-  const list = d.brands;
+  const [products, setProducts] = useState<Brand | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const codeNum = (b: Brand) => { const m = b.code?.match(/\d+/); return m ? +m[0] : Infinity; };
+  const list = [...d.brands].sort((a, b) => codeNum(a) - codeNum(b) || a.name.localeCompare(b.name));
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allChecked = list.length > 0 && list.every((b) => sel.has(b.id));
+  async function bulkDelete() {
+    const targets = list.filter((b) => sel.has(b.id));
+    if (!targets.length || !confirm(`선택한 ${targets.length}개 브랜드를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    try { for (const b of targets) { await deleteBrand(b.id); const i = d.brands.indexOf(b); if (i >= 0) d.brands.splice(i, 1); } setSel(new Set()); setTick((t) => t + 1); }
+    catch (e) { alert("삭제 실패: " + (e as Error).message); setTick((t) => t + 1); }
+  }
+  const period = (b: Brand) => b.contractStart || b.contractEnd ? `${b.contractStart ?? "—"} ~ ${b.contractEnd ?? "—"}` : "—";
   return (<>
-    <div className="sec-h" style={{ marginTop: 0 }}><h2>브랜드 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 브랜드 추가</button></div>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>브랜드 관리</h2>
+      <span style={{ display: "flex", gap: 8 }}>
+        {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>선택 삭제 ({sel.size})</button>}
+        <button className="btn acc" onClick={() => setEdit(null)}>+ 브랜드 추가</button>
+      </span></div>
     {!list.length ? <div className="placeholder">등록된 브랜드가 없어요. ‘+ 브랜드 추가’로 시작하세요.</div> :
       <div className="tablewrap"><table><thead><tr>
-        <th>브랜드</th><th>별칭</th><th>로그인 이메일 도메인</th><th></th>
+        <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((b) => b.id)))} aria-label="전체 선택" /></th>
+        <th>번호</th><th>브랜드</th><th>월 수량</th><th>월 계약금액</th><th>계약기간</th><th>도메인</th><th></th>
       </tr></thead><tbody>
         {list.map((b) => (
-          <tr key={b.id}>
+          <tr key={b.id} style={sel.has(b.id) ? { background: "var(--accent-weak)" } : undefined}>
+            <td><input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`${b.name} 선택`} /></td>
+            <td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{b.code ?? "—"}</td>
             <td><span className="chip"><span className="sw" style={{ background: b.color ?? BRAND_COLOR[b.name] ?? "var(--surface-3)" }} /><b>{b.name}</b></span></td>
-            <td style={{ color: "var(--muted)" }}>{b.aliases?.length ? b.aliases.join(", ") : "—"}</td>
+            <td className="num">{b.monthlyQuota != null ? `${b.monthlyQuota}건` : "—"}</td>
+            <td className="num">{b.monthlyAmount != null ? yen(b.monthlyAmount) : "—"}</td>
+            <td className="num" style={{ color: "var(--muted)" }}>{period(b)}</td>
             <td style={{ color: "var(--muted)" }}>{b.domainAllowlist?.length ? b.domainAllowlist.join(", ") : "—"}</td>
-            <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(b)}>수정</button></td>
+            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setProducts(b)}>상품</button>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(b)}>수정</button></td>
           </tr>
         ))}
       </tbody></table></div>}
-    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>브랜드를 추가하면 배정 관리·PR 안건·계정 초대의 브랜드 선택에도 자동 반영됩니다.</div>
+    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>브랜드를 추가하면 배정 관리·PR 안건·계정 초대의 브랜드 선택에도 자동 반영됩니다. ‘상품’에서 월별 PR 상품 리스트를 관리하세요.</div>
     {edit !== undefined && <BrandEditModal brand={edit} all={d.brands} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+    {products && <BrandProductsModal brand={products} brands={d.brands} onClose={() => setProducts(null)} />}
   </>);
 }
 
 function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null; all: Brand[]; onClose: () => void; onSaved: () => void }) {
   const isNew = !brand;
-  const [f, setF] = useState<Brand>(brand ? { ...brand } : { id: "", name: "", aliases: [], color: "#22B24E", domainAllowlist: [] });
+  const nextCode = "BR" + String(Math.max(0, ...all.map((b) => { const m = b.code?.match(/\d+/); return m ? +m[0] : 0; })) + 1).padStart(3, "0");
+  const [f, setF] = useState<Brand>(brand ? { ...brand } : { id: "", code: nextCode, name: "", aliases: [], color: "#22B24E", domainAllowlist: [] });
   const up = (k: keyof Brand, v: unknown) => setF((s) => ({ ...s, [k]: v } as Brand));
   const toList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   async function save() {
     if (!f.name.trim()) { alert("브랜드명을 입력해주세요"); return; }
     try {
-      if (brand) { const saved = await saveBrand(f, false); Object.assign(brand, saved); }
-      else { const saved = await saveBrand({ ...f, id: f.name }, true); all.push(saved); }
+      const ff = { ...f, code: normalizeCode(f.code, "BR") };
+      if (brand) { const saved = await saveBrand(ff, false); Object.assign(brand, saved); }
+      else { const saved = await saveBrand({ ...ff, id: ff.name }, true); all.push(saved); }
       onSaved(); onClose();
     } catch (e) { alert("저장 실패: " + (e as Error).message); }
   }
@@ -368,13 +394,64 @@ function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null;
     <Modal title={isNew ? "브랜드 추가" : "브랜드 수정"} onClose={onClose}
       footer={<>{!isNew && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)", marginRight: "auto" }} onClick={del}>삭제</button>}
         <button className="btn" onClick={onClose}>취소</button><button className="btn acc" onClick={save}>저장</button></>}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0 14px", alignItems: "end" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0 14px", alignItems: "end" }}>
+        <Field label="고유번호 (BR번호)"><input style={inp} placeholder="BR001" value={f.code ?? ""} onChange={(e) => up("code", e.target.value)} onBlur={(e) => up("code", normalizeCode(e.target.value, "BR"))} /></Field>
         <Field label="브랜드명"><input style={inp} placeholder="예: abib" value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
         <Field label="색상"><input type="color" style={{ ...inp, width: 56, padding: 4, height: 40 }} value={f.color ?? "#22B24E"} onChange={(e) => up("color", e.target.value)} /></Field>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "6px 0 8px" }}>계약 정보</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label="계약 시작월"><input style={inp} type="month" value={f.contractStart ?? ""} onChange={(e) => up("contractStart", e.target.value)} /></Field>
+        <Field label="계약 종료월"><input style={inp} type="month" value={f.contractEnd ?? ""} onChange={(e) => up("contractEnd", e.target.value)} /></Field>
+        <Field label="월 콘텐츠 계약 수량"><input style={inp} type="number" value={f.monthlyQuota ?? ""} onChange={(e) => up("monthlyQuota", e.target.value === "" ? null : +e.target.value)} /></Field>
+        <Field label="월간 계약 금액 (¥)"><input style={inp} type="number" value={f.monthlyAmount ?? ""} onChange={(e) => up("monthlyAmount", e.target.value === "" ? null : +e.target.value)} /></Field>
       </div>
       <Field label="별칭 (쉼표로 구분)"><input style={inp} placeholder="아비브, ABIB" value={f.aliases?.join(", ") ?? ""} onChange={(e) => up("aliases", toList(e.target.value))} /></Field>
       <Field label="로그인 이메일 도메인 (쉼표로 구분)"><input style={inp} placeholder="abib.com" value={f.domainAllowlist?.join(", ") ?? ""} onChange={(e) => up("domainAllowlist", toList(e.target.value))} /></Field>
       <div style={{ fontSize: 12, color: "var(--faint)" }}>도메인을 넣으면 해당 브랜드 담당자가 그 이메일로 가입/로그인 시 자동으로 이 브랜드에 매칭됩니다.</div>
+    </Modal>
+  );
+}
+
+function BrandProductsModal({ brand, brands, onClose }: { brand: Brand; brands: Brand[]; onClose: () => void }) {
+  const [month, setMonth] = useState("2026-08");
+  const [items, setItems] = useState<BrandProduct[]>([]);
+  const [name, setName] = useState(""); const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { getBrandProducts(brand.name, month, brands).then(setItems).catch(() => setItems([])); }, [brand.name, month, brands]);
+  useEffect(() => { load(); }, [load]);
+  async function add() {
+    if (!name.trim()) return;
+    setBusy(true);
+    try { await addBrandProduct(brand.name, month, name.trim(), url.trim(), brands); setName(""); setUrl(""); load(); }
+    catch (e) { alert("추가 실패: " + (e as Error).message); }
+    setBusy(false);
+  }
+  async function del(id: string) { try { await deleteBrandProduct(id); load(); } catch (e) { alert("삭제 실패: " + (e as Error).message); } }
+  return (
+    <Modal title={`${brand.name} · PR 상품 리스트`} onClose={onClose} width={560}
+      footer={<button className="btn acc" onClick={onClose}>완료</button>}>
+      <div className="filterbar" style={{ marginBottom: 12 }}>
+        <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.replace("-", ". ")}</option>)}</select>
+        <span className="count">{items.length}개</span>
+      </div>
+      {!items.length ? <div className="placeholder" style={{ padding: "18px 0" }}>이 달 등록된 상품이 없어요.</div> :
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+          {items.map((p) => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "var(--surface-2)", borderRadius: 9 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
+                {p.url && <a href={p.url} target="_blank" rel="noopener" style={{ fontSize: 11.5, color: "var(--accent-ink)", wordBreak: "break-all" }}>{p.url}</a>}
+              </div>
+              <button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(p.id)}>삭제</button>
+            </div>
+          ))}
+        </div>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "center" }}>
+        <input style={inp} placeholder="상품명" value={name} onChange={(e) => setName(e.target.value)} />
+        <input style={inp} placeholder="상품 URL (선택)" value={url} onChange={(e) => setUrl(e.target.value)} />
+        <button className="btn acc" disabled={busy || !name.trim()} onClick={add}>추가</button>
+      </div>
     </Modal>
   );
 }
@@ -401,11 +478,11 @@ function SnsBadges({ c }: { c: Creator }) {
   </span>);
 }
 
-// CC번호 형식 통일: 숫자만/소문자 입력 → "CC" + 3자리 (예: "2" → "CC002", "cc7" → "CC007")
-function normalizeCode(v?: string | null): string | null {
+// 고유번호 형식 통일: 숫자만/소문자 입력 → prefix + 3자리 (예: "2" → "CC002", brand는 "BR002")
+function normalizeCode(v?: string | null, prefix = "CC"): string | null {
   if (!v || !v.trim()) return null;
   const m = v.match(/\d+/);
-  return m ? "CC" + m[0].padStart(3, "0") : v.trim().toUpperCase();
+  return m ? prefix + m[0].padStart(3, "0") : v.trim().toUpperCase();
 }
 function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator | null; all: Creator[]; onClose: () => void; onSaved: () => void }) {
   const isNew = !creator;
