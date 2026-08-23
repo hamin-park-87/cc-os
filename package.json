@@ -13,7 +13,8 @@
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
-    "next": "15.1.6",
+    "eslint-config-next": "^15.5.23",
+    "next": "^15.5.23",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
