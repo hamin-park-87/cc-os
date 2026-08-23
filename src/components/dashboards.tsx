@@ -66,6 +66,11 @@ function ScheduleRows({ items }: { items: Content[] }) {
 }
 
 /* ── ADMIN ─────────────────────────────── */
+// 크리에이터 번호순 정렬 헬퍼 (어드민 전반 통일)
+const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); return m ? +m[0] : Infinity; };
+const cmpCreatorByCode = (a: Creator, b: Creator) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
+const cmpNameByCode = (a: string, b: string) => codeRank(creatorCode(a)) - codeRank(creatorCode(b)) || a.localeCompare(b);
+
 export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
   registerCreatorCodes(d.creators);
   if (pane === "a-matrix") {
@@ -74,7 +79,7 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
     const asg = d.assignments.filter((a) => a.yearMonth === "2026-08");
     const totQ = asg.reduce((s, a) => s + a.quota, 0);
     const totDone = asg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === "2026-08").length, 0);
-    const crs = [...new Set(asg.map((a) => a.creatorId))];
+    const crs = [...new Set(asg.map((a) => a.creatorId))].sort(cmpNameByCode);
     const cellStyle = (r: number) => r >= 1 ? ["var(--success-weak)", "var(--success)"] : r > 0 ? ["var(--warning-weak)", "var(--warning)"] : ["var(--critical-weak)", "var(--critical)"];
     const sched = d.contents.filter((c) => c.status === "planned").sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     return (
@@ -690,7 +695,7 @@ function RevenueTable({ d }: { d: Bundle }) {
     const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name).reduce((s, a) => s + a.quota * unitOf(a.brandId), 0);
     const cost = monthlyCost(c);
     return { name: c.name, prComp, brandAlloc, fixed: cost, contrib: prComp + brandAlloc - cost };
-  }).filter((p) => p.prComp || p.brandAlloc || p.fixed).sort((a, b) => b.contrib - a.contrib);
+  }).filter((p) => p.prComp || p.brandAlloc || p.fixed).sort((a, b) => cmpNameByCode(a.name, b.name));
   return (<>
     <div className="grid-kpi">
       <Kpi lab="① ah!channel PR" val={yen(ah)} /><Kpi lab="② 브랜드 월계약" val={yen(brandRev)} />
@@ -785,7 +790,7 @@ function AssignEditor({ d }: { d: Bundle }) {
 /* 비용 관리 (단가 · 고정비 편집) */
 function CostTable({ creators }: { creators: Creator[] }) {
   const [, setTick] = useState(0);
-  const list = [...creators].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
+  const list = [...creators].sort(cmpCreatorByCode);
   return (
     <div className="tablewrap"><table><thead><tr>
       <th>크리에이터</th><th>릴스 1건당</th><th>2차 활용</th><th>오프라인 방문 PR</th><th>월 고정비</th><th>월 예상(릴스)</th>
