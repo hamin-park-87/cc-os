@@ -118,14 +118,33 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Creator | null | undefined>(undefined); // undefined=닫힘, null=추가
   const [detail, setDetail] = useState<Creator | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
   const list = [...creators].sort((a, b) => (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || (a.pic ?? 0) - (b.pic ?? 0));
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allChecked = list.length > 0 && list.every((c) => sel.has(c.id));
+  const toggleAll = () => setSel(allChecked ? new Set() : new Set(list.map((c) => c.id)));
+  async function bulkDelete() {
+    const targets = list.filter((c) => sel.has(c.id));
+    if (!targets.length) return;
+    if (!confirm(`선택한 ${targets.length}명의 크리에이터를 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    try {
+      for (const c of targets) { await deleteCreator(c.id); const i = creators.indexOf(c); if (i >= 0) creators.splice(i, 1); }
+      setSel(new Set()); setTick((t) => t + 1);
+    } catch (e) { alert("삭제 실패: " + (e as Error).message); setTick((t) => t + 1); }
+  }
   return (<>
-    {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>크리에이터 관리</h2><button className="btn acc" onClick={() => setEdit(null)}>+ 크리에이터 추가</button></div>}
+    {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>크리에이터 관리</h2>
+      <span style={{ display: "flex", gap: 8 }}>
+        {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>선택 삭제 ({sel.size})</button>}
+        <button className="btn acc" onClick={() => setEdit(null)}>+ 크리에이터 추가</button>
+      </span></div>}
     <div className="tablewrap"><table><thead><tr>
+      {full && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" /></th>}
       <th>크리에이터</th><th>핸들</th><th>SNS</th><th>팔로워</th><th>상태</th><th>카테고리</th>{full && <><th>월 계약수량</th><th></th></>}
     </tr></thead><tbody>
       {list.map((c) => (
-        <tr key={c.id}>
+        <tr key={c.id} style={full && sel.has(c.id) ? { background: "var(--accent-weak)" } : undefined}>
+          {full && <td><input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} 선택`} /></td>}
           <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} />
             {full ? <b style={{ cursor: "pointer", color: "var(--accent-ink)", textDecoration: "underline", textUnderlineOffset: 2 }} onClick={() => setDetail(c)}>{c.name}</b> : <b>{c.name}</b>}</span></td>
           <td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
