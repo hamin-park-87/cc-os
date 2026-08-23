@@ -341,6 +341,12 @@ function SnsBadges({ c }: { c: Creator }) {
   </span>);
 }
 
+// CC번호 형식 통일: 숫자만/소문자 입력 → "CC" + 3자리 (예: "2" → "CC002", "cc7" → "CC007")
+function normalizeCode(v?: string | null): string | null {
+  if (!v || !v.trim()) return null;
+  const m = v.match(/\d+/);
+  return m ? "CC" + m[0].padStart(3, "0") : v.trim().toUpperCase();
+}
 function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator | null; all: Creator[]; onClose: () => void; onSaved: () => void }) {
   const isNew = !creator;
   const nextCode = "CC" + String(Math.max(0, ...all.map((c) => { const m = c.code?.match(/\d+/); return m ? +m[0] : 0; })) + 1).padStart(3, "0");
@@ -355,8 +361,9 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
   }
   async function save() {
     try {
-      if (creator) { const saved = await saveCreator(f, false); Object.assign(creator, saved); }
-      else { const saved = await saveCreator({ ...f, id: f.name || "new-" + f.pic }, true); all.push(saved); }
+      const ff = { ...f, code: normalizeCode(f.code) };
+      if (creator) { const saved = await saveCreator(ff, false); Object.assign(creator, saved); }
+      else { const saved = await saveCreator({ ...ff, id: ff.name || "new-" + ff.pic }, true); all.push(saved); }
       onSaved(); onClose();
     } catch (e) { alert("저장 실패: " + (e as Error).message); }
   }
@@ -380,7 +387,7 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
         </div>
       </Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-        <Field label="고유번호 (CC번호)"><input style={inp} placeholder="CC001" value={f.code ?? ""} onChange={(e) => up("code", e.target.value)} /></Field>
+        <Field label="고유번호 (CC번호)"><input style={inp} placeholder="CC001 (숫자만 입력해도 자동 변환)" value={f.code ?? ""} onChange={(e) => up("code", e.target.value)} onBlur={(e) => up("code", normalizeCode(e.target.value))} /></Field>
         <Field label="크리에이터명"><input style={inp} value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
         <Field label="인스타 핸들"><input style={inp} value={f.handle ?? ""} onChange={(e) => up("handle", e.target.value)} /></Field>
         <Field label="팔로워"><input style={inp} type="number" value={f.followers} onChange={(e) => up("followers", +e.target.value)} /></Field>
