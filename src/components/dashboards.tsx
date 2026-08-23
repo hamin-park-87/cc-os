@@ -5,7 +5,7 @@ import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
 import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./charts";
-import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL } from "@/lib/format";
+import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct } from "@/lib/data/writes";
@@ -48,7 +48,7 @@ function ScheduleRows({ items }: { items: Content[] }) {
       <div className="schedrow" key={c.id}>
         <div className="hd">
           <Avatar name={c.creatorName} size={34} radius={9} />
-          <div style={{ flex: 1, minWidth: 0 }}><div className="t">{c.product}</div><div className="s">{c.creatorName} · {c.brandName}</div></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="t">{c.product}</div><div className="s">{withCode(c.creatorName)} · {c.brandName}</div></div>
           {c.status === "uploaded" ? <span className="pill p-ok"><span className="d" />완료</span> : <span className="pill p-warn"><span className="d" />업로드 {md(c.sched.upload)}</span>}
         </div>
         <div className="sgtrack">
@@ -67,6 +67,7 @@ function ScheduleRows({ items }: { items: Content[] }) {
 
 /* ── ADMIN ─────────────────────────────── */
 export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
+  registerCreatorCodes(d.creators);
   if (pane === "a-matrix") {
     const active = d.creators.filter((c) => c.status === "active").length;
     const issues = d.creators.filter((c) => c.ig?.status === "expired" || c.ig?.status === "revoked").length;
@@ -85,7 +86,7 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
           <Kpi lab="연동 이슈" val={issues} unit="계정" />
         </div>
         <div className="sec-h"><h2>이행률 매트릭스</h2><span className="hint">완료 / 배정</span></div>
-        <div className="tablewrap"><table><thead><tr><th>브랜드 \ 크리에이터</th>{crs.map((c) => <th key={c} style={{ textAlign: "center" }}>{c}</th>)}</tr></thead><tbody>
+        <div className="tablewrap"><table><thead><tr><th>브랜드 \ 크리에이터</th>{crs.map((c) => <th key={c} style={{ textAlign: "center" }}>{creatorCode(c) && <div style={{ fontSize: 10, color: "var(--faint)", fontWeight: 600 }}>{creatorCode(c)}</div>}{c}</th>)}</tr></thead><tbody>
           {(d.brands.length ? d.brands.map((x) => x.name) : ALL_BRANDS).map((b) => (<tr key={b}><td><span className="chip"><span className="sw" style={{ background: d.brands.find((x) => x.name === b)?.color ?? BRAND_COLOR[b] ?? "var(--surface-3)" }} />{b}</span></td>
             {crs.map((cName) => {
               const a = asg.find((x) => x.brandId === b && x.creatorId === cName);
@@ -326,8 +327,14 @@ function BrandAdmin({ d }: { d: Bundle }) {
   const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
   const [products, setProducts] = useState<Brand | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<"code" | "name" | "period" | "amount">("code");
   const codeNum = (b: Brand) => { const m = b.code?.match(/\d+/); return m ? +m[0] : Infinity; };
-  const list = [...d.brands].sort((a, b) => codeNum(a) - codeNum(b) || a.name.localeCompare(b.name));
+  const list = [...d.brands].sort((a, b) => {
+    if (sortBy === "name") return a.name.localeCompare(b.name);
+    if (sortBy === "period") return (a.contractStart ?? "9999").localeCompare(b.contractStart ?? "9999");
+    if (sortBy === "amount") return (b.monthlyAmount ?? 0) - (a.monthlyAmount ?? 0);
+    return codeNum(a) - codeNum(b) || a.name.localeCompare(b.name); // code
+  });
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const allChecked = list.length > 0 && list.every((b) => sel.has(b.id));
   async function bulkDelete() {
@@ -343,6 +350,15 @@ function BrandAdmin({ d }: { d: Bundle }) {
         {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>선택 삭제 ({sel.size})</button>}
         <button className="btn acc" onClick={() => setEdit(null)}>+ 브랜드 추가</button>
       </span></div>
+    <div className="filterbar">
+      <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+        <option value="code">번호순</option>
+        <option value="name">알파벳순</option>
+        <option value="period">계약기간순</option>
+        <option value="amount">월 계약금액순</option>
+      </select>
+      <span className="count">{list.length}개</span>
+    </div>
     {!list.length ? <div className="placeholder">등록된 브랜드가 없어요. ‘+ 브랜드 추가’로 시작하세요.</div> :
       <div className="tablewrap"><table><thead><tr>
         <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((b) => b.id)))} aria-label="전체 선택" /></th>
@@ -667,7 +683,7 @@ function RevenueTable({ d }: { d: Bundle }) {
       <th>크리에이터</th><th>브랜드계약 배정</th><th>PR 회사매출</th><th>월 고정비</th><th>기여이익</th>
     </tr></thead><tbody>
       {per.map((p) => (
-        <tr key={p.name}><td><b>{p.name}</b></td><td className="num">{yen(p.brandAlloc)}</td><td className="num">{yen(p.prComp)}</td>
+        <tr key={p.name}><td><b>{withCode(p.name)}</b></td><td className="num">{yen(p.brandAlloc)}</td><td className="num">{yen(p.prComp)}</td>
           <td className="num" style={{ color: "var(--muted)" }}>{yen(p.fixed)}</td>
           <td className="num" style={{ fontWeight: 600, color: p.contrib >= 0 ? "var(--accent-ink)" : "var(--critical)" }}>{yen(p.contrib)}</td></tr>
       ))}
@@ -710,7 +726,7 @@ function AssignEditor({ d }: { d: Bundle }) {
         const q = qOf(c.name); const tot = totalFor(c.name); const cap = capOf(c.name);
         const done = d.contents.filter((ct) => ct.brandId === brand && ct.creatorName === c.name && ct.status === "uploaded" && monthOf(ct) === month).length;
         const over = tot > cap;
-        return (<tr key={c.id}><td><b>{c.name}</b></td>
+        return (<tr key={c.id}><td><b>{withCode(c.name)}</b></td>
           <td><span className="qstep">
             <button onClick={() => set(c.name, -1)}>−</button>
             <input value={q} readOnly />
@@ -732,7 +748,7 @@ function CostTable({ creators }: { creators: Creator[] }) {
       <th>크리에이터</th><th>릴스 1건당</th><th>2차 활용</th><th>오프라인 방문 PR</th><th>월 고정비</th><th>월 예상(릴스)</th>
     </tr></thead><tbody>
       {list.map((c) => (
-        <tr key={c.id}><td><b>{c.name}</b></td>
+        <tr key={c.id}><td><b>{withCode(c.name)}</b></td>
           {(["reels", "secondary", "offline"] as const).map((k) => (
             <td key={k}><input className="rate-in" type="number" defaultValue={c.rates[k]} onChange={(e) => { c.rates[k] = +e.target.value || 0; setTick((t) => t + 1); }}
               onBlur={() => patchCreator(c.id, { rates: c.rates }).catch(() => { })} /></td>
@@ -767,7 +783,7 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
     setAi(cards);
   }
   return (<>
-    <div className="filterbar"><select value={name} onChange={(e) => { setName(e.target.value); setAi(null); }}>{actives.map((x) => <option key={x.id} value={x.name}>{x.name} · {x.handle}</option>)}</select></div>
+    <div className="filterbar"><select value={name} onChange={(e) => { setName(e.target.value); setAi(null); }}>{actives.map((x) => <option key={x.id} value={x.name}>{withCode(x.name)} · {x.handle}</option>)}</select></div>
     <div className="grid-kpi">
       <Kpi lab="팔로워" val={fmt(c.followers)} delta={`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% (12주)`} dir={pct >= 0 ? "up" : "down"} spark={series.map((v) => v / 1000)} />
       <Kpi lab="순증 (12주)" val={`+${fmt(series[series.length - 1] - series[0])}`} />
@@ -937,7 +953,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <Avatar name={dl.client} size={36} radius={9} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{dl.title} <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ marginLeft: 4 }}>{dl.type === "ahchannel" ? "ah!channel" : "개별"}</span></div>
-                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2 }}>{dl.client} · {dl.creatorName} · 담당 {dl.manager}</div>
+                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2 }}>{dl.client} · {withCode(dl.creatorName)} · 담당 {dl.manager}</div>
               </div>
               <span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span>
             </div>
@@ -985,7 +1001,7 @@ function InvoiceModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 18 }}>
           <div><span style={{ color: "var(--faint)" }}>To (의뢰사)</span><div style={{ fontWeight: 600 }}>{deal.client}</div></div>
           <div><span style={{ color: "var(--faint)" }}>발행일</span><div className="num">{deal.uploadDate || "2026-08-23"}</div></div>
-          <div><span style={{ color: "var(--faint)" }}>크리에이터</span><div>{deal.creatorName}</div></div>
+          <div><span style={{ color: "var(--faint)" }}>크리에이터</span><div>{withCode(deal.creatorName)}</div></div>
           <div><span style={{ color: "var(--faint)" }}>담당</span><div>{deal.manager}</div></div>
         </div>
         <table style={{ minWidth: 0 }}><thead><tr><th>항목</th><th style={{ textAlign: "right" }}>금액</th></tr></thead>
@@ -1042,7 +1058,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
         <Field label="안건 유형"><select style={inp} value={f.type} onChange={(e) => up("type", e.target.value)}><option value="ahchannel">ah!channel 인입</option><option value="creator">크리에이터 개별</option></select></Field>
         <Field label="의뢰 회사"><input style={inp} value={f.client} onChange={(e) => up("client", e.target.value)} /></Field>
-        <Field label="크리에이터"><select style={inp} value={f.creatorName} onChange={(e) => up("creatorName", e.target.value)}>{creators.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}</select></Field>
+        <Field label="크리에이터"><select style={inp} value={f.creatorName} onChange={(e) => up("creatorName", e.target.value)}>{creators.map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select></Field>
         <Field label="담당 매니저"><select style={inp} value={f.manager} onChange={(e) => up("manager", e.target.value)}><option value="mai">mai</option><option value="yuta">yuta</option></select></Field>
         <Field label="인입 경로"><select style={inp} value={f.source} onChange={(e) => up("source", e.target.value)}><option value="creator_email">크리에이터 이메일</option><option value="creator_dm">인스타 DM</option><option value="company_email">회사 이메일</option></select></Field>
         <Field label="PR 비용 (¥)"><input style={inp} type="number" value={f.fee} onChange={(e) => up("fee", +e.target.value)} /></Field>
@@ -1062,6 +1078,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
 
 /* ── BRAND ─────────────────────────────── */
 export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
+  registerCreatorCodes(d.creators);
   const rows = d.contents.filter((c) => c.brandId === scope && c.status === "uploaded" && c.views > 0);
   if (pane === "b-dash") {
     const tv = rows.reduce((s, c) => s + c.views, 0), tr = rows.reduce((s, c) => s + c.reach, 0), ts = rows.reduce((s, c) => s + c.saves, 0);
@@ -1089,7 +1106,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
           <div className="list">
             {upcoming.slice(0, 5).map((c, i) => (
               <div className="li" key={c.id}><Avatar name={c.creatorName} size={34} radius={9} />
-                <div className="main"><div className="t">{c.product}</div><div className="s">{c.creatorName} · {c.brandName}</div></div>
+                <div className="main"><div className="t">{c.product}</div><div className="s">{withCode(c.creatorName)} · {c.brandName}</div></div>
                 <div className="r"><span className={`pill ${i < 2 ? "p-warn" : "p-plan"}`}><span className="d" />{["D-2", "D-4", "D-6", "D-8", "D-9"][i] ?? "D-9"}</span></div></div>
             ))}
             {!upcoming.length && <div className="empty" style={{ border: 0 }}>예정 콘텐츠 없음</div>}
@@ -1198,7 +1215,7 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
         <div key={c.id} className="crcard">
           <div className="top">
             <Avatar creator={c} size={46} radius={13} />
-            <div style={{ minWidth: 0 }}><div className="nm">{c.name}</div><div className="hd">{c.handle}</div></div>
+            <div style={{ minWidth: 0 }}><div className="nm">{withCode(c.name)}</div><div className="hd">{c.handle}</div></div>
             <div className="fol"><b>{kfmt(c.followers)}</b><small>팔로워</small></div>
           </div>
           <div><SnsBadges c={c} /></div>
@@ -1222,6 +1239,7 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
 
 /* ── CREATOR ───────────────────────────── */
 export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
+  registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
   if (pane === "c-growth") {
