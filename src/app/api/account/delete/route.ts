@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { isMaster } from "@/lib/roles";
 
 // 관리자가 계정(들)을 삭제. 호출자 admin 검증 후 service_role로 auth 유저 삭제(프로필 cascade).
 export async function POST(req: NextRequest) {
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
   const admin = getAdminClient();
   const { data: caller } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (caller?.role !== "admin") return NextResponse.json({ error: "관리자만 삭제할 수 있습니다" }, { status: 403 });
+  if (!isMaster(user.email)) return NextResponse.json({ error: "계정 삭제는 마스터 관리자만 가능합니다" }, { status: 403 });
 
   let ok = 0; const errors: string[] = [];
   for (const id of ids) {

@@ -11,6 +11,7 @@ import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
+import { isMaster } from "@/lib/roles";
 import { T } from "@/lib/i18n";
 
 export interface Bundle {
@@ -74,7 +75,7 @@ const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); retur
 const cmpCreatorByCode = (a: Creator, b: Creator) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
 const cmpNameByCode = (a: string, b: string) => codeRank(creatorCode(a)) - codeRank(creatorCode(b)) || a.localeCompare(b);
 
-export function AdminView({ pane, d, month }: { pane: string; d: Bundle; month: string }) {
+export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; month: string; email?: string }) {
   registerCreatorCodes(d.creators);
   if (pane === "a-matrix") {
     const active = d.creators.filter((c) => c.status === "active").length;
@@ -118,7 +119,7 @@ export function AdminView({ pane, d, month }: { pane: string; d: Bundle; month: 
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} />;
-  if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} />;
+  if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} email={email} />;
   if (pane === "a-archive") return <ContentArchive contents={d.contents} tagBrands={d.brands.length ? d.brands.map((b) => b.name) : ALL_BRANDS} onTag={(c, bn) => tagContentBrand(c.id, bn, d.brands)} />;
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
   if (pane === "a-risk") return <RiskList d={d} />;
@@ -959,7 +960,8 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
 }
 
 /* 계정·권한 */
-function AccountsTable({ creators, brands }: { creators: Creator[]; brands?: Brand[] }) {
+function AccountsTable({ creators, brands, email }: { creators: Creator[]; brands?: Brand[]; email?: string }) {
+  const master = isMaster(email);
   const [, setTick] = useState(0);
   const [invite, setInvite] = useState(false);
   const [bulk, setBulk] = useState(false);
@@ -993,17 +995,18 @@ function AccountsTable({ creators, brands }: { creators: Creator[]; brands?: Bra
   return (<>
     <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("계정·권한")}</h2>
       <span style={{ display: "flex", gap: 8 }}>
-        {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} disabled={busy} onClick={bulkDelete}>{T("선택 삭제")} ({sel.size})</button>}
+        {master && sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} disabled={busy} onClick={bulkDelete}>{T("선택 삭제")} ({sel.size})</button>}
         <button className="btn" onClick={() => setBulk(true)}>{T("일괄 등록")}</button>
         <button className="btn acc" onClick={() => setInvite(true)}>+ {T("계정 생성")}</button>
       </span></div>
+    {!master && <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 10 }}>{T("※ 계정 삭제·관리자 생성은 마스터 관리자만 가능합니다.")}</div>}
     <div className="tablewrap"><table><thead><tr>
-      <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(rows.map((a) => a.id)))} aria-label={T("전체 선택")} /></th>
+      {master && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(rows.map((a) => a.id)))} aria-label={T("전체 선택")} /></th>}
       <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th>
     </tr></thead><tbody>
       {rows.map((a) => (
-        <tr key={a.id} style={sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
-          <td><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} aria-label={a.email} /></td>
+        <tr key={a.id} style={master && sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
+          {master && <td><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} aria-label={a.email} /></td>}
           <td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
           <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
@@ -1011,16 +1014,17 @@ function AccountsTable({ creators, brands }: { creators: Creator[]; brands?: Bra
       ))}
     </tbody></table></div>
     {!rows.length && <div className="placeholder">{T("등록된 계정이 없어요.")}</div>}
-    {invite && <InviteModal creators={creators} brands={brands} onClose={() => setInvite(false)} onSaved={() => { setInvite(false); load(); }} />}
-    {bulk && <BulkAccountModal creators={creators} brands={brands} onClose={() => setBulk(false)} onSaved={load} />}
+    {invite && <InviteModal creators={creators} brands={brands} canMakeAdmin={master} onClose={() => setInvite(false)} onSaved={() => { setInvite(false); load(); }} />}
+    {bulk && <BulkAccountModal creators={creators} brands={brands} canMakeAdmin={master} onClose={() => setBulk(false)} onSaved={load} />}
   </>);
 }
 
-function BulkAccountModal({ creators, brands, onClose, onSaved }: { creators: Creator[]; brands?: Brand[]; onClose: () => void; onSaved: () => void }) {
+function BulkAccountModal({ creators, brands, canMakeAdmin, onClose, onSaved }: { creators: Creator[]; brands?: Brand[]; canMakeAdmin?: boolean; onClose: () => void; onSaved: () => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false); const [ok, setOk] = useState(0); const [err, setErr] = useState("");
   const parsed = text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => (l.includes("\t") ? l.split("\t") : l.split(",")).map((s) => s.trim()));
-  const valid = parsed.filter((r) => r[0] && r[0].includes("@"));
+  // 마스터가 아니면 admin 역할 행은 제외
+  const valid = parsed.filter((r) => r[0] && r[0].includes("@") && (canMakeAdmin || (r[1] ?? "brand") !== "admin"));
   async function run() {
     if (!valid.length) { setErr(T("등록할 행이 없습니다")); return; }
     setBusy(true); setErr(""); setOk(0);
@@ -1055,7 +1059,7 @@ function genPassword() {
   let s = ""; for (let i = 0; i < 10; i++) s += chars[Math.floor(Math.random() * chars.length)];
   return s;
 }
-function InviteModal({ onClose, onSaved, creators, brands }: { onClose: () => void; onSaved: () => void; creators: Creator[]; brands?: Brand[] }) {
+function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onClose: () => void; onSaved: () => void; creators: Creator[]; brands?: Brand[]; canMakeAdmin?: boolean }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "brand" | "creator">("brand");
   const [scope, setScope] = useState("abib");
@@ -1103,7 +1107,7 @@ function InviteModal({ onClose, onSaved, creators, brands }: { onClose: () => vo
       </div> : <>
         <Field label={T("이메일")}><input style={inp} type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-          <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { setRole(e.target.value as "admin" | "brand" | "creator"); }}><option value="admin">{T("관리자")}</option><option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option></select></Field>
+          <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { setRole(e.target.value as "admin" | "brand" | "creator"); }}>{canMakeAdmin && <option value="admin">{T("관리자")}</option>}<option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option></select></Field>
           <Field label={T("소속")}><select style={inp} value={scope} onChange={(e) => setScope(e.target.value)} disabled={role === "admin"}>{scopes.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
         </div>
         <Field label={T("비밀번호 (담당자에게 전달)")}>

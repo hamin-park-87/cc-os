@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { isMaster } from "@/lib/roles";
 
 // 관리자가 브랜드/크리에이터 계정을 초대. 호출자가 admin인지 검증 후 service_role로 처리.
 export async function POST(req: NextRequest) {
@@ -25,6 +26,8 @@ export async function POST(req: NextRequest) {
 
   const { data: caller } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (caller?.role !== "admin") return NextResponse.json({ error: "관리자만 초대할 수 있습니다" }, { status: 403 });
+  // 관리자(admin) 계정 생성은 마스터 관리자만
+  if (role === "admin" && !isMaster(user.email)) return NextResponse.json({ error: "관리자 계정은 마스터 관리자만 만들 수 있습니다" }, { status: 403 });
 
   // 2) 계정 생성 (이메일 확인 완료 상태 + 비밀번호) — 이메일 발송 불필요
   const { data: created, error: cErr } = await admin.auth.admin.createUser({
