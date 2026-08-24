@@ -52,7 +52,9 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
         <div className="archive">
           {items.map((c) => (
             <button key={c.id} className="rcard" onClick={() => setOpen(c)}>
-              <div className="poster" style={{ background: grad(bcolor(c.brandId ?? c.brandName)) }}>
+              <div className="poster" style={c.thumbnailUrl
+                ? { backgroundImage: `url(${c.thumbnailUrl})`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#000" }
+                : { background: grad(bcolor(c.brandId ?? c.brandName)) }}>
                 <div className="ov" />
                 <div className="topline">
                   <span className="vbadge" style={{ background: "rgba(0,0,0,.4)" }}>{c.brandName}</span>
@@ -84,7 +86,9 @@ function VideoModal({ content: c, onClose }: { content: Content; onClose: () => 
   return (
     <div className="backdrop" onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}>
       <div className="modal">
-        <div className="player" style={{ background: c.thumbnailUrl ? undefined : grad(bcolor(c.brandId ?? c.brandName)) }}>
+        <div className="player" style={c.thumbnailUrl
+          ? { backgroundImage: `url(${c.thumbnailUrl})`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#000" }
+          : { background: grad(bcolor(c.brandId ?? c.brandName)) }}>
           <div className="bigplay">▶</div>
           <div className="prodtitle">{c.product}</div>
         </div>

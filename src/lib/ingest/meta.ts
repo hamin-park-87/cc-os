@@ -76,13 +76,14 @@ export function metaProvider(token: string): IngestProvider {
   return {
     async fetchRecentReels(): Promise<ReelRaw[]> {
       const j = await g("me/media", {
-        fields: "id,caption,media_type,media_product_type,permalink,thumbnail_url,timestamp",
+        fields: "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp",
         limit: "50", access_token: token,
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (j.data ?? []).map((m: any): ReelRaw => ({
         igMediaId: m.id, permalink: m.permalink ?? "", caption: m.caption ?? "",
-        thumbnailUrl: m.thumbnail_url ?? "", publishedAt: (m.timestamp ?? "").slice(0, 10),
+        // 동영상은 thumbnail_url, 이미지는 media_url
+        thumbnailUrl: m.thumbnail_url || m.media_url || "", publishedAt: (m.timestamp ?? "").slice(0, 10),
       }));
     },
     async fetchContentMetrics(igMediaId: string): Promise<ContentMetric> {
