@@ -1200,6 +1200,10 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   });
   // 단계별 요약
   const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
+  // 납기 지연/임박 감지 (업로드 전 step<5 & 납기일 기준)
+  const dueDays = (dl: Deal) => dl.dueDate ? Math.round((new Date(dl.dueDate).getTime() - Date.now()) / 86400000) : null;
+  const atRisk = deals.filter((dl) => dl.step < 5 && dueDays(dl) != null && (dueDays(dl) as number) <= 3)
+    .sort((a, b) => (dueDays(a) as number) - (dueDays(b) as number));
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const allChecked = list.length > 0 && list.every((dl) => sel.has(dl.id));
   async function bulkDelete() {
@@ -1217,6 +1221,14 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
           <button className="btn" onClick={() => setView(view === "list" ? "card" : "list")}>{view === "list" ? T("카드 보기") : T("목록 보기")}</button>
           <button className="btn acc" onClick={() => setEdit(null)}>+ {T("안건 추가")}</button>
         </span></div>}
+      {!readonly && atRisk.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--critical)" }}>⚠ {T("납기 지연·임박 PR 안건")} ({atRisk.length})</div>
+        {atRisk.map((dl) => { const du = dueDays(dl) as number; const over = du < 0;
+          return <button key={dl.id} onClick={() => setEdit(dl)} style={{ textAlign: "left", display: "flex", gap: 8, alignItems: "center", padding: "7px 10px", borderRadius: 8, background: "var(--surface-2)", borderLeft: `3px solid ${over ? "var(--critical)" : "var(--warning)"}`, fontSize: 12.5, border: 0, cursor: "pointer", width: "100%" }}>
+            <b>{dl.title}</b><span style={{ color: "var(--faint)" }}>· {dl.client} · {withCode(dl.creatorName)}</span>
+            <span style={{ marginLeft: "auto", color: over ? "var(--critical)" : "var(--warning)", fontWeight: 700 }}>{over ? `${T("납기 경과")} ${-du}${T("일")}` : du === 0 ? T("오늘 납기") : `D-${du}`}</span>
+          </button>; })}
+      </div>}
       {!readonly && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
           <button className={`chip ${fStep === "" ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setFStep("")}>{T("전체")} {deals.length}</button>
