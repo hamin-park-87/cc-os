@@ -1048,11 +1048,13 @@ function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; cr
   const [addBrand, setAddBrand] = useState((brandName ?? d.brands[0]?.name) ?? "");
   const [addCreator, setAddCreator] = useState((creatorName ?? d.creators.find((c) => c.status === "active")?.name) ?? "");
   const [addProduct, setAddProduct] = useState("");
+  const [fBrand, setFBrand] = useState(""); const [fCreator, setFCreator] = useState("");
   // 그룹: 크리에이터 필터 없으면 크리에이터별, 있으면 브랜드별
   const groupByCreator = !creatorName;
   const items = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled"
     && (!creatorName || c.creatorName === creatorName)
-    && (!brandName || c.brandName === brandName || c.brandId === brandName))
+    && (!brandName || c.brandName === brandName || c.brandId === brandName)
+    && (!fBrand || c.brandName === fBrand) && (!fCreator || c.creatorName === fCreator))
     .sort((a, b) => {
       if (groupByCreator) { const cc = cmpNameByCode(a.creatorName, b.creatorName); if (cc) return cc; }
       const bc = (a.brandName ?? "").localeCompare(b.brandName ?? ""); if (bc) return bc;
@@ -1080,11 +1082,19 @@ function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; cr
   }
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
   return (<>
-    {!readonly && <div className="filterbar" style={{ flexWrap: "wrap" }}>
-      {!brandName && <select value={addBrand} onChange={(e) => setAddBrand(e.target.value)}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
-      {!creatorName && <select value={addCreator} onChange={(e) => setAddCreator(e.target.value)}>{d.creators.filter((c) => c.status === "active").sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
-      <input placeholder={T("콘텐츠명 (예: 신제품 릴스)")} value={addProduct} onChange={(e) => setAddProduct(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-      <button className="btn acc" onClick={add}>+ {T("일정 추가")}</button>
+    {/* 필터 (목록에 적용) */}
+    <div className="filterbar">
+      {!brandName && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 브랜드")}</option>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
+      {!creatorName && <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{d.creators.sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
+      <span className="count">{items.length}{T("건")}</span>
+    </div>
+    {/* 일정 추가 (별도) */}
+    {!readonly && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, marginBottom: 12 }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>+ {T("일정 추가")}</span>
+      {!brandName && <select style={{ ...stIn, padding: "7px 9px" }} value={addBrand} onChange={(e) => setAddBrand(e.target.value)}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
+      {!creatorName && <select style={{ ...stIn, padding: "7px 9px" }} value={addCreator} onChange={(e) => setAddCreator(e.target.value)}>{d.creators.filter((c) => c.status === "active").sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
+      <input style={{ ...stIn, padding: "7px 9px", flex: 1, minWidth: 160 }} placeholder={T("콘텐츠명 (예: 신제품 릴스)")} value={addProduct} onChange={(e) => setAddProduct(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+      <button className="btn acc" onClick={add}>{T("추가")}</button>
     </div>}
     {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요.")}</div> :
       <div className="tablewrap"><table><thead><tr>
