@@ -1386,7 +1386,7 @@ function SecondaryView({ mode, d, scope }: { mode: "admin" | "brand" | "creator"
   const STEP_LABELS = [T("요청"), T("81degree 검토"), T("크리에이터 동의"), T("승인")];
   async function act(id: string, fn: () => Promise<void>) { setBusy(id); try { await fn(); load(); } catch (e) { alert(T("처리 실패: ") + (e as Error).message); } setBusy(""); }
   return (<>
-    {mode === "brand" && <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("2차 활용 신청")}</h2><button className="btn acc" onClick={() => setNewReq(true)}>+ {T("2차 활용 신청")}</button></div>}
+    {(mode === "brand" || mode === "admin") && <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("2차 활용 신청")}</h2><button className="btn acc" onClick={() => setNewReq(true)}>+ {T("2차 활용 신청")}</button></div>}
     {!rows.length ? <div className="placeholder">{mode === "brand" ? T("신청한 2차 활용이 없어요. 콘텐츠를 선택해 신청하세요.") : T("2차 활용 신청 내역이 없어요.")}</div> :
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {rows.map((r) => {
@@ -1423,13 +1423,15 @@ function SecondaryView({ mode, d, scope }: { mode: "admin" | "brand" | "creator"
           );
         })}
       </div>}
-    {newReq && <SecondaryRequestModal d={d} brandName={scope ?? ""} onClose={() => setNewReq(false)} onSaved={load} />}
+    {newReq && <SecondaryRequestModal d={d} mode={mode} brandName={scope ?? ""} onClose={() => setNewReq(false)} onSaved={load} />}
   </>);
 }
 
-function SecondaryRequestModal({ d, brandName, onClose, onSaved }: { d: Bundle; brandName: string; onClose: () => void; onSaved: () => void }) {
-  // 이 브랜드의 콘텐츠만 (RLS로 이미 브랜드 소속 콘텐츠만 보임)
-  const brandContents = d.contents.filter((c) => c.brandName === brandName || c.brandId === brandName);
+function SecondaryRequestModal({ d, mode, brandName, onClose, onSaved }: { d: Bundle; mode: "admin" | "brand" | "creator"; brandName: string; onClose: () => void; onSaved: () => void }) {
+  const isAdmin = mode === "admin";
+  const [brand, setBrand] = useState(isAdmin ? (d.brands[0]?.name ?? brandName) : brandName);
+  // 관리자: 전체 콘텐츠 중 선택 / 브랜드: 자기 브랜드 콘텐츠만
+  const brandContents = isAdmin ? d.contents : d.contents.filter((c) => c.brandName === brandName || c.brandId === brandName);
   const [contentId, setContentId] = useState(brandContents[0]?.id ?? "");
   const [scope, setScope] = useState<SecondaryScope>("ad_creative");
   const [channels, setChannels] = useState("");
@@ -1438,11 +1440,12 @@ function SecondaryRequestModal({ d, brandName, onClose, onSaved }: { d: Bundle; 
   const content = brandContents.find((c) => c.id === contentId);
   const creator = d.creators.find((c) => c.name === content?.creatorName);
   const fee = creator?.rates.secondary ?? 0;
+  const targetBrand = isAdmin ? brand : brandName;
   async function save() {
     if (!contentId) { alert(T("콘텐츠를 선택해주세요")); return; }
     setBusy(true);
     try {
-      await createSecondaryRequest(contentId, brandName, scope, channels.split(",").map((s) => s.trim()).filter(Boolean), fee, start || null, end || null, d.brands);
+      await createSecondaryRequest(contentId, targetBrand, scope, channels.split(",").map((s) => s.trim()).filter(Boolean), fee, start || null, end || null, d.brands);
       onSaved(); onClose();
     } catch (e) { alert(T("신청 실패: ") + (e as Error).message); }
     setBusy(false);
@@ -1451,6 +1454,7 @@ function SecondaryRequestModal({ d, brandName, onClose, onSaved }: { d: Bundle; 
     <Modal title={T("2차 활용 신청")} onClose={onClose} width={460}
       footer={<><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" disabled={busy || !contentId} onClick={save}>{T("신청")}</button></>}>
       {!brandContents.length ? <div className="placeholder">{T("신청 가능한 브랜드 콘텐츠가 없어요.")}</div> : <>
+        {isAdmin && <Field label={T("브랜드")}><select style={inp} value={brand} onChange={(e) => setBrand(e.target.value)}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></Field>}
         <Field label={T("콘텐츠")}><select style={inp} value={contentId} onChange={(e) => setContentId(e.target.value)}>{brandContents.map((c) => <option key={c.id} value={c.id}>{c.product} · {c.creatorName}</option>)}</select></Field>
         <Field label={T("활용 범위")}><select style={inp} value={scope} onChange={(e) => setScope(e.target.value as SecondaryScope)}>{(Object.keys(SECONDARY_SCOPE_LABEL) as SecondaryScope[]).map((k) => <option key={k} value={k}>{T(SECONDARY_SCOPE_LABEL[k])}</option>)}</select></Field>
         <Field label={T("활용 채널 (쉼표로 구분)")}><input style={inp} placeholder="Instagram, 매장 사이니지" value={channels} onChange={(e) => setChannels(e.target.value)} /></Field>
