@@ -70,8 +70,11 @@ export const supabaseProvider: DataProvider = {
     }));
   },
   async contracts() {
-    return (await q("contracts")).map((r): Contract => ({
-      id: r.id, brandId: r.brand_id, yearMonth: r.year_month, quota: r.quota, unitPrice: Number(r.unit_price ?? 0),
+    const [rows, brands] = await Promise.all([q("contracts"), q("brands")]);
+    const bName = new Map(brands.map((b) => [b.id, b.name]));
+    return rows.map((r): Contract => ({
+      id: r.id, brandId: bName.get(r.brand_id) ?? r.brand_id, yearMonth: r.year_month, quota: r.quota,
+      unitPrice: Number(r.unit_price ?? 0), monthlyAmount: r.monthly_amount != null ? Number(r.monthly_amount) : null,
     }));
   },
   async assignments() {

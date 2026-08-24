@@ -82,7 +82,7 @@ export interface Creator {
   ig?: { status: IgStatus; linkedAt?: string | null; expiresAt?: string | null; lastSyncedAt?: string | null };
 }
 
-export interface Contract { id: string; brandId: string; yearMonth: string; quota: number; unitPrice: number }
+export interface Contract { id: string; brandId: string; yearMonth: string; quota: number; unitPrice: number; monthlyAmount?: number | null }
 export interface Assignment { id: string; brandId: string; creatorId: string; yearMonth: string; quota: number }
 
 export interface ContentSched { plan?: string; shoot?: string; edit?: string; upload?: string }

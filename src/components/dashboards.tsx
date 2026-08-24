@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster } from "@/lib/roles";
@@ -341,6 +341,7 @@ function BrandAdmin({ d }: { d: Bundle }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
   const [products, setProducts] = useState<Brand | null>(null);
+  const [monthly, setMonthly] = useState<Brand | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<"code" | "name" | "period" | "amount">("code");
   const codeNum = (b: Brand) => { const m = b.code?.match(/\d+/); return m ? +m[0] : Infinity; };
@@ -389,6 +390,7 @@ function BrandAdmin({ d }: { d: Bundle }) {
             <td className="num" style={{ color: "var(--muted)" }}>{period(b)}</td>
             <td style={{ color: "var(--muted)" }}>{b.domainAllowlist?.length ? b.domainAllowlist.join(", ") : "—"}</td>
             <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setMonthly(b)}>{T("월별")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setProducts(b)}>{T("상품")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(b)}>{T("수정")}</button></td>
           </tr>
@@ -397,7 +399,40 @@ function BrandAdmin({ d }: { d: Bundle }) {
     <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>{T("브랜드를 추가하면 배정 관리·PR 안건·계정 초대의 브랜드 선택에도 자동 반영됩니다. ‘상품’에서 월별 PR 상품 리스트를 관리하세요.")}</div>
     {edit !== undefined && <BrandEditModal brand={edit} all={d.brands} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
     {products && <BrandProductsModal brand={products} brands={d.brands} onClose={() => setProducts(null)} />}
+    {monthly && <BrandMonthlyModal brand={monthly} d={d} onClose={() => setMonthly(null)} onSaved={() => setTick((t) => t + 1)} />}
   </>);
+}
+
+function BrandMonthlyModal({ brand, d, onClose, onSaved }: { brand: Brand; d: Bundle; onClose: () => void; onSaved: () => void }) {
+  const [, setT2] = useState(0);
+  const cOf = (m: string) => d.contracts.find((c) => c.brandId === brand.name && c.yearMonth === m);
+  async function set(m: string, quota: number, amount: number) {
+    // 메모리 갱신
+    const existing = d.contracts.find((c) => c.brandId === brand.name && c.yearMonth === m);
+    if (quota <= 0 && amount <= 0) { if (existing) d.contracts.splice(d.contracts.indexOf(existing), 1); }
+    else if (existing) { existing.quota = quota; existing.monthlyAmount = amount; }
+    else d.contracts.push({ id: `${brand.name}|${m}`, brandId: brand.name, yearMonth: m, quota, unitPrice: 0, monthlyAmount: amount });
+    setT2((t) => t + 1); onSaved();
+    setBrandMonthly(brand.name, m, quota, amount, d.brands).catch((e) => console.warn(e.message));
+  }
+  return (
+    <Modal title={`${brand.name} · ${T("월별 계약 수량")}`} onClose={onClose} width={480}
+      footer={<button className="btn acc" onClick={onClose}>{T("완료")}</button>}>
+      <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 10 }}>{T("월마다 계약 수량·금액이 다르면 여기서 지정하세요. 비워두면 브랜드 기본값이 적용됩니다.")}</div>
+      <div className="tablewrap"><table><thead><tr><th>{T("월")}</th><th>{T("수량")}</th><th>{T("월 계약금액 (¥)")}</th></tr></thead><tbody>
+        {ASSIGN_MONTHS.map((m) => {
+          const c = cOf(m);
+          return <tr key={m}>
+            <td className="num">{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</td>
+            <td><input className="rate-in" type="number" style={{ width: 70 }} defaultValue={c?.quota ?? ""} placeholder={String(brand.monthlyQuota ?? "")}
+              onBlur={(e) => set(m, +e.target.value || 0, c?.monthlyAmount ?? brand.monthlyAmount ?? 0)} /></td>
+            <td><input className="rate-in" type="number" style={{ width: 120 }} defaultValue={c?.monthlyAmount ?? ""} placeholder={String(brand.monthlyAmount ?? "")}
+              onBlur={(e) => set(m, c?.quota ?? brand.monthlyQuota ?? 0, +e.target.value || 0)} /></td>
+          </tr>;
+        })}
+      </tbody></table></div>
+    </Modal>
+  );
 }
 
 function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null; all: Brand[]; onClose: () => void; onSaved: () => void }) {
@@ -718,9 +753,14 @@ function RevenueTable({ d, month }: { d: Bundle; month: string }) {
   const ah = live.filter((x) => x.type === "ahchannel").reduce((s, x) => s + comp(x), 0);
   const cr = live.filter((x) => x.type !== "ahchannel").reduce((s, x) => s + comp(x), 0);
   const unitOf = (brandName: string) => brandUnitPrice(d.brands.find((b) => b.name === brandName));
-  // ② 브랜드 월계약 = 이 달 계약기간 내 브랜드의 월 계약금액 합
+  // ② 브랜드 월계약 = 이 달 브랜드 계약금액 합 (월별 계약 우선, 없으면 기본값·계약기간 내)
   const brandActive = (b: Brand) => (!b.contractStart || b.contractStart <= month) && (!b.contractEnd || b.contractEnd >= month);
-  const brandRev = d.brands.filter(brandActive).reduce((s, b) => s + (b.monthlyAmount || 0), 0);
+  const brandMonthAmount = (b: Brand) => {
+    const mc = d.contracts.find((c) => c.brandId === b.name && c.yearMonth === month);
+    if (mc?.monthlyAmount != null) return mc.monthlyAmount;
+    return brandActive(b) ? (b.monthlyAmount || 0) : 0;
+  };
+  const brandRev = d.brands.reduce((s, b) => s + brandMonthAmount(b), 0);
   const fixed = d.creators.reduce((s, c) => s + monthlyCost(c), 0);
   const total = ah + brandRev + cr + secFees;
   // 크리에이터별 기여 (이 달 배정 기준)
@@ -766,12 +806,11 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
     if (sortBy === "assigned") return qOf(b.name) - qOf(a.name);
     return codeNum(a) - codeNum(b); // code
   });
-  // 브랜드 계약(월수량)을 단일 원본으로 — 계약기간 내에서만 목표 적용, 없으면 contracts 폴백
+  // 목표 수량: 월별 계약(contracts) 우선 → 없으면 브랜드 기본값(계약기간 내)
   const brandObj = d.brands.find((b) => b.name === brand);
   const inPeriod = (!brandObj?.contractStart || brandObj.contractStart <= month) && (!brandObj?.contractEnd || brandObj.contractEnd >= month);
-  const target = brandObj?.monthlyQuota != null && inPeriod
-    ? brandObj.monthlyQuota
-    : (d.contracts.find((c) => c.brandId === brand && c.yearMonth === month)?.quota ?? 0);
+  const monthContract = d.contracts.find((c) => c.brandId === brand && c.yearMonth === month);
+  const target = monthContract?.quota ?? (inPeriod ? (brandObj?.monthlyQuota ?? 0) : 0);
   const totalFor = (name: string) => d.assignments.filter((a) => a.creatorId === name && a.yearMonth === month).reduce((s, a) => s + a.quota, 0);
   const capOf = (name: string) => d.creators.find((c) => c.name === name)?.monthlyQuota ?? 0;
   const sum = actives.reduce((s, c) => s + qOf(c.name), 0);
@@ -817,12 +856,13 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
       // 이 달 전체 매칭 이상 감지 (계약과 어긋난 브랜드·크리에이터)
       const alerts: { level: "warning" | "critical"; t: string; s: string }[] = [];
       for (const b of d.brands) {
-        if (b.monthlyQuota == null) continue;
+        const mc = d.contracts.find((c) => c.brandId === b.name && c.yearMonth === month);
         const inP = (!b.contractStart || b.contractStart <= month) && (!b.contractEnd || b.contractEnd >= month);
-        if (!inP) continue;
+        const q = mc?.quota ?? (inP ? b.monthlyQuota : null);
+        if (q == null) continue;
         const assigned = d.assignments.filter((a) => a.brandId === b.name && a.yearMonth === month).reduce((s, a) => s + a.quota, 0);
-        if (assigned < b.monthlyQuota) alerts.push({ level: "warning", t: `${b.name} — ${T("배정")} ${assigned}/${b.monthlyQuota}`, s: `${b.monthlyQuota - assigned}${T("건 미배정")}` });
-        else if (assigned > b.monthlyQuota) alerts.push({ level: "critical", t: `${b.name} — ${T("배정")} ${assigned}/${b.monthlyQuota}`, s: `${T("계약 수량")} ${assigned - b.monthlyQuota}${T("건 초과")}` });
+        if (assigned < q) alerts.push({ level: "warning", t: `${b.name} — ${T("배정")} ${assigned}/${q}`, s: `${q - assigned}${T("건 미배정")}` });
+        else if (assigned > q) alerts.push({ level: "critical", t: `${b.name} — ${T("배정")} ${assigned}/${q}`, s: `${T("계약 수량")} ${assigned - q}${T("건 초과")}` });
       }
       for (const c of actives) {
         const cap = c.monthlyQuota; const tot = totalFor(c.name);

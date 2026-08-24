@@ -64,6 +64,21 @@ export async function deleteBrand(id: string) {
   if (!isDb()) return; const { error } = await getSupabase().from("brands").delete().eq("id", id); if (error) throw error;
 }
 
+// 브랜드 월별 계약 수량·금액 (contracts upsert). quota/amount 0이면 삭제.
+export async function setBrandMonthly(brandName: string, month: string, quota: number, amount: number, brands: { id: string; name: string }[]): Promise<void> {
+  if (!isDb()) return;
+  const sb = getSupabase();
+  const brand_id = brands.find((b) => b.name === brandName)?.id;
+  if (!brand_id) throw new Error("브랜드를 찾을 수 없습니다");
+  if (quota <= 0 && amount <= 0) {
+    const { error } = await sb.from("contracts").delete().match({ brand_id, year_month: month });
+    if (error) throw error; return;
+  }
+  const { error } = await sb.from("contracts").upsert(
+    { brand_id, year_month: month, quota, monthly_amount: amount || null }, { onConflict: "brand_id,year_month" });
+  if (error) throw error;
+}
+
 // 월별 브랜드 PR 상품 (mock: 메모리 / db: brand_products)
 const mockProducts: BrandProduct[] = [];
 export async function getBrandProducts(brandName: string, month: string, brands: { id: string; name: string }[]): Promise<BrandProduct[]> {
