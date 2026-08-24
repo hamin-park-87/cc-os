@@ -9,9 +9,11 @@ import { T } from "@/lib/i18n";
 const bcolor = (b?: string | null) => (b && BRAND_COLOR[b]) || "#3B7DD8";
 const grad = (c: string) => `linear-gradient(150deg, ${c}, ${c}22)`;
 
-export function ContentArchive({ contents, showCreator = true, showBrand = true, hint }: {
+export function ContentArchive({ contents, showCreator = true, showBrand = true, hint, tagBrands, onTag }: {
   contents: Content[]; showCreator?: boolean; showBrand?: boolean; hint?: string;
+  tagBrands?: string[]; onTag?: (c: Content, brandName: string | null) => Promise<void>;
 }) {
+  const [, setTick] = useState(0);
   const [creator, setCreator] = useState("");
   const [brand, setBrand] = useState("");
   const [kind, setKind] = useState("");
@@ -80,12 +82,25 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
           ))}
         </div>
       )}
-      {open && <VideoModal content={open} onClose={() => setOpen(null)} />}
+      {open && <VideoModal content={open} tagBrands={tagBrands} onTag={onTag} onChanged={() => setTick((t) => t + 1)} onClose={() => setOpen(null)} />}
     </>
   );
 }
 
-function VideoModal({ content: c, onClose }: { content: Content; onClose: () => void }) {
+function VideoModal({ content: c, tagBrands, onTag, onChanged, onClose }: { content: Content; tagBrands?: string[]; onTag?: (c: Content, brandName: string | null) => Promise<void>; onChanged?: () => void; onClose: () => void }) {
+  const [busy, setBusy] = useState(false);
+  async function tag(brandName: string | null) {
+    if (!onTag) return;
+    setBusy(true);
+    try {
+      await onTag(c, brandName);
+      // 로컬 반영
+      c.kind = brandName ? "pr" : "own";
+      c.brandId = brandName; c.brandName = brandName ?? "";
+      onChanged?.();
+    } catch (e) { alert(T("태깅 실패: ") + (e as Error).message); }
+    setBusy(false);
+  }
   return (
     <div className="backdrop" onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}>
       <div className="modal">
@@ -117,6 +132,17 @@ function VideoModal({ content: c, onClose }: { content: Content; onClose: () => 
             <button className="btn acc">▶ {T("아카이브 재생")}</button>
             {c.permalink && <a className="btn" href={c.permalink} target="_blank" rel="noopener">{T("원본 게시물")}</a>}
           </div>
+          {onTag && tagBrands && <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>{T("전략 브랜드 태깅")}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <select style={{ fontFamily: "var(--body)", fontSize: 13, padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}
+                defaultValue={c.kind === "pr" ? (c.brandName || "") : ""} disabled={busy} onChange={(e) => tag(e.target.value || null)}>
+                <option value="">{T("개인 (태깅 안함)")}</option>
+                {tagBrands.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+              <span style={{ fontSize: 11.5, color: "var(--faint)" }}>{c.kind === "pr" ? T("전략 브랜드 콘텐츠로 지정됨") : T("브랜드를 선택하면 전략 브랜드로 지정됩니다")}</span>
+            </div>
+          </div>}
           <div className="note">{T("영상은 permalink에서 자동 다운로드 후 스토리지에 보관됩니다.")}</div>
         </div>
       </div>

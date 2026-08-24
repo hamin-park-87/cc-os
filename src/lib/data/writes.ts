@@ -171,6 +171,14 @@ export async function createDealContent(deal: Deal, url: string, creators: Creat
   return content;
 }
 
+// 콘텐츠를 브랜드에 태깅 (전략 브랜드 pr ↔ 개인 own)
+export async function tagContentBrand(contentId: string, brandName: string | null, brands: { id: string; name: string }[]): Promise<void> {
+  if (!isDb()) return;
+  const brand_id = brandName ? (brands.find((b) => b.name === brandName)?.id ?? null) : null;
+  const { error } = await getSupabase().from("contents").update({ brand_id, kind: brandName ? "pr" : "own" }).eq("id", contentId);
+  if (error) throw error;
+}
+
 // 2차 활용 신청 (secondary_usage_requests)
 const mockSecondary: SecondaryReq[] = [];
 export async function getSecondaryRequests(): Promise<SecondaryReq[]> {
