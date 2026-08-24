@@ -75,16 +75,22 @@ export async function fetchProfile(token: string) {
 export function metaProvider(token: string): IngestProvider {
   return {
     async fetchRecentReels(): Promise<ReelRaw[]> {
-      const j = await g("me/media", {
-        fields: "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp",
-        limit: "50", access_token: token,
-      });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (j.data ?? []).map((m: any): ReelRaw => ({
-        igMediaId: m.id, permalink: m.permalink ?? "", caption: m.caption ?? "",
-        // 동영상은 thumbnail_url, 이미지는 media_url
-        thumbnailUrl: m.thumbnail_url || m.media_url || "", publishedAt: (m.timestamp ?? "").slice(0, 10),
-      }));
+      const out: ReelRaw[] = [];
+      const MAX = 300; // 상한 (페이지네이션으로 전체 수집)
+      const fields = "id,caption,media_type,media_product_type,permalink,thumbnail_url,media_url,timestamp";
+      let url = `${GRAPH}/${API_VERSION}/me/media?` + new URLSearchParams({ fields, limit: "50", access_token: token }).toString();
+      while (url && out.length < MAX) {
+        const res = await fetch(url);
+        const j = await res.json();
+        if (!res.ok || j.error) break;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const m of (j.data ?? [])) out.push({
+          igMediaId: m.id, permalink: m.permalink ?? "", caption: m.caption ?? "",
+          thumbnailUrl: m.thumbnail_url || m.media_url || "", publishedAt: (m.timestamp ?? "").slice(0, 10),
+        });
+        url = j.paging?.next ?? "";
+      }
+      return out.slice(0, MAX);
     },
     async fetchContentMetrics(igMediaId: string): Promise<ContentMetric> {
       const j = await g(`${igMediaId}/insights`, { metric: "views,reach,likes,comments,saved,shares", access_token: token });

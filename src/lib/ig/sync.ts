@@ -16,8 +16,8 @@ export async function syncCreatorData(admin: SupabaseClient, creatorId: string) 
     await admin.from("creator_account_snapshots").upsert(
       { creator_id: creatorId, date: today, followers }, { onConflict: "creator_id,date" });
 
-    // 미디어 → 콘텐츠 upsert + 지표 스냅샷 (최근 25개)
-    const reels = (await provider.fetchRecentReels(acct.ig_user_id ?? "")).slice(0, 25);
+    // 미디어 → 콘텐츠 upsert + 지표 스냅샷 (전체, 최대 300)
+    const reels = await provider.fetchRecentReels(acct.ig_user_id ?? "");
     let contentCount = 0, metricCount = 0;
     for (const r of reels) {
       const product = (r.caption || "인스타 콘텐츠").split("\n")[0].slice(0, 60);
@@ -30,8 +30,9 @@ export async function syncCreatorData(admin: SupabaseClient, creatorId: string) 
       contentCount++;
       try {
         const m = await provider.fetchContentMetrics(r.igMediaId);
+        // 콘텐츠당 하루 1행(당일 자정 스탬프) — 시간별 동기화가 같은 행을 덮어써 DB 폭증 방지
         await admin.from("content_metric_snapshots").upsert({
-          content_id: c.id, captured_at: new Date().toISOString(),
+          content_id: c.id, captured_at: `${today}T00:00:00Z`,
           views: m.views, reach: m.reach, likes: m.likes, comments: m.comments, saved: m.saved, shares: m.shares,
         }, { onConflict: "content_id,captured_at" });
         metricCount++;
