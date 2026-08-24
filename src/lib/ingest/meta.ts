@@ -9,10 +9,14 @@ const GRAPH = "https://graph.instagram.com";
 const API_VERSION = "v21.0";
 
 export function igConfig() {
-  const appId = process.env.IG_APP_ID ?? "";
-  const appSecret = process.env.IG_APP_SECRET ?? "";
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cc-os.81degree.com";
-  return { appId, appSecret, appUrl, redirectUri: `${appUrl}/api/ig/callback`, configured: !!(appId && appSecret) };
+  // IG_* 또는 META_* 둘 다 허용
+  const appId = process.env.IG_APP_ID ?? process.env.META_APP_ID ?? "";
+  const appSecret = process.env.IG_APP_SECRET ?? process.env.META_APP_SECRET ?? "";
+  const redirectEnv = process.env.META_REDIRECT_URI ?? process.env.IG_REDIRECT_URI ?? "";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    ?? (redirectEnv ? redirectEnv.replace(/\/api\/ig\/callback\/?$/, "") : "https://cc-os.81degree.com");
+  const redirectUri = redirectEnv || `${appUrl}/api/ig/callback`;
+  return { appId, appSecret, appUrl, redirectUri, configured: !!(appId && appSecret) };
 }
 
 // 1) 사용자 동의 URL (연동 시작)

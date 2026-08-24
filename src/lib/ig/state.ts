@@ -1,7 +1,7 @@
 import crypto from "crypto";
 
 // OAuth state 서명 (creatorId 바인딩 + 위변조/재사용 방지). IG_APP_SECRET로 HMAC.
-const secret = () => process.env.IG_APP_SECRET ?? "dev-secret";
+const secret = () => process.env.IG_APP_SECRET ?? process.env.META_APP_SECRET ?? "dev-secret";
 
 export function signState(creatorId: string): string {
   const ts = Date.now();
