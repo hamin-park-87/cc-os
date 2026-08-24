@@ -171,6 +171,18 @@ export async function createDealContent(deal: Deal, url: string, creators: Creat
   return content;
 }
 
+// 계정(profiles) 실데이터 조회 — 관리자만 전체 조회 가능(RLS)
+export interface AccountRow { id: string; email: string; role: string; scope: string; status: string; lastLogin?: string | null }
+export async function getAccounts(): Promise<AccountRow[]> {
+  if (!isDb()) return [];
+  const { data, error } = await getSupabase().from("profiles").select("id, email, role, status, last_login_at");
+  if (error) { console.warn("[accounts]", error.message); return []; }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any): AccountRow => ({
+    id: r.id, email: r.email ?? "", role: r.role, scope: r.role === "admin" ? "81degree" : "—", status: r.status, lastLogin: r.last_login_at,
+  }));
+}
+
 // 콘텐츠를 브랜드에 태깅 (전략 브랜드 pr ↔ 개인 own)
 export async function tagContentBrand(contentId: string, brandName: string | null, brands: { id: string; name: string }[]): Promise<void> {
   if (!isDb()) return;

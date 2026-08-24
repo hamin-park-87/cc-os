@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { T } from "@/lib/i18n";
@@ -960,22 +960,92 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
 function AccountsTable({ creators, brands }: { creators: Creator[]; brands?: Brand[] }) {
   const [, setTick] = useState(0);
   const [invite, setInvite] = useState(false);
-  const accts = ACCOUNTS;
+  const [bulk, setBulk] = useState(false);
+  const [rows, setRows] = useState<AccountRow[]>([]);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    if (supabaseConfigured()) getAccounts().then(setRows).catch(() => setRows([]));
+    else setRows(ACCOUNTS.map((a, i) => ({ id: String(i), email: a.email, role: a.role, scope: a.scope, status: a.status, lastLogin: a.lastLogin })));
+  }, []);
+  useEffect(() => { load(); }, [load]);
   const ROLE: Record<string, string> = { admin: T("관리자"), brand: T("브랜드"), creator: T("크리에이터") };
   const ST: Record<string, [string, string]> = { active: ["p-ok", T("활성")], pending: ["p-warn", T("초대중")], disabled: ["p-plan", T("비활성")] };
+  const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allChecked = rows.length > 0 && rows.every((a) => sel.has(a.id));
+  async function bulkDelete() {
+    const ids = [...sel];
+    if (!ids.length || !confirm(`${T("선택한")} ${ids.length}${T("개 계정을 삭제할까요? 되돌릴 수 없습니다.")}`)) return;
+    setBusy(true);
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      if (!session) { alert(T("관리자 로그인이 필요합니다 (비밀번호로 로그인 후)")); setBusy(false); return; }
+      const res = await fetch("/api/account/delete", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ ids }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) alert(T("삭제 실패: ") + (j.error || res.status));
+      else if (j.errors?.length) alert(`${j.ok}${T("개 삭제")} · ${j.errors.join(", ")}`);
+      setSel(new Set()); load();
+    } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); }
+    setBusy(false); setTick((t) => t + 1);
+  }
   return (<>
-    <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("계정·권한")}</h2><button className="btn acc" onClick={() => setInvite(true)}>+ {T("계정 생성")}</button></div>
-    <div className="tablewrap"><table><thead><tr><th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th><th></th></tr></thead><tbody>
-      {accts.map((a, i) => (
-        <tr key={a.email}><td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("계정·권한")}</h2>
+      <span style={{ display: "flex", gap: 8 }}>
+        {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} disabled={busy} onClick={bulkDelete}>{T("선택 삭제")} ({sel.size})</button>}
+        <button className="btn" onClick={() => setBulk(true)}>{T("일괄 등록")}</button>
+        <button className="btn acc" onClick={() => setInvite(true)}>+ {T("계정 생성")}</button>
+      </span></div>
+    <div className="tablewrap"><table><thead><tr>
+      <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(rows.map((a) => a.id)))} aria-label={T("전체 선택")} /></th>
+      <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th>
+    </tr></thead><tbody>
+      {rows.map((a) => (
+        <tr key={a.id} style={sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
+          <td><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} aria-label={a.email} /></td>
+          <td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
-          <td><span className={`pill ${ST[a.status][0]}`}><span className="d" />{ST[a.status][1]}</span></td>
-          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ?? "—"}</td>
-          <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => { a.status = a.status === "disabled" ? "active" : "disabled"; setTick((t) => t + 1); }}>{a.status === "disabled" ? T("활성화") : T("비활성")}</button></td></tr>
+          <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
+          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 10) : "—"}</td></tr>
       ))}
     </tbody></table></div>
-    {invite && <InviteModal creators={creators} brands={brands} onClose={() => setInvite(false)} onSaved={() => setTick((t) => t + 1)} />}
+    {!rows.length && <div className="placeholder">{T("등록된 계정이 없어요.")}</div>}
+    {invite && <InviteModal creators={creators} brands={brands} onClose={() => setInvite(false)} onSaved={() => { setInvite(false); load(); }} />}
+    {bulk && <BulkAccountModal creators={creators} brands={brands} onClose={() => setBulk(false)} onSaved={load} />}
   </>);
+}
+
+function BulkAccountModal({ creators, brands, onClose, onSaved }: { creators: Creator[]; brands?: Brand[]; onClose: () => void; onSaved: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false); const [ok, setOk] = useState(0); const [err, setErr] = useState("");
+  const parsed = text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => (l.includes("\t") ? l.split("\t") : l.split(",")).map((s) => s.trim()));
+  const valid = parsed.filter((r) => r[0] && r[0].includes("@"));
+  async function run() {
+    if (!valid.length) { setErr(T("등록할 행이 없습니다")); return; }
+    setBusy(true); setErr(""); setOk(0);
+    const { data: { session } } = await getSupabase().auth.getSession();
+    if (!session) { setErr(T("관리자 로그인이 필요합니다 (비밀번호로 로그인 후)")); setBusy(false); return; }
+    for (const r of valid) {
+      const [email, role = "brand", scope = "", password = genPassword()] = r;
+      const finalScope = role === "admin" ? "81degree" : scope;
+      const res = await fetch("/api/invite", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ email, role, scope: finalScope, password }) });
+      if (res.ok) setOk((v) => v + 1);
+    }
+    setBusy(false); onSaved(); onClose();
+  }
+  return (
+    <Modal title={T("계정 일괄 등록")} onClose={onClose} width={540}
+      footer={<><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" disabled={busy || !valid.length} onClick={run}>{busy ? `${T("등록 중…")} (${ok}/${valid.length})` : `${valid.length}${T("개 등록")}`}</button></>}>
+      <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 8 }}>
+        {T("한 줄에 한 계정 (탭 또는 콤마 구분). 비밀번호 생략 시 자동 생성됩니다.")}<br />
+        {T("순서:")} <b>{T("이메일 · 역할(admin/brand/creator) · 소속 · 비밀번호")}</b>
+      </div>
+      <textarea style={{ ...inp, minHeight: 160, fontFamily: "var(--mono)", fontSize: 12.5 }}
+        placeholder={"abib@brand.com\tbrand\tabib\nmerumi@81degree.com\tcreator\tmerumi"}
+        value={text} onChange={(e) => setText(e.target.value)} />
+      <div className="note" style={{ marginTop: 8 }}>{T("인식된 행:")} <b className="num">{valid.length}</b></div>
+      {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
+    </Modal>
+  );
 }
 
 function genPassword() {
