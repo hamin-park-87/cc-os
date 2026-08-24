@@ -810,6 +810,29 @@ function AssignEditor({ d }: { d: Bundle }) {
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
       <b>{brand}</b> · {month.slice(0, 4)}{T("년")} {+month.slice(5)}{T("월 계약")} <b>{target}</b>{T("건")} · {T("배정 합계")} <b>{sum}</b>{T("건")} — {diff === 0 ? T("계약과 일치") : diff > 0 ? `${diff}${T("건 초과")}` : `${-diff}${T("건 미배정")}`}
     </div>
+    {(() => {
+      // 이 달 전체 매칭 이상 감지 (계약과 어긋난 브랜드·크리에이터)
+      const alerts: { level: "warning" | "critical"; t: string; s: string }[] = [];
+      for (const b of d.brands) {
+        if (b.monthlyQuota == null) continue;
+        const inP = (!b.contractStart || b.contractStart <= month) && (!b.contractEnd || b.contractEnd >= month);
+        if (!inP) continue;
+        const assigned = d.assignments.filter((a) => a.brandId === b.name && a.yearMonth === month).reduce((s, a) => s + a.quota, 0);
+        if (assigned < b.monthlyQuota) alerts.push({ level: "warning", t: `${b.name} — ${T("배정")} ${assigned}/${b.monthlyQuota}`, s: `${b.monthlyQuota - assigned}${T("건 미배정")}` });
+        else if (assigned > b.monthlyQuota) alerts.push({ level: "critical", t: `${b.name} — ${T("배정")} ${assigned}/${b.monthlyQuota}`, s: `${T("계약 수량")} ${assigned - b.monthlyQuota}${T("건 초과")}` });
+      }
+      for (const c of actives) {
+        const cap = c.monthlyQuota; const tot = totalFor(c.name);
+        if (cap && tot > cap) alerts.push({ level: "critical", t: `${withCode(c.name)} — ${T("월 배정")} ${tot}/${cap}`, s: `${T("계약 수량")} ${tot - cap}${T("건 초과")}` });
+      }
+      if (!alerts.length) return null;
+      const color = { warning: "var(--warning)", critical: "var(--critical)" };
+      return <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--muted)" }}>⚠ {T("계약과 어긋난 매칭")} ({alerts.length})</div>
+        {alerts.map((a, i) => <div key={i} style={{ display: "flex", gap: 8, alignItems: "center", padding: "7px 10px", borderRadius: 8, background: "var(--surface-2)", borderLeft: `3px solid ${color[a.level]}`, fontSize: 12.5 }}>
+          <b>{a.t}</b><span style={{ color: "var(--faint)" }}>· {a.s}</span></div>)}
+      </div>;
+    })()}
     {prods.length > 0 && <div className="callout" style={{ background: "var(--surface-2)", marginBottom: 12 }}><div style={{ width: "100%" }}>
       <div className="t" style={{ fontSize: 12 }}>{T("이 달")} {brand} PR {T("상품")} {prods.length}{T("개")}</div>
       <div className="s" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
