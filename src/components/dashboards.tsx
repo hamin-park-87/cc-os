@@ -633,6 +633,9 @@ function ConnTable({ creators }: { creators: Creator[] }) {
         ))}
       </div>
       <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 12 }}>{T("※ Instagram 비즈니스/크리에이터 계정 + Facebook 페이지 연결 필요 · 토큰 60일 만료")}</div>
+      <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 8, padding: "8px 10px", background: "var(--accent-weak)", borderRadius: 8 }}>
+        🔄 {T("데이터는 실시간이 아니라 ‘동기화’ 버튼을 누를 때 갱신됩니다 (수동/온디맨드). 아래 ‘마지막 동기화’ 시각을 확인하세요.")}
+      </div>
     </div>
     <div className="filterbar">
       <select value={fConn} onChange={(e) => setFConn(e.target.value as typeof fConn)}>
@@ -643,13 +646,15 @@ function ConnTable({ creators }: { creators: Creator[] }) {
       <span className="count">{list.length}{T("명")}</span>
     </div>
     <div className="tablewrap"><table><thead><tr>
-      <th>{T("번호")}</th><th>{T("크리에이터")}</th><th>{T("IG 핸들")}</th><th>{T("연동일")}</th><th>{T("상태")}</th><th></th>
+      <th>{T("번호")}</th><th>{T("크리에이터")}</th><th>{T("IG 핸들")}</th><th>{T("연동일")}</th><th>{T("마지막 동기화")}</th><th>{T("상태")}</th><th></th>
     </tr></thead><tbody>
       {list.map((c) => {
         const s = c.ig?.status;
         const [cls, lab] = s === "active" ? ["p-ok", T("연동됨")] : s === "expired" ? ["p-warn", T("토큰 만료")] : s === "revoked" ? ["p-plan", T("연동 해제")] : ["p-plan", T("미연동")];
+        const synced = c.ig?.lastSyncedAt ? String(c.ig.lastSyncedAt).slice(0, 16).replace("T", " ") : null;
         return (<tr key={c.id}><td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{c.code ?? "—"}</td><td><b>{c.name}</b></td><td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
-          <td className="num" style={{ color: "var(--muted)" }}>{c.ig?.linkedAt ?? "—"}</td>
+          <td className="num" style={{ color: "var(--muted)" }}>{c.ig?.linkedAt ? String(c.ig.linkedAt).slice(0, 10) : "—"}</td>
+          <td className="num" style={{ color: synced ? "var(--accent-ink)" : "var(--faint)" }}>{synced ? `✓ ${synced}` : "—"}</td>
           <td><span className={`pill ${cls}`}><span className="d" />{lab}</span></td>
           <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
             {s === "active" && <button className="btn acc" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} disabled={syncing === c.id} onClick={() => sync(c)}>{syncing === c.id ? T("동기화 중…") : T("동기화")}</button>}

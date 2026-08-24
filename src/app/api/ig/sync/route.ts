@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
         metricCount++;
       } catch { /* 인사이트 미지원 미디어는 건너뜀 */ }
     }
+    await admin.from("ig_accounts").update({ last_synced_at: new Date().toISOString(), status: "active" }).eq("creator_id", creatorId);
     return NextResponse.json({ ok: true, followers, contents: contentCount, metrics: metricCount });
   } catch (e) {
     // 토큰 만료 등 → 상태 표시

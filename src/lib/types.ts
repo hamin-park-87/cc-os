@@ -79,7 +79,7 @@ export interface Creator {
   baseFee?: number | null;        // 기본보수 (세전/월)
   payCycle?: string | null;       // 지급사이클
   // 연동
-  ig?: { status: IgStatus; linkedAt?: string | null; expiresAt?: string | null };
+  ig?: { status: IgStatus; linkedAt?: string | null; expiresAt?: string | null; lastSyncedAt?: string | null };
 }
 
 export interface Contract { id: string; brandId: string; yearMonth: string; quota: number; unitPrice: number }

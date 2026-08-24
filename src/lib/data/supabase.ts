@@ -35,7 +35,7 @@ export const supabaseProvider: DataProvider = {
         entityType: r.entity_type, withholding: r.withholding, contractEnd: r.contract_end,
         baseFee: r.base_fee != null ? Number(r.base_fee) : null, payCycle: r.pay_cycle,
         sns: r.sns ?? {}, rates: r.rates ?? { reels: 0, secondary: 0, offline: 0, etc: 0 },
-        ig: ig ? { status: ig.status, linkedAt: ig.linked_at, expiresAt: ig.expires_at } : undefined,
+        ig: ig ? { status: ig.status, linkedAt: ig.linked_at, expiresAt: ig.expires_at, lastSyncedAt: ig.last_synced_at } : undefined,
       };
     });
   },
