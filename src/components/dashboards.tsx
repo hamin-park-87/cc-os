@@ -602,7 +602,23 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
 function ConnTable({ creators }: { creators: Creator[] }) {
   const [, setTick] = useState(0);
   const [conn, setConn] = useState<Creator | null>(null);
+  const [syncing, setSyncing] = useState<string>("");
   const list = creators.filter((c) => c.status === "active" || c.ig);
+  async function sync(c: Creator) {
+    setSyncing(c.id);
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      if (!session) { alert(T("관리자 로그인이 필요합니다 (비밀번호로 로그인 후)")); setSyncing(""); return; }
+      const res = await fetch("/api/ig/sync", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ creatorId: c.id }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) alert(T("동기화 실패: ") + (j.error || res.status));
+      else alert(`${T("동기화 완료")} · ${T("팔로워")} ${fmt(j.followers)} · ${T("콘텐츠")} ${j.contents}${T("건")}`);
+    } catch (e) { alert(T("동기화 실패: ") + (e as Error).message); }
+    setSyncing(""); setTick((t) => t + 1);
+  }
   return (<>
     <div className="card pad" style={{ marginBottom: 18 }}>
       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{T("연동 방법 (4단계)")}</div>
@@ -622,52 +638,40 @@ function ConnTable({ creators }: { creators: Creator[] }) {
         return (<tr key={c.id}><td><b>{c.name}</b></td><td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
           <td className="num" style={{ color: "var(--muted)" }}>{c.ig?.linkedAt ?? "—"}</td>
           <td><span className={`pill ${cls}`}><span className="d" />{lab}</span></td>
-          <td style={{ textAlign: "right" }}><button className={`btn ${s === "active" ? "" : "acc"}`} style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setConn(c)}>{s === "active" ? T("재연동") : T("연동하기")}</button></td></tr>);
+          <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+            {s === "active" && <button className="btn acc" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} disabled={syncing === c.id} onClick={() => sync(c)}>{syncing === c.id ? T("동기화 중…") : T("동기화")}</button>}
+            <button className={`btn ${s === "active" ? "" : "acc"}`} style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setConn(c)}>{s === "active" ? T("재연동") : T("연동하기")}</button></td></tr>);
       })}
     </tbody></table></div>
     {conn && <ConnModal creator={conn} onClose={() => setConn(null)} onDone={() => setTick((t) => t + 1)} />}
   </>);
 }
 
-function ConnModal({ creator, onClose, onDone }: { creator: Creator; onClose: () => void; onDone: () => void }) {
-  const [stage, setStage] = useState<1 | 2>(1);
-  function approve() {
-    creator.ig = { status: "active", linkedAt: "2026-08-23", expiresAt: "2026-10-22" };
-    onDone(); onClose();
+function ConnModal({ creator, onClose }: { creator: Creator; onClose: () => void; onDone: () => void }) {
+  const startUrl = `/api/ig/start?creator=${creator.id}`;
+  const [copied, setCopied] = useState(false);
+  function copyLink() {
+    const full = `${window.location.origin}${startUrl}`;
+    navigator.clipboard?.writeText(full).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
   return (
-    <Modal title={T("Instagram 계정 연동")} onClose={onClose} width={440}>
-      <div className="note" style={{ color: "var(--faint)", fontSize: 12.5, marginBottom: 14 }}>{creator.name} · {creator.handle}</div>
-      {stage === 1 ? (
-        <>
-          <div style={{ background: "var(--surface-2)", borderRadius: 11, padding: "14px 16px", fontSize: 13 }}>
-            <b>{T("연동 요청 링크를 크리에이터에게 발송")}</b>
-            <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 4 }}>{T("크리에이터가 링크를 열어 본인 Instagram 계정으로 직접 허용합니다.")}</div>
-          </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-            <button className="btn" onClick={onClose}>{T("연동 요청 발송")}</button>
-            <button className="btn acc" onClick={() => setStage(2)}>{T("지금 연동 (시뮬레이션)")}</button>
-          </div>
-        </>
-      ) : (
-        <>
-          <div style={{ textAlign: "center", padding: "10px 0" }}>
-            <div style={{ width: 54, height: 54, borderRadius: 15, margin: "0 auto 12px", background: "linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)" }} />
-            <b style={{ fontSize: 15 }}>{T("creatorOS가 접근을 요청합니다")}</b>
-            <div style={{ color: "var(--faint)", fontSize: 12.5, marginTop: 4 }}>{creator.handle}</div>
-          </div>
-          <div style={{ background: "var(--surface-2)", borderRadius: 11, padding: "14px 16px", fontSize: 13 }}>
-            <b style={{ display: "block", marginBottom: 8 }}>{T("요청 권한")}</b>
-            {[T("프로필·팔로워 정보 조회"), T("게시물(릴스)·미디어 조회"), T("인사이트(조회·도달·저장) 조회")].map((p) => (
-              <div key={p} style={{ display: "flex", gap: 8, padding: "4px 0", fontSize: 12.5 }}><span style={{ color: "var(--accent-ink)" }}>✓</span>{p}</div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 10, marginTop: 16, justifyContent: "flex-end" }}>
-            <button className="btn" onClick={onClose}>{T("거부")}</button>
-            <button className="btn acc" onClick={approve}>{T("Instagram으로 허용")}</button>
-          </div>
-        </>
-      )}
+    <Modal title={T("Instagram 계정 연동")} onClose={onClose} width={440}
+      footer={<><button className="btn" onClick={copyLink}>{copied ? T("복사됨 ✓") : T("연동 링크 복사")}</button>
+        <button className="btn acc" onClick={() => { window.location.href = startUrl; }}>{T("Instagram 연동 시작")}</button></>}>
+      <div className="note" style={{ color: "var(--faint)", fontSize: 12.5, marginBottom: 14 }}>{withCode(creator.name)} · {creator.handle}</div>
+      <div style={{ textAlign: "center", padding: "6px 0 12px" }}>
+        <div style={{ width: 54, height: 54, borderRadius: 15, margin: "0 auto 12px", background: "linear-gradient(135deg,#F58529,#DD2A7B,#8134AF)" }} />
+        <b style={{ fontSize: 15 }}>{T("Instagram 프로페셔널 계정 연동")}</b>
+      </div>
+      <div style={{ background: "var(--surface-2)", borderRadius: 11, padding: "14px 16px", fontSize: 13 }}>
+        <b style={{ display: "block", marginBottom: 8 }}>{T("요청 권한")}</b>
+        {[T("프로필·팔로워 정보 조회"), T("게시물(릴스)·미디어 조회"), T("인사이트(조회·도달·저장) 조회")].map((p) => (
+          <div key={p} style={{ display: "flex", gap: 8, padding: "4px 0", fontSize: 12.5 }}><span style={{ color: "var(--accent-ink)" }}>✓</span>{p}</div>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 12 }}>
+        {T("‘연동 시작’을 누르면 Instagram 로그인·동의 화면으로 이동합니다. 크리에이터 본인이 연동하려면 ‘연동 링크 복사’로 링크를 전달하세요.")}
+      </div>
     </Modal>
   );
 }
