@@ -603,7 +603,12 @@ function ConnTable({ creators }: { creators: Creator[] }) {
   const [, setTick] = useState(0);
   const [conn, setConn] = useState<Creator | null>(null);
   const [syncing, setSyncing] = useState<string>("");
-  const list = creators.filter((c) => c.status === "active" || c.ig);
+  const [fConn, setFConn] = useState<"" | "connected" | "none">("");
+  const base = creators.filter((c) => c.status === "active" || c.ig);
+  const isConnected = (c: Creator) => c.ig?.status === "active";
+  const list = base
+    .filter((c) => fConn === "" || (fConn === "connected" ? isConnected(c) : !isConnected(c)))
+    .sort(cmpCreatorByCode);
   async function sync(c: Creator) {
     setSyncing(c.id);
     try {
@@ -629,13 +634,21 @@ function ConnTable({ creators }: { creators: Creator[] }) {
       </div>
       <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 12 }}>{T("※ Instagram 비즈니스/크리에이터 계정 + Facebook 페이지 연결 필요 · 토큰 60일 만료")}</div>
     </div>
+    <div className="filterbar">
+      <select value={fConn} onChange={(e) => setFConn(e.target.value as typeof fConn)}>
+        <option value="">{T("전체")}</option>
+        <option value="connected">{T("연동됨")}</option>
+        <option value="none">{T("미연동")}</option>
+      </select>
+      <span className="count">{list.length}{T("명")}</span>
+    </div>
     <div className="tablewrap"><table><thead><tr>
-      <th>{T("크리에이터")}</th><th>{T("IG 핸들")}</th><th>{T("연동일")}</th><th>{T("상태")}</th><th></th>
+      <th>{T("번호")}</th><th>{T("크리에이터")}</th><th>{T("IG 핸들")}</th><th>{T("연동일")}</th><th>{T("상태")}</th><th></th>
     </tr></thead><tbody>
       {list.map((c) => {
         const s = c.ig?.status;
         const [cls, lab] = s === "active" ? ["p-ok", T("연동됨")] : s === "expired" ? ["p-warn", T("토큰 만료")] : s === "revoked" ? ["p-plan", T("연동 해제")] : ["p-plan", T("미연동")];
-        return (<tr key={c.id}><td><b>{c.name}</b></td><td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
+        return (<tr key={c.id}><td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{c.code ?? "—"}</td><td><b>{c.name}</b></td><td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
           <td className="num" style={{ color: "var(--muted)" }}>{c.ig?.linkedAt ?? "—"}</td>
           <td><span className={`pill ${cls}`}><span className="d" />{lab}</span></td>
           <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
