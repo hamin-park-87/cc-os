@@ -8,7 +8,9 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent } from "@/lib/data/writes";
+import type { SecondaryReq, SecondaryScope } from "@/lib/types";
+import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { T } from "@/lib/i18n";
 
 export interface Bundle {
@@ -110,6 +112,7 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
   }
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
   if (pane === "a-brands") return <BrandAdmin d={d} />;
+  if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
   if (pane === "a-assign") return <AssignEditor d={d} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} />;
@@ -702,6 +705,11 @@ export function brandUnitPrice(brand: Brand | undefined): number {
 export const monthlyCost = (c: Creator): number => (c.baseFee != null ? c.baseFee : (c.fixedCost || 0));
 
 function RevenueTable({ d }: { d: Bundle }) {
+  const [secReqs, setSecReqs] = useState<SecondaryReq[]>([]);
+  useEffect(() => { getSecondaryRequests().then(setSecReqs).catch(() => setSecReqs([])); }, []);
+  const secApproved = secReqs.filter((r) => r.status === "approved");
+  const secByCreator = (name: string) => secApproved.filter((r) => r.creatorName === name).reduce((s, r) => s + r.fee, 0);
+  const secFees = secApproved.reduce((s, r) => s + r.fee, 0);
   const live = d.deals.filter((x) => x.step >= 4);
   const comp = (x: Deal) => Math.round(x.fee * x.shareCompany / 100);
   const ah = live.filter((x) => x.type === "ahchannel").reduce((s, x) => s + comp(x), 0);
@@ -710,26 +718,28 @@ function RevenueTable({ d }: { d: Bundle }) {
   // ② 브랜드 월계약 = 브랜드별 월 계약금액 합 (단일 원본)
   const brandRev = d.brands.reduce((s, b) => s + (b.monthlyAmount || 0), 0);
   const fixed = d.creators.reduce((s, c) => s + monthlyCost(c), 0);
-  const total = ah + brandRev + cr;
+  const total = ah + brandRev + cr + secFees;
   // 크리에이터별 기여
   const per = d.creators.map((c) => {
     const ds = live.filter((x) => x.creatorName === c.name);
     const prComp = ds.reduce((s, x) => s + comp(x), 0);
     const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name).reduce((s, a) => s + a.quota * unitOf(a.brandId), 0);
+    const sec = secByCreator(c.name);
     const cost = monthlyCost(c);
-    return { name: c.name, prComp, brandAlloc, fixed: cost, contrib: prComp + brandAlloc - cost };
-  }).filter((p) => p.prComp || p.brandAlloc || p.fixed).sort((a, b) => cmpNameByCode(a.name, b.name));
+    return { name: c.name, prComp, brandAlloc, sec, fixed: cost, contrib: prComp + brandAlloc + sec - cost };
+  }).filter((p) => p.prComp || p.brandAlloc || p.sec || p.fixed).sort((a, b) => cmpNameByCode(a.name, b.name));
   return (<>
     <div className="grid-kpi">
       <Kpi lab="① ah!channel PR" val={yen(ah)} /><Kpi lab={T("② 브랜드 월계약")} val={yen(brandRev)} />
-      <Kpi lab={T("③ 개별 PR")} val={yen(cr)} /><Kpi lab={T("총 매출")} val={yen(total)} /><Kpi lab={T("순이익 (−인건비)")} val={yen(total - fixed)} />
+      <Kpi lab={T("③ 개별 PR")} val={yen(cr)} /><Kpi lab={T("④ 2차 활용")} val={yen(secFees)} /><Kpi lab={T("총 매출")} val={yen(total)} /><Kpi lab={T("순이익 (−인건비)")} val={yen(total - fixed)} />
     </div>
     <div className="sec-h"><h2>{T("크리에이터별 기여 손익")}</h2><span className="hint">{T("브랜드계약 배분 + PR 회사매출 − 월 보수")}</span></div>
     <div className="tablewrap"><table><thead><tr>
-      <th>{T("크리에이터")}</th><th>{T("브랜드계약 배분")}</th><th>{T("PR 회사매출")}</th><th>{T("월 보수")}</th><th>{T("기여이익")}</th>
+      <th>{T("크리에이터")}</th><th>{T("브랜드계약 배분")}</th><th>{T("PR 회사매출")}</th><th>{T("2차 활용")}</th><th>{T("월 보수")}</th><th>{T("기여이익")}</th>
     </tr></thead><tbody>
       {per.map((p) => (
         <tr key={p.name}><td><b>{withCode(p.name)}</b></td><td className="num">{yen(p.brandAlloc)}</td><td className="num">{yen(p.prComp)}</td>
+          <td className="num">{p.sec ? yen(p.sec) : "—"}</td>
           <td className="num" style={{ color: "var(--muted)" }}>{yen(p.fixed)}</td>
           <td className="num" style={{ fontWeight: 600, color: p.contrib >= 0 ? "var(--accent-ink)" : "var(--critical)" }}>{yen(p.contrib)}</td></tr>
       ))}
@@ -1360,31 +1370,102 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
   if (pane === "b-roster") return <CreatorDirectory creators={d.creators.filter((c) => c.status === "active")} allContents={d.contents} />;
   if (pane === "b-creators") return <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />;
   if (pane === "b-archive") return <ContentArchive contents={d.contents.filter((c) => c.brandId === scope)} showBrand={false} />;
-  if (pane === "b-secondary") return <SecondaryList />;
+  if (pane === "b-secondary") return <SecondaryView mode="brand" d={d} scope={scope} />;
   return <Placeholder name={pane} />;
 }
 
-function SecondaryList() {
-  const rows = [
-    { p: "ヒアルロニックブームセラム", c: "hina", scope: T("광고 소재"), step: 3 },
-    { p: "アビブ ガムシートマスク", c: "rui", scope: T("자사 SNS 리그램"), step: 2 },
-    { p: "ヒアルロニックブームクリーム", c: "merumi", scope: T("오프라인 매장"), step: 1 },
-  ];
-  const STEPS = [T("요청"), T("81degree 검토"), T("크리에이터 동의"), T("승인")];
-  return (<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-    {rows.map((r, i) => (
-      <div key={i} className="card pad">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Avatar name={r.c} size={34} radius={9} />
-          <div style={{ flex: 1 }}><div style={{ fontWeight: 600 }}>{r.p}</div><div style={{ color: "var(--faint)", fontSize: 12 }}>{r.c} · {r.scope}</div></div>
-          <span className={`pill ${r.step >= 3 ? "p-ok" : "p-warn"}`}><span className="d" />{STEPS[r.step]}</span>
+/* 2차 활용 워크플로우 (관리자/브랜드/크리에이터 공용) */
+const SEC_STEPS = ["requested", "reviewing", "creator_confirming", "approved"];
+const secStep = (s: string) => Math.max(0, SEC_STEPS.indexOf(s));
+function SecondaryView({ mode, d, scope }: { mode: "admin" | "brand" | "creator"; d: Bundle; scope?: string }) {
+  const [rows, setRows] = useState<SecondaryReq[]>([]);
+  const [newReq, setNewReq] = useState(false);
+  const [busy, setBusy] = useState("");
+  const load = useCallback(() => { getSecondaryRequests().then(setRows).catch(() => setRows([])); }, []);
+  useEffect(() => { load(); }, [load]);
+  const STEP_LABELS = [T("요청"), T("81degree 검토"), T("크리에이터 동의"), T("승인")];
+  async function act(id: string, fn: () => Promise<void>) { setBusy(id); try { await fn(); load(); } catch (e) { alert(T("처리 실패: ") + (e as Error).message); } setBusy(""); }
+  return (<>
+    {mode === "brand" && <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("2차 활용 신청")}</h2><button className="btn acc" onClick={() => setNewReq(true)}>+ {T("2차 활용 신청")}</button></div>}
+    {!rows.length ? <div className="placeholder">{mode === "brand" ? T("신청한 2차 활용이 없어요. 콘텐츠를 선택해 신청하세요.") : T("2차 활용 신청 내역이 없어요.")}</div> :
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {rows.map((r) => {
+          const step = secStep(r.status);
+          const rejected = r.status === "rejected";
+          return (
+            <div key={r.id} className="card pad">
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Avatar name={r.creatorName} size={34} radius={9} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13.5 }}>{r.product}</div>
+                  <div style={{ color: "var(--faint)", fontSize: 12 }}>{withCode(r.creatorName)} · {r.brandName} · {T(SECONDARY_SCOPE_LABEL[r.scope])}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="num" style={{ fontWeight: 600 }}>{yen(r.fee)}</div>
+                  <span className={`pill ${rejected ? "p-plan" : step >= 3 ? "p-ok" : "p-warn"}`} style={{ marginTop: 4 }}><span className="d" />{rejected ? T("반려") : STEP_LABELS[step]}</span>
+                </div>
+              </div>
+              {!rejected && <div style={{ display: "flex", gap: 6, marginTop: 12, fontSize: 11.5 }}>
+                {STEP_LABELS.map((s, si) => (<span key={si} style={{ flex: 1, textAlign: "center", padding: "5px 4px", borderRadius: 7, background: si <= step ? "var(--accent-weak)" : "var(--surface-2)", color: si <= step ? "var(--accent-ink)" : "var(--faint)", fontWeight: si <= step ? 600 : 400 }}>{si < step ? "✓ " : ""}{s}</span>))}
+              </div>}
+              {/* 역할별 액션 */}
+              <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}>
+                {r.permalink && <a href={r.permalink} target="_blank" rel="noopener" className="btn sm">{T("콘텐츠 보기")}</a>}
+                {mode === "creator" && !r.creatorConsentedAt && !rejected && r.status !== "approved" &&
+                  <button className="btn acc sm" disabled={busy === r.id} onClick={() => act(r.id, () => setCreatorConsent(r.id))}>{T("동의")}</button>}
+                {mode === "admin" && !rejected && r.status !== "approved" && <>
+                  {r.status === "requested" && <button className="btn sm" disabled={busy === r.id} onClick={() => act(r.id, () => setSecondaryStatus(r.id, "reviewing"))}>{T("검토 시작")}</button>}
+                  <button className="btn sm" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} disabled={busy === r.id} onClick={() => act(r.id, () => setSecondaryStatus(r.id, "rejected"))}>{T("반려")}</button>
+                  <button className="btn acc sm" disabled={busy === r.id || !r.creatorConsentedAt} title={!r.creatorConsentedAt ? T("크리에이터 동의 후 승인 가능") : ""} onClick={() => act(r.id, () => setSecondaryStatus(r.id, "approved"))}>{T("승인")}</button>
+                </>}
+              </div>
+            </div>
+          );
+        })}
+      </div>}
+    {newReq && <SecondaryRequestModal d={d} brandName={scope ?? ""} onClose={() => setNewReq(false)} onSaved={load} />}
+  </>);
+}
+
+function SecondaryRequestModal({ d, brandName, onClose, onSaved }: { d: Bundle; brandName: string; onClose: () => void; onSaved: () => void }) {
+  // 이 브랜드의 콘텐츠만 (RLS로 이미 브랜드 소속 콘텐츠만 보임)
+  const brandContents = d.contents.filter((c) => c.brandName === brandName || c.brandId === brandName);
+  const [contentId, setContentId] = useState(brandContents[0]?.id ?? "");
+  const [scope, setScope] = useState<SecondaryScope>("ad_creative");
+  const [channels, setChannels] = useState("");
+  const [start, setStart] = useState(""); const [end, setEnd] = useState("");
+  const [busy, setBusy] = useState(false);
+  const content = brandContents.find((c) => c.id === contentId);
+  const creator = d.creators.find((c) => c.name === content?.creatorName);
+  const fee = creator?.rates.secondary ?? 0;
+  async function save() {
+    if (!contentId) { alert(T("콘텐츠를 선택해주세요")); return; }
+    setBusy(true);
+    try {
+      await createSecondaryRequest(contentId, brandName, scope, channels.split(",").map((s) => s.trim()).filter(Boolean), fee, start || null, end || null, d.brands);
+      onSaved(); onClose();
+    } catch (e) { alert(T("신청 실패: ") + (e as Error).message); }
+    setBusy(false);
+  }
+  return (
+    <Modal title={T("2차 활용 신청")} onClose={onClose} width={460}
+      footer={<><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" disabled={busy || !contentId} onClick={save}>{T("신청")}</button></>}>
+      {!brandContents.length ? <div className="placeholder">{T("신청 가능한 브랜드 콘텐츠가 없어요.")}</div> : <>
+        <Field label={T("콘텐츠")}><select style={inp} value={contentId} onChange={(e) => setContentId(e.target.value)}>{brandContents.map((c) => <option key={c.id} value={c.id}>{c.product} · {c.creatorName}</option>)}</select></Field>
+        <Field label={T("활용 범위")}><select style={inp} value={scope} onChange={(e) => setScope(e.target.value as SecondaryScope)}>{(Object.keys(SECONDARY_SCOPE_LABEL) as SecondaryScope[]).map((k) => <option key={k} value={k}>{T(SECONDARY_SCOPE_LABEL[k])}</option>)}</select></Field>
+        <Field label={T("활용 채널 (쉼표로 구분)")}><input style={inp} placeholder="Instagram, 매장 사이니지" value={channels} onChange={(e) => setChannels(e.target.value)} /></Field>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+          <Field label={T("활용 시작일")}><input style={inp} type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
+          <Field label={T("활용 종료일")}><input style={inp} type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
         </div>
-        <div style={{ display: "flex", gap: 6, marginTop: 12, fontSize: 11.5 }}>
-          {STEPS.map((s, si) => (<span key={si} style={{ flex: 1, textAlign: "center", padding: "5px 4px", borderRadius: 7, background: si < r.step ? "var(--accent-weak)" : si === r.step ? "var(--accent-weak)" : "var(--surface-2)", color: si <= r.step ? "var(--accent-ink)" : "var(--faint)", fontWeight: si <= r.step ? 600 : 400 }}>{si < r.step ? "✓ " : ""}{s}</span>))}
-        </div>
-      </div>
-    ))}
-  </div>);
+        <div className="callout" style={{ background: "var(--accent-weak)" }}><div style={{ width: "100%" }}>
+          <div className="t" style={{ fontSize: 12 }}>{T("예상 2차 활용 비용")}</div>
+          <div style={{ fontWeight: 700, fontSize: 18, color: "var(--accent-ink)" }}>{yen(fee)}</div>
+          <div className="s" style={{ fontSize: 11.5 }}>{withCode(content?.creatorName ?? "")} {T("2차 활용 단가 기준 · 승인 시 정산에 반영")}</div>
+        </div></div>
+      </>}
+    </Modal>
+  );
 }
 
 function BrandCreatorTable({ rows, allContents }: { rows: Content[]; allContents?: Content[] }) {
@@ -1520,6 +1601,7 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
     );
   }
   if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
+  if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
   if (pane === "c-todo") return <CreatorTodo d={d} me={me} />;
   return <Placeholder name={pane} />;
 }

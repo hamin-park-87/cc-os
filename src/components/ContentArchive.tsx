@@ -14,6 +14,7 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
 }) {
   const [creator, setCreator] = useState("");
   const [brand, setBrand] = useState("");
+  const [kind, setKind] = useState("");
   const [period, setPeriod] = useState("");
   const [sort, setSort] = useState("date");
   const [status, setStatus] = useState("");
@@ -27,6 +28,7 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
   const items = useMemo(() => {
     const f = contents.filter((c) =>
       (!creator || c.creatorName === creator) && (!brand || c.brandName === brand) &&
+      (!kind || c.kind === kind) &&
       (!status || c.status === status) && (!period || monthOf(c) === period) &&
       (!q || c.product.toLowerCase().includes(q.toLowerCase()) || c.creatorName.toLowerCase().includes(q.toLowerCase())));
     return [...f].sort((a, b) => {
@@ -35,13 +37,14 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
       if (sort === "eng") return (b.views ? (b.likes + b.comments + b.saves + b.shares) / b.views : 0) - (a.views ? (a.likes + a.comments + a.saves + a.shares) / a.views : 0);
       return (b.publishedAt ?? "0000-00").localeCompare(a.publishedAt ?? "0000-00");
     });
-  }, [contents, creator, brand, period, sort, status, q]);
+  }, [contents, creator, brand, kind, period, sort, status, q]);
 
   return (
     <>
       <div className="filterbar">
         {showCreator && <select value={creator} onChange={(e) => setCreator(e.target.value)}><option value="">{T("모든 크리에이터")}</option>{creators.map((c) => <option key={c} value={c}>{c}</option>)}</select>}
         {showBrand && <select value={brand} onChange={(e) => setBrand(e.target.value)}><option value="">{T("모든 브랜드")}</option>{brands.map((b) => <option key={b} value={b}>{b}</option>)}</select>}
+        <select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">{T("모든 유형")}</option><option value="pr">{T("전략 브랜드")}</option><option value="own">{T("개인")}</option><option value="deal">{T("외부 PR")}</option></select>
         <select value={period} onChange={(e) => setPeriod(e.target.value)}><option value="">{T("전체 기간")}</option>{months.map((m) => <option key={m} value={m}>{+m.slice(5)}{T("월")}</option>)}</select>
         <select value={sort} onChange={(e) => setSort(e.target.value)}><option value="date">{T("최신순")}</option><option value="views">{T("조회수순")}</option><option value="saves">{T("저장순")}</option><option value="eng">{T("참여율순")}</option></select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">{T("전체 상태")}</option><option value="uploaded">{T("게시완료")}</option><option value="planned">{T("예정")}</option></select>

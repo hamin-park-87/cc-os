@@ -1,6 +1,7 @@
 "use client";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase/client";
-import type { Brand, BrandProduct, Creator, Deal, Content } from "@/lib/types";
+import type { Brand, BrandProduct, Creator, Deal, Content, SecondaryReq } from "@/lib/types";
+import type { SecondaryScope, SecondaryStatus } from "@/lib/types";
 
 // supabase 모드일 때만 실제 DB 쓰기. mock 모드면 no-op(메모리 변경은 호출부에서 처리).
 export const isDb = () =>
@@ -168,6 +169,49 @@ export async function createDealContent(deal: Deal, url: string, creators: Creat
     await sb.from("deals").update({ content_id: content.id }).eq("id", deal.id);
   }
   return content;
+}
+
+// 2차 활용 신청 (secondary_usage_requests)
+const mockSecondary: SecondaryReq[] = [];
+export async function getSecondaryRequests(): Promise<SecondaryReq[]> {
+  if (!isDb()) return mockSecondary;
+  const sb = getSupabase();
+  const { data, error } = await sb.from("secondary_usage_requests")
+    .select("id, scope, channels, period_start, period_end, fee, status, creator_consented_at, content_id, brands(name), contents(product, permalink, thumbnail_url, creators(name))")
+    .order("created_at", { ascending: false });
+  if (error) { console.warn("[secondary]", error.message); return []; }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any): SecondaryReq => ({
+    id: r.id, contentId: r.content_id, product: r.contents?.product ?? "—",
+    creatorName: r.contents?.creators?.name ?? "—", brandName: r.brands?.name ?? "—",
+    scope: r.scope, channels: r.channels ?? [], periodStart: r.period_start, periodEnd: r.period_end,
+    fee: Number(r.fee ?? 0), status: r.status, creatorConsentedAt: r.creator_consented_at,
+    permalink: r.contents?.permalink, thumbnailUrl: r.contents?.thumbnail_url,
+  }));
+}
+export async function createSecondaryRequest(
+  contentId: string, brandName: string, scope: SecondaryScope, channels: string[],
+  fee: number, periodStart: string | null, periodEnd: string | null,
+  brands: { id: string; name: string }[],
+): Promise<void> {
+  if (!isDb()) { mockSecondary.unshift({ id: "S" + mockSecondary.length, contentId, product: "—", creatorName: "—", brandName, scope, channels, periodStart, periodEnd, fee, status: "requested", creatorConsentedAt: null }); return; }
+  const brand_id = brands.find((b) => b.name === brandName)?.id ?? null;
+  const { error } = await getSupabase().from("secondary_usage_requests").insert({
+    content_id: contentId, brand_id, scope, channels, fee, period_start: periodStart || null, period_end: periodEnd || null, status: "requested",
+  });
+  if (error) throw error;
+}
+export async function setSecondaryStatus(id: string, status: SecondaryStatus): Promise<void> {
+  if (!isDb()) { const r = mockSecondary.find((x) => x.id === id); if (r) r.status = status; return; }
+  const { error } = await getSupabase().from("secondary_usage_requests").update({ status }).eq("id", id);
+  if (error) throw error;
+}
+// 크리에이터 동의 (동의 시각 기록 → 트리거가 승인 허용)
+export async function setCreatorConsent(id: string): Promise<void> {
+  if (!isDb()) { const r = mockSecondary.find((x) => x.id === id); if (r) { r.creatorConsentedAt = "now"; r.status = "creator_confirming"; } return; }
+  const { error } = await getSupabase().from("secondary_usage_requests")
+    .update({ creator_consented_at: new Date().toISOString(), status: "creator_confirming" }).eq("id", id);
+  if (error) throw error;
 }
 
 // 배정: brand/creator 이름 → uuid 해석 후 upsert/delete

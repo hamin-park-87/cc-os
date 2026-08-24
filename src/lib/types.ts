@@ -145,6 +145,27 @@ export interface SecondaryRequest {
   step: number;                 // 0~3 (요청/검토/동의/승인)
 }
 
+// 2차 활용 신청 (DB secondary_usage_requests 기반)
+export interface SecondaryReq {
+  id: string;
+  contentId: string;
+  product: string;              // 콘텐츠 상품/제목 (표시용)
+  creatorName: string;          // 표시용
+  brandName: string;            // 표시용
+  scope: SecondaryScope;
+  channels: string[];
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  fee: number;
+  status: SecondaryStatus;
+  creatorConsentedAt?: string | null;
+  permalink?: string | null;
+  thumbnailUrl?: string | null;
+}
+export const SECONDARY_SCOPE_LABEL: Record<SecondaryScope, string> = {
+  ad_creative: "광고 소재", sns_regram: "자사 SNS 리그램", offline: "오프라인 매장", web: "웹사이트", other: "기타",
+};
+
 export interface Account {
   email: string;
   role: Role;
