@@ -619,8 +619,8 @@ function ConnTable({ creators }: { creators: Creator[] }) {
         body: JSON.stringify({ creatorId: c.id }),
       });
       const j = await res.json().catch(() => ({}));
-      if (!res.ok) alert(T("동기화 실패: ") + (j.error || res.status));
-      else alert(`${T("동기화 완료")} · ${T("팔로워")} ${fmt(j.followers)} · ${T("콘텐츠")} ${j.contents}${T("건")}`);
+      if (!res.ok) { alert(T("동기화 실패: ") + (j.error || res.status)); }
+      else { alert(`${T("동기화 완료")} · ${T("팔로워")} ${fmt(j.followers)} · ${T("콘텐츠")} ${j.contents}${T("건")}`); window.location.reload(); return; }
     } catch (e) { alert(T("동기화 실패: ") + (e as Error).message); }
     setSyncing(""); setTick((t) => t + 1);
   }
