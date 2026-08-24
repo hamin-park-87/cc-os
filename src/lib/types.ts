@@ -30,6 +30,12 @@ export interface Brand {
   contractEnd?: string | null;     // 계약 종료월 (YYYY-MM)
   monthlyQuota?: number | null;    // 월 콘텐츠 계약 수량
   monthlyAmount?: number | null;   // 월간 계약 금액 (¥)
+  // 인보이스 BILL TO 정보
+  billCompany?: string | null;     // 청구 회사명 (예: Four Company Inc.)
+  billAddress?: string | null;     // 주소
+  billTel?: string | null;         // 전화
+  billRep?: string | null;         // 대표자/담당자
+  billRegNo?: string | null;       // 사업자 등록번호
 }
 
 // 월별 브랜드 PR 상품

@@ -428,36 +428,76 @@ function BrandInvoiceModal({ brand, d, initialMonth, onClose }: { brand: Brand; 
     && (!r.periodStart || String(r.periodStart).slice(0, 7) === month));
   const secTotal = secItems.reduce((s, r) => s + r.fee, 0);
   const grand = amount + secTotal;
-  const no = `INV-${(brand.code ?? brand.name).replace(/\s/g, "")}-${month.replace("-", "")}`;
+  const no = `INV-${month}-01`;
+  const today = new Date();
+  const dateStr = `${today.getMonth() + 1}/${today.getDate()}/${String(today.getFullYear()).slice(2)}`;
+  // 인보이스 라인: 월 계약 + 2차 활용 (Qty / Unit Price / Amount)
+  const lines: { desc: string; qty: number; unit: number }[] = [
+    { desc: `${month} ${T("콘텐츠 월 계약")}`, qty: quota || 1, unit: quota ? Math.round(amount / quota) : amount },
+    ...secItems.map((r) => ({ desc: `2차 활용 · ${r.product}`, qty: 1, unit: r.fee })),
+  ];
+  const th: React.CSSProperties = { background: "#1a1a1a", color: "#fff", padding: "7px 10px", fontSize: 12, textAlign: "left", fontWeight: 600 };
+  const td: React.CSSProperties = { padding: "8px 10px", fontSize: 12.5, borderBottom: "1px solid var(--border)" };
+  const rowL = (k: string, v: string) => <div style={{ display: "flex", fontSize: 12 }}><div style={{ width: 150, color: "var(--faint)", padding: "3px 0" }}>{k}</div><div style={{ flex: 1, padding: "3px 0" }}>{v}</div></div>;
   return (
-    <Modal title={T("브랜드 인보이스")} onClose={onClose} width={560}
+    <Modal title={T("브랜드 인보이스")} onClose={onClose} width={640}
       footer={<><button className="btn" onClick={onClose}>{T("닫기")}</button><button className="btn acc" onClick={() => window.print()}>{T("인쇄 / PDF 저장")}</button></>}>
       <div className="filterbar" style={{ marginBottom: 12 }}>
         <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
       </div>
-      <div id="invoice" style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 24, background: "var(--surface)" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
-          <div><div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 22, color: "var(--accent)" }}>81&apos;DEGREE</div>
-            <div style={{ fontSize: 12, color: "var(--faint)" }}>81degree.inc</div></div>
-          <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 18 }}>{T("청구서 / INVOICE")}</div>
-            <div className="num" style={{ fontSize: 12, color: "var(--faint)" }}>{no}</div></div>
+      <div id="invoice" style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 28, background: "#fff", color: "#111" }}>
+        <div style={{ textAlign: "center", fontSize: 26, fontWeight: 700, letterSpacing: 1, marginBottom: 18 }}>INVOICE</div>
+        {/* 발신 + 인보이스 정보 */}
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 20, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>81degree Inc. <span style={{ color: "var(--accent)" }}>81°</span></div>
+            <div>MIEUX Shibuya Building 8F, 5-3 Maruyama-cho,</div>
+            <div>Shibuya-ku, Tokyo, Japan</div>
+            <div>Tel: +81-80-4209-7555</div>
+            <div>tehyoku@81degree.com | www.81degree.com</div>
+          </div>
+          <div style={{ fontSize: 12, minWidth: 200 }}>
+            {rowL("Invoice No.", no)}{rowL("Date", dateStr)}{rowL("Currency", "JPY (¥)")}
+          </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 18 }}>
-          <div><span style={{ color: "var(--faint)" }}>{T("To (의뢰사)")}</span><div style={{ fontWeight: 600 }}>{brand.name}</div></div>
-          <div><span style={{ color: "var(--faint)" }}>{T("청구 월")}</span><div className="num">{month.slice(0, 4)}. {+month.slice(5)}{T("월")}</div></div>
+        {/* BILL TO */}
+        <div style={{ background: "#1a1a1a", color: "#fff", padding: "5px 10px", fontSize: 12, fontWeight: 600, letterSpacing: 1 }}>BILL TO</div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 20, padding: "10px 0 16px", fontSize: 12, lineHeight: 1.7 }}>
+          <div>
+            <div style={{ fontWeight: 700 }}>{brand.billCompany || brand.name}</div>
+            <div>{brand.billAddress || "—"}</div>
+            <div>Tel: {brand.billTel || "—"}{brand.billRep ? ` | Rep: ${brand.billRep}` : ""}</div>
+            {brand.billRegNo && <div>Biz Reg No: {brand.billRegNo}</div>}
+          </div>
+          <div style={{ minWidth: 200 }}>{rowL("Terms", "Upon receipt")}{rowL("Payment", "Int'l wire transfer")}</div>
         </div>
-        <table style={{ minWidth: 0 }}><thead><tr><th>{T("항목")}</th><th style={{ textAlign: "right" }}>{T("금액")}</th></tr></thead>
+        {/* 항목 테이블 */}
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 4 }}>
+          <thead><tr><th style={th}>Description</th><th style={{ ...th, textAlign: "center", width: 60 }}>Qty</th><th style={{ ...th, textAlign: "right", width: 110 }}>Unit Price</th><th style={{ ...th, textAlign: "right", width: 120 }}>Amount</th></tr></thead>
           <tbody>
-            <tr><td>{month.slice(0, 4)}. {+month.slice(5)}{T("월")} {T("콘텐츠 월 계약")} ({quota}{T("건")})</td><td className="num" style={{ textAlign: "right" }}>{yen(amount)}</td></tr>
-            {secItems.map((r) => <tr key={r.id}><td>{T("2차 활용")} · {r.product} ({T(SECONDARY_SCOPE_LABEL[r.scope])})</td><td className="num" style={{ textAlign: "right" }}>{yen(r.fee)}</td></tr>)}
-          </tbody></table>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14, fontSize: 13 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("월 계약")}</span><span className="num">{yen(amount)}</span></div>
-          {secTotal > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("2차 활용 합계")}</span><span className="num">{yen(secTotal)}</span></div>}
-          <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--border)" }}><b>{T("총 청구액")}</b><b className="num" style={{ fontSize: 16 }}>{yen(grand)}</b></div>
+            {lines.map((l, i) => <tr key={i}><td style={td}>{l.desc}</td><td style={{ ...td, textAlign: "center" }}>{l.qty}</td><td style={{ ...td, textAlign: "right" }}>{fmt(l.unit)}</td><td style={{ ...td, textAlign: "right" }}>{fmt(l.qty * l.unit)}</td></tr>)}
+          </tbody>
+        </table>
+        <div style={{ display: "flex", justifyContent: "space-between", background: "#1a1a1a", color: "#fff", padding: "8px 10px", fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>
+          <span>AMOUNT DUE</span><span className="num">{yen(grand)}</span>
         </div>
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)", fontSize: 11.5, color: "var(--faint)" }}>
-          {T("입금 계좌 / 문의:")} hmpark@81degree.com
+        {/* PAYMENT INFORMATION */}
+        <div style={{ background: "#1a1a1a", color: "#fff", padding: "5px 10px", fontSize: 12, fontWeight: 600, letterSpacing: 1, marginTop: 16 }}>PAYMENT INFORMATION</div>
+        <div style={{ fontSize: 11.5, lineHeight: 1.9, padding: "8px 0" }}>
+          {rowL("Account Holder", "81DEGREE INC.")}
+          {rowL("Bank Name", "SHINHAN BANK JAPAN (SBJ Bank)")}
+          {rowL("Branch", "Tokyo Business Dept.")}
+          {rowL("Account No.", "10010076602")}
+          {rowL("SWIFT / BIC", "SHBKJPJX")}
+          {rowL("Bank Address", "Mita Belliu Bldg, 4F, 36-7, Shiba 5-Chome, Minato-ku, Tokyo, Japan")}
+          {rowL("Beneficiary Address", "MIEUX Shibuya Building 8F, 5-3 Maruyama-cho, Shibuya-ku, Tokyo, Japan")}
+          {rowL("E-mail", "sbj_8092@sbjbank.co.jp, tehyoku@81degree.com")}
+        </div>
+        <div style={{ fontSize: 11, color: "#555", marginTop: 6 }}>Please email the remittance slip to the address above when the transfer is made.</div>
+        <div style={{ textAlign: "right", marginTop: 20, fontSize: 12 }}>
+          <div style={{ color: "#555" }}>Authorized by</div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>Park Hamin</div>
+          <div style={{ color: "#555" }}>CEO, 81degree Inc.</div>
         </div>
       </div>
     </Modal>
@@ -535,6 +575,14 @@ function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null;
       </div>
       <Field label={T("별칭 (쉼표로 구분)")}><input style={inp} placeholder={T("아비브, ABIB")} value={f.aliases?.join(", ") ?? ""} onChange={(e) => up("aliases", toList(e.target.value))} /></Field>
       <Field label={T("로그인 이메일 도메인 (쉼표로 구분)")}><input style={inp} placeholder="abib.com" value={f.domainAllowlist?.join(", ") ?? ""} onChange={(e) => up("domainAllowlist", toList(e.target.value))} /></Field>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "6px 0 8px" }}>{T("인보이스 정보 (BILL TO)")}</div>
+      <Field label={T("청구 회사명")}><input style={inp} placeholder="Four Company Inc." value={f.billCompany ?? ""} onChange={(e) => up("billCompany", e.target.value)} /></Field>
+      <Field label={T("주소")}><input style={inp} placeholder="538, Eonju-ro, Gangnam-gu, Seoul, Korea 5F" value={f.billAddress ?? ""} onChange={(e) => up("billAddress", e.target.value)} /></Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label={T("전화")}><input style={inp} placeholder="070-4131-5906" value={f.billTel ?? ""} onChange={(e) => up("billTel", e.target.value)} /></Field>
+        <Field label={T("대표자/담당자")}><input style={inp} placeholder="Kim Minwoo" value={f.billRep ?? ""} onChange={(e) => up("billRep", e.target.value)} /></Field>
+      </div>
+      <Field label={T("사업자 등록번호")}><input style={inp} placeholder="232-88-00610" value={f.billRegNo ?? ""} onChange={(e) => up("billRegNo", e.target.value)} /></Field>
       <div style={{ fontSize: 12, color: "var(--faint)" }}>{T("도메인을 넣으면 해당 브랜드 담당자가 그 이메일로 가입/로그인 시 자동으로 이 브랜드에 매칭됩니다.")}</div>
     </Modal>
   );

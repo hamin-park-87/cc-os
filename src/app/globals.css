@@ -361,3 +361,10 @@
   .logoutbtn{margin-left:auto}
 
   @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+  /* 인보이스 인쇄: #invoice만 출력 */
+  @media print {
+    body * { visibility: hidden !important; }
+    #invoice, #invoice * { visibility: visible !important; }
+    #invoice { position: absolute !important; left: 0; top: 0; width: 100%; border: 0 !important; }
+  }

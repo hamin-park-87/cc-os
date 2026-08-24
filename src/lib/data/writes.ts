@@ -46,6 +46,8 @@ function brandRow(b: Brand) {
     code: b.code ?? null, name: b.name, color: b.color ?? null, aliases: b.aliases ?? [], domain_allowlist: b.domainAllowlist ?? [],
     contract_start: b.contractStart ?? null, contract_end: b.contractEnd ?? null,
     monthly_quota: b.monthlyQuota ?? null, monthly_amount: b.monthlyAmount ?? null,
+    bill_company: b.billCompany ?? null, bill_address: b.billAddress ?? null, bill_tel: b.billTel ?? null,
+    bill_rep: b.billRep ?? null, bill_reg_no: b.billRegNo ?? null,
   };
 }
 export async function saveBrand(b: Brand, isNew: boolean): Promise<Brand> {
