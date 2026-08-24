@@ -74,14 +74,14 @@ const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); retur
 const cmpCreatorByCode = (a: Creator, b: Creator) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
 const cmpNameByCode = (a: string, b: string) => codeRank(creatorCode(a)) - codeRank(creatorCode(b)) || a.localeCompare(b);
 
-export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
+export function AdminView({ pane, d, month }: { pane: string; d: Bundle; month: string }) {
   registerCreatorCodes(d.creators);
   if (pane === "a-matrix") {
     const active = d.creators.filter((c) => c.status === "active").length;
     const issues = d.creators.filter((c) => c.ig?.status === "expired" || c.ig?.status === "revoked").length;
-    const asg = d.assignments.filter((a) => a.yearMonth === "2026-08");
+    const asg = d.assignments.filter((a) => a.yearMonth === month);
     const totQ = asg.reduce((s, a) => s + a.quota, 0);
-    const totDone = asg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === "2026-08").length, 0);
+    const totDone = asg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === month).length, 0);
     const crs = [...new Set(asg.map((a) => a.creatorId))].sort(cmpNameByCode);
     const cellStyle = (r: number) => r >= 1 ? ["var(--success-weak)", "var(--success)"] : r > 0 ? ["var(--warning-weak)", "var(--warning)"] : ["var(--critical-weak)", "var(--critical)"];
     const sched = d.contents.filter((c) => c.status === "planned").sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
@@ -99,7 +99,7 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
             {crs.map((cName) => {
               const a = asg.find((x) => x.brandId === b && x.creatorId === cName);
               if (!a) return <td key={cName} className="mx" style={{ color: "var(--faint)" }}>·</td>;
-              const done = d.contents.filter((c) => c.brandId === b && c.creatorName === cName && c.status === "uploaded" && monthOf(c) === "2026-08").length;
+              const done = d.contents.filter((c) => c.brandId === b && c.creatorName === cName && c.status === "uploaded" && monthOf(c) === month).length;
               const [bg, fg] = cellStyle(a.quota ? done / a.quota : 0);
               return <td key={cName} className="mx"><span className="cell" style={{ background: bg, color: fg }}>{done}/{a.quota}</span></td>;
             })}
@@ -113,9 +113,9 @@ export function AdminView({ pane, d }: { pane: string; d: Bundle }) {
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
   if (pane === "a-brands") return <BrandAdmin d={d} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
-  if (pane === "a-assign") return <AssignEditor d={d} />;
+  if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
-  if (pane === "a-revenue") return <RevenueTable d={d} />;
+  if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} />;
   if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} />;
@@ -704,26 +704,29 @@ export function brandUnitPrice(brand: Brand | undefined): number {
 // 크리에이터 월 인건비: 기본보수(baseFee) 우선, 없으면 고정비(fixedCost)
 export const monthlyCost = (c: Creator): number => (c.baseFee != null ? c.baseFee : (c.fixedCost || 0));
 
-function RevenueTable({ d }: { d: Bundle }) {
+function RevenueTable({ d, month }: { d: Bundle; month: string }) {
   const [secReqs, setSecReqs] = useState<SecondaryReq[]>([]);
   useEffect(() => { getSecondaryRequests().then(setSecReqs).catch(() => setSecReqs([])); }, []);
+  const dealMonth = (x: Deal) => (x.uploadDate || x.dueDate || "").slice(0, 7);
+  const inMonth = (x: Deal) => !dealMonth(x) || dealMonth(x) === month; // 날짜 없으면 포함
   const secApproved = secReqs.filter((r) => r.status === "approved");
   const secByCreator = (name: string) => secApproved.filter((r) => r.creatorName === name).reduce((s, r) => s + r.fee, 0);
   const secFees = secApproved.reduce((s, r) => s + r.fee, 0);
-  const live = d.deals.filter((x) => x.step >= 4);
+  const live = d.deals.filter((x) => x.step >= 4 && inMonth(x));
   const comp = (x: Deal) => Math.round(x.fee * x.shareCompany / 100);
   const ah = live.filter((x) => x.type === "ahchannel").reduce((s, x) => s + comp(x), 0);
   const cr = live.filter((x) => x.type !== "ahchannel").reduce((s, x) => s + comp(x), 0);
   const unitOf = (brandName: string) => brandUnitPrice(d.brands.find((b) => b.name === brandName));
-  // ② 브랜드 월계약 = 브랜드별 월 계약금액 합 (단일 원본)
-  const brandRev = d.brands.reduce((s, b) => s + (b.monthlyAmount || 0), 0);
+  // ② 브랜드 월계약 = 이 달 계약기간 내 브랜드의 월 계약금액 합
+  const brandActive = (b: Brand) => (!b.contractStart || b.contractStart <= month) && (!b.contractEnd || b.contractEnd >= month);
+  const brandRev = d.brands.filter(brandActive).reduce((s, b) => s + (b.monthlyAmount || 0), 0);
   const fixed = d.creators.reduce((s, c) => s + monthlyCost(c), 0);
   const total = ah + brandRev + cr + secFees;
-  // 크리에이터별 기여
+  // 크리에이터별 기여 (이 달 배정 기준)
   const per = d.creators.map((c) => {
     const ds = live.filter((x) => x.creatorName === c.name);
     const prComp = ds.reduce((s, x) => s + comp(x), 0);
-    const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name).reduce((s, a) => s + a.quota * unitOf(a.brandId), 0);
+    const brandAlloc = d.assignments.filter((a) => a.creatorId === c.name && a.yearMonth === month).reduce((s, a) => s + a.quota * unitOf(a.brandId), 0);
     const sec = secByCreator(c.name);
     const cost = monthlyCost(c);
     return { name: c.name, prComp, brandAlloc, sec, fixed: cost, contrib: prComp + brandAlloc + sec - cost };
@@ -749,10 +752,9 @@ function RevenueTable({ d }: { d: Bundle }) {
 
 /* 배정 관리 (월 · 브랜드별 크리에이터 배분) */
 const ASSIGN_MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
-function AssignEditor({ d }: { d: Bundle }) {
+function AssignEditor({ d, month }: { d: Bundle; month: string }) {
   const [, setTick] = useState(0);
   const [brand, setBrand] = useState("abib");
-  const [month, setMonth] = useState("2026-08");
   const [sortBy, setSortBy] = useState<"code" | "name" | "assigned">("code");
   const [prods, setProds] = useState<BrandProduct[]>([]);
   const [pa, setPa] = useState<Record<string, number>>({}); // `${productId}|${creatorName}` → qty
@@ -800,7 +802,7 @@ function AssignEditor({ d }: { d: Bundle }) {
   return (<>
     <div className="filterbar">
       <select value={brand} onChange={(e) => setBrand(e.target.value)}>{(d.brands.length ? d.brands.map((x) => x.name) : ALL_BRANDS).map((b) => <option key={b} value={b}>{b}</option>)}</select>
-      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.replace("-", ". ")}</option>)}</select>
+      <span className="num" style={{ alignSelf: "center", color: "var(--faint)", fontSize: 12.5 }}>{month.slice(0, 4)}. {+month.slice(5)}{T("월")}</span>
       <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
         <option value="code">{T("번호순")}</option>
         <option value="name">{T("이름순")}</option>
@@ -1407,6 +1409,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
 /* ── BRAND ─────────────────────────────── */
 export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
   registerCreatorCodes(d.creators);
+  const month = "2026-08";
   const rows = d.contents.filter((c) => c.brandId === scope && c.status === "uploaded" && c.views > 0);
   if (pane === "b-dash") {
     const tv = rows.reduce((s, c) => s + c.views, 0), tr = rows.reduce((s, c) => s + c.reach, 0), ts = rows.reduce((s, c) => s + c.saves, 0);
@@ -1414,12 +1417,12 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
     const upcoming = d.contents.filter((c) => c.brandId === scope && c.status === "planned")
       .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     // 계약 진척 (배정 대비 완료)
-    const bAsg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === "2026-08");
+    const bAsg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === month);
     const bQ = bAsg.reduce((s, a) => s + a.quota, 0);
-    const bDone = bAsg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === scope && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === "2026-08").length, 0);
+    const bDone = bAsg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === scope && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === month).length, 0);
     const byCr: Record<string, number> = {};
     rows.forEach((c) => { byCr[c.creatorName] = (byCr[c.creatorName] ?? 0) + c.views; });
-    const sched = d.contents.filter((c) => c.brandId === scope && (c.status === "planned" || monthOf(c) === "2026-08")).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    const sched = d.contents.filter((c) => c.brandId === scope && (c.status === "planned" || monthOf(c) === month)).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     return (<>
       <div className="banner">{T("✦ 자동 수집 기준 · 확정 성과는 게시 후 D+7 스냅샷입니다. 실시간 값과 다를 수 있어요.")}</div>
       <div className="grid-kpi">
@@ -1704,13 +1707,14 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
 }
 
 function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
-  const asg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === "2026-08")
+  const month = "2026-08";
+  const asg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month)
     .map((a) => {
-      const done = d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === me && c.status === "uploaded" && monthOf(c) === "2026-08").length;
+      const done = d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === me && c.status === "uploaded" && monthOf(c) === month).length;
       return { brand: a.brandId, q: a.quota, done };
     });
   const totalQ = asg.reduce((s, a) => s + a.q, 0), totalDone = asg.reduce((s, a) => s + a.done, 0);
-  const sched = d.contents.filter((c) => c.creatorName === me && (c.status === "planned" || monthOf(c) === "2026-08"))
+  const sched = d.contents.filter((c) => c.creatorName === me && (c.status === "planned" || monthOf(c) === month))
     .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
   return (<>
     <div className="card pad" style={{ marginBottom: 18 }}>

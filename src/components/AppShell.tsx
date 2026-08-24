@@ -28,6 +28,7 @@ const NAV: Record<string, NavGroup[]> = {
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
+const MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
 const ROLE_LABEL: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터" };
 
 export function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
@@ -35,6 +36,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const [pane, setPane] = useState(flatNav(session.role)[0][0]);
   const [lang, setLang] = useState<Lang>("ko");
   const [theme, setTheme] = useState<string>("");
+  const [month, setMonth] = useState("2026-08");
 
   useEffect(() => {
     const api = getData();
@@ -89,14 +91,18 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
 
       <div className="main">
         <div className="topbar">
-          <div><h1>{t(currentLabel, lang)}</h1><div className="sub">2026-08 · {session.role === "admin" ? "81degree" : session.scope}</div></div>
+          <div><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {session.role === "admin" ? "81degree" : session.scope}</div></div>
           <div className="spacer" />
+          {session.role === "admin" && <select value={month} onChange={(e) => setMonth(e.target.value)}
+            style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
+            {MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{t("월", lang)}</option>)}
+          </select>}
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
           <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
         </div>
         <div className="content">
           {!d ? <div className="placeholder">불러오는 중…</div>
-            : session.role === "admin" ? <AdminView pane={pane} d={d} />
+            : session.role === "admin" ? <AdminView pane={pane} d={d} month={month} />
             : session.role === "brand" ? <BrandView pane={pane} d={d} scope={session.scope} />
             : <CreatorView pane={pane} d={d} scope={session.scope} />}
         </div>
