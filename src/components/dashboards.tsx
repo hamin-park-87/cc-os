@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Fragment } from "react";
 import type { Brand, BrandProduct, Creator, Content, Deal, Contract, Assignment } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
@@ -1048,10 +1048,18 @@ function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; cr
   const [addBrand, setAddBrand] = useState((brandName ?? d.brands[0]?.name) ?? "");
   const [addCreator, setAddCreator] = useState((creatorName ?? d.creators.find((c) => c.status === "active")?.name) ?? "");
   const [addProduct, setAddProduct] = useState("");
+  // 그룹: 크리에이터 필터 없으면 크리에이터별, 있으면 브랜드별
+  const groupByCreator = !creatorName;
   const items = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled"
     && (!creatorName || c.creatorName === creatorName)
     && (!brandName || c.brandName === brandName || c.brandId === brandName))
-    .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    .sort((a, b) => {
+      if (groupByCreator) { const cc = cmpNameByCode(a.creatorName, b.creatorName); if (cc) return cc; }
+      const bc = (a.brandName ?? "").localeCompare(b.brandName ?? ""); if (bc) return bc;
+      return (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999");
+    });
+  const showBrandCol = !brandName && groupByCreator;
+  const colSpan = 1 + (showBrandCol ? 1 : 0) + SCHED_STAGES.length + 1 + (readonly ? 0 : 1);
   function setDate(c: Content, stage: string, val: string) {
     c.sched = { ...c.sched, [stage]: val };
     if (stage === "upload") c.plannedDate = val;
@@ -1080,14 +1088,21 @@ function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; cr
     </div>}
     {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요.")}</div> :
       <div className="tablewrap"><table><thead><tr>
-        <th>{T("콘텐츠")}</th>{!brandName && <th>{T("브랜드")}</th>}{!creatorName && <th>{T("크리에이터")}</th>}
+        <th>{T("콘텐츠")}</th>{showBrandCol && <th>{T("브랜드")}</th>}
         {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th>{!readonly && <th></th>}
       </tr></thead><tbody>
-        {items.map((c) => (
-          <tr key={c.id}>
-            <td><b style={{ fontSize: 13 }}>{c.product}</b></td>
-            {!brandName && <td><span className="chip">{c.brandName}</span></td>}
-            {!creatorName && <td>{withCode(c.creatorName)}</td>}
+        {items.map((c, i) => {
+          const groupVal = groupByCreator ? c.creatorName : (c.brandName ?? "");
+          const prevVal = i > 0 ? (groupByCreator ? items[i - 1].creatorName : (items[i - 1].brandName ?? "")) : null;
+          const newGroup = groupVal !== prevVal;
+          return (<Fragment key={c.id}>
+          {newGroup && <tr><td colSpan={colSpan} style={{ background: "var(--surface-2)", fontWeight: 700, fontSize: 12.5, padding: "8px 10px" }}>
+            {groupByCreator ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={c.creatorName} size={22} radius={11} />{withCode(c.creatorName)}</span>
+              : <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[c.brandName ?? ""] ?? "var(--surface-3)" }} />{c.brandName}</span>}
+          </td></tr>}
+          <tr>
+            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{c.product}</b></td>
+            {showBrandCol && <td><span className="chip">{c.brandName}</span></td>}
             {SCHED_STAGES.map((s) => <td key={s.k}>
               {readonly ? <span className="num" style={{ color: c.sched[s.k as keyof typeof c.sched] ? "var(--ink)" : "var(--faint)" }}>{c.sched[s.k as keyof typeof c.sched] || "—"}</span>
                 : <input type="date" style={stIn} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onChange={(e) => setDate(c, s.k, e.target.value)} />}
@@ -1096,7 +1111,8 @@ function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; cr
               : <select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>}</td>
             {!readonly && <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button></td>}
           </tr>
-        ))}
+          </Fragment>);
+        })}
       </tbody></table></div>}
     <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>{T("기획·촬영·편집·업로드 일정을 입력하면 관리자·브랜드에게 공유됩니다.")}</div>
   </>);
