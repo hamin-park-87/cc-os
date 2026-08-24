@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/ig/cron", "schedule": "0 * * * *" }
+  ]
+}
