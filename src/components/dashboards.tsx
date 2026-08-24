@@ -112,7 +112,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
     );
   }
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
-  if (pane === "a-brands") return <BrandAdmin d={d} />;
+  if (pane === "a-brands") return <BrandAdmin d={d} month={month} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
   if (pane === "a-schedule") return <ScheduleEditor d={d} />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
@@ -338,11 +338,12 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
 }
 
 /* ── 브랜드 관리 ───── */
-function BrandAdmin({ d }: { d: Bundle }) {
+function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
   const [products, setProducts] = useState<Brand | null>(null);
   const [monthly, setMonthly] = useState<Brand | null>(null);
+  const [invoice, setInvoice] = useState<Brand | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<"code" | "name" | "period" | "amount">("code");
   const codeNum = (b: Brand) => { const m = b.code?.match(/\d+/); return m ? +m[0] : Infinity; };
@@ -374,6 +375,7 @@ function BrandAdmin({ d }: { d: Bundle }) {
         <option value="period">{T("계약기간순")}</option>
         <option value="amount">{T("월 계약금액순")}</option>
       </select>
+      <span className="num" style={{ alignSelf: "center", color: "var(--accent-ink)", fontSize: 12.5, fontWeight: 600 }}>{month.slice(0, 4)}. {+month.slice(5)}{T("월 기준")}</span>
       <span className="count">{list.length}{T("개")}</span>
     </div>
     {!list.length ? <div className="placeholder">{T("등록된 브랜드가 없어요. ‘+ 브랜드 추가’로 시작하세요.")}</div> :
@@ -381,27 +383,84 @@ function BrandAdmin({ d }: { d: Bundle }) {
         <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((b) => b.id)))} aria-label={T("전체 선택")} /></th>
         <th>{T("번호")}</th><th>{T("브랜드")}</th><th>{T("월 수량")}</th><th>{T("월 계약금액")}</th><th>{T("계약기간")}</th><th>{T("도메인")}</th><th></th>
       </tr></thead><tbody>
-        {list.map((b) => (
+        {list.map((b) => {
+          const mc = d.contracts.find((c) => c.brandId === b.name && c.yearMonth === month);
+          const inP = (!b.contractStart || b.contractStart <= month) && (!b.contractEnd || b.contractEnd >= month);
+          const mQuota = mc?.quota ?? (inP ? b.monthlyQuota : null);
+          const mAmount = mc?.monthlyAmount ?? (inP ? b.monthlyAmount : null);
+          return (
           <tr key={b.id} style={sel.has(b.id) ? { background: "var(--accent-weak)" } : undefined}>
             <td><input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`${b.name} ${T("선택")}`} /></td>
             <td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{b.code ?? "—"}</td>
             <td><span className="chip"><span className="sw" style={{ background: b.color ?? BRAND_COLOR[b.name] ?? "var(--surface-3)" }} /><b>{b.name}</b></span></td>
-            <td className="num">{b.monthlyQuota != null ? `${b.monthlyQuota}${T("건")}` : "—"}</td>
-            <td className="num">{b.monthlyAmount != null ? yen(b.monthlyAmount) : "—"}</td>
+            <td className="num">{mQuota != null ? `${mQuota}${T("건")}` : "—"}{mc && <span style={{ color: "var(--accent-ink)", fontSize: 10, marginLeft: 4 }}>●</span>}</td>
+            <td className="num">{mAmount != null ? yen(mAmount) : "—"}</td>
             <td className="num" style={{ color: "var(--muted)" }}>{period(b)}</td>
             <td style={{ color: "var(--muted)" }}>{b.domainAllowlist?.length ? b.domainAllowlist.join(", ") : "—"}</td>
             <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setInvoice(b)}>{T("인보이스")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setMonthly(b)}>{T("월별")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setProducts(b)}>{T("상품")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(b)}>{T("수정")}</button></td>
           </tr>
-        ))}
+        ); })}
       </tbody></table></div>}
     <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>{T("브랜드를 추가하면 배정 관리·PR 안건·계정 초대의 브랜드 선택에도 자동 반영됩니다. ‘상품’에서 월별 PR 상품 리스트를 관리하세요.")}</div>
     {edit !== undefined && <BrandEditModal brand={edit} all={d.brands} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
     {products && <BrandProductsModal brand={products} brands={d.brands} onClose={() => setProducts(null)} />}
     {monthly && <BrandMonthlyModal brand={monthly} d={d} onClose={() => setMonthly(null)} onSaved={() => setTick((t) => t + 1)} />}
+    {invoice && <BrandInvoiceModal brand={invoice} d={d} initialMonth={month} onClose={() => setInvoice(null)} />}
   </>);
+}
+
+function BrandInvoiceModal({ brand, d, initialMonth, onClose }: { brand: Brand; d: Bundle; initialMonth: string; onClose: () => void }) {
+  const [month, setMonth] = useState(initialMonth);
+  const [sec, setSec] = useState<SecondaryReq[]>([]);
+  useEffect(() => { getSecondaryRequests().then(setSec).catch(() => setSec([])); }, []);
+  // 월 계약 (월별 우선 → 브랜드 기본값)
+  const mc = d.contracts.find((c) => c.brandId === brand.name && c.yearMonth === month);
+  const inPeriod = (!brand.contractStart || brand.contractStart <= month) && (!brand.contractEnd || brand.contractEnd >= month);
+  const amount = mc?.monthlyAmount ?? (inPeriod ? (brand.monthlyAmount ?? 0) : 0);
+  const quota = mc?.quota ?? (inPeriod ? (brand.monthlyQuota ?? 0) : 0);
+  // 이 브랜드 승인 2차 활용 (해당 월 or 기간 미지정)
+  const secItems = sec.filter((r) => r.status === "approved" && r.brandName === brand.name
+    && (!r.periodStart || String(r.periodStart).slice(0, 7) === month));
+  const secTotal = secItems.reduce((s, r) => s + r.fee, 0);
+  const grand = amount + secTotal;
+  const no = `INV-${(brand.code ?? brand.name).replace(/\s/g, "")}-${month.replace("-", "")}`;
+  return (
+    <Modal title={T("브랜드 인보이스")} onClose={onClose} width={560}
+      footer={<><button className="btn" onClick={onClose}>{T("닫기")}</button><button className="btn acc" onClick={() => window.print()}>{T("인쇄 / PDF 저장")}</button></>}>
+      <div className="filterbar" style={{ marginBottom: 12 }}>
+        <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
+      </div>
+      <div id="invoice" style={{ border: "1px solid var(--border)", borderRadius: 12, padding: 24, background: "var(--surface)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+          <div><div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 22, color: "var(--accent)" }}>81&apos;DEGREE</div>
+            <div style={{ fontSize: 12, color: "var(--faint)" }}>81degree.inc</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 18 }}>{T("청구서 / INVOICE")}</div>
+            <div className="num" style={{ fontSize: 12, color: "var(--faint)" }}>{no}</div></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 18 }}>
+          <div><span style={{ color: "var(--faint)" }}>{T("To (의뢰사)")}</span><div style={{ fontWeight: 600 }}>{brand.name}</div></div>
+          <div><span style={{ color: "var(--faint)" }}>{T("청구 월")}</span><div className="num">{month.slice(0, 4)}. {+month.slice(5)}{T("월")}</div></div>
+        </div>
+        <table style={{ minWidth: 0 }}><thead><tr><th>{T("항목")}</th><th style={{ textAlign: "right" }}>{T("금액")}</th></tr></thead>
+          <tbody>
+            <tr><td>{month.slice(0, 4)}. {+month.slice(5)}{T("월")} {T("콘텐츠 월 계약")} ({quota}{T("건")})</td><td className="num" style={{ textAlign: "right" }}>{yen(amount)}</td></tr>
+            {secItems.map((r) => <tr key={r.id}><td>{T("2차 활용")} · {r.product} ({T(SECONDARY_SCOPE_LABEL[r.scope])})</td><td className="num" style={{ textAlign: "right" }}>{yen(r.fee)}</td></tr>)}
+          </tbody></table>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14, fontSize: 13 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("월 계약")}</span><span className="num">{yen(amount)}</span></div>
+          {secTotal > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("2차 활용 합계")}</span><span className="num">{yen(secTotal)}</span></div>}
+          <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 8, borderTop: "1px solid var(--border)" }}><b>{T("총 청구액")}</b><b className="num" style={{ fontSize: 16 }}>{yen(grand)}</b></div>
+        </div>
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)", fontSize: 11.5, color: "var(--faint)" }}>
+          {T("입금 계좌 / 문의:")} hmpark@81degree.com
+        </div>
+      </div>
+    </Modal>
+  );
 }
 
 function BrandMonthlyModal({ brand, d, onClose, onSaved }: { brand: Brand; d: Bundle; onClose: () => void; onSaved: () => void }) {
