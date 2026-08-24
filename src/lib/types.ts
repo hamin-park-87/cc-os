@@ -123,6 +123,7 @@ export interface Deal {
   type: DealType;
   brief?: string;
   fee: number;
+  secondaryFee?: number | null; // 2차 활용 비용
   shareCompany: number;
   shareCreator: number;
   dueDate?: string | null;

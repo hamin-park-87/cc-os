@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import type { Session } from "@/lib/auth/session";
 import { getData } from "@/lib/data";
-import { t, type Lang } from "@/lib/i18n";
+import { t, setCurrentLang, type Lang } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { AdminView, BrandView, CreatorView, type Bundle } from "./dashboards";
 
@@ -48,6 +48,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
     try { const th = localStorage.getItem("creatoros.theme"); if (th) { setTheme(th); document.documentElement.setAttribute("data-theme", th); } } catch { }
   }, []);
 
+  setCurrentLang(lang); // 렌더 시 전역 언어 반영 → 하위 트리의 T()가 현재 언어로 동작
   const groups = NAV[session.role];
   const currentLabel = flatNav(session.role).find((n) => n[0] === pane)?.[1] ?? "";
 

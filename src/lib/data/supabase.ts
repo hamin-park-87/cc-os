@@ -64,6 +64,7 @@ export const supabaseProvider: DataProvider = {
     return rows.map((r): Deal => ({
       id: r.id, code: r.code, title: r.title, client: r.client, creatorName: cName.get(r.creator_id) ?? "",
       manager: r.manager, source: r.source, type: r.type, brief: r.brief, fee: Number(r.fee ?? 0),
+      secondaryFee: r.secondary_fee != null ? Number(r.secondary_fee) : null,
       shareCompany: r.share_company, shareCreator: r.share_creator, dueDate: r.due_date, uploadDate: r.upload_date,
       step: r.step, contentId: r.content_id,
     }));

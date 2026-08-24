@@ -123,7 +123,7 @@ export async function setProductAssignment(productId: string, creatorName: strin
 function dealRow(d: Deal, creatorId: string | null) {
   return {
     code: d.code ?? null, title: d.title, client: d.client, creator_id: creatorId, manager: d.manager ?? null,
-    source: d.source, type: d.type, brief: d.brief ?? null, fee: d.fee,
+    source: d.source, type: d.type, brief: d.brief ?? null, fee: d.fee, secondary_fee: d.secondaryFee ?? null,
     share_company: d.shareCompany, share_creator: d.shareCreator,
     due_date: d.dueDate || null, upload_date: d.uploadDate || null, step: d.step,
   };
