@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster } from "@/lib/roles";
@@ -114,6 +114,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
   if (pane === "a-brands") return <BrandAdmin d={d} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
+  if (pane === "a-schedule") return <ScheduleEditor d={d} />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
@@ -930,6 +931,69 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
   </>);
 }
 
+/* 제작 일정 (기획/촬영/편집/업로드) — 관리자/크리에이터 편집, 브랜드 열람 */
+const SCHED_STAGES: { k: string; label: string }[] = [
+  { k: "plan", label: "기획" }, { k: "shoot", label: "촬영" }, { k: "edit", label: "편집" }, { k: "upload", label: "업로드" },
+];
+function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean }) {
+  const [, setTick] = useState(0);
+  const [addBrand, setAddBrand] = useState((brandName ?? d.brands[0]?.name) ?? "");
+  const [addCreator, setAddCreator] = useState((creatorName ?? d.creators.find((c) => c.status === "active")?.name) ?? "");
+  const [addProduct, setAddProduct] = useState("");
+  const items = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled"
+    && (!creatorName || c.creatorName === creatorName)
+    && (!brandName || c.brandName === brandName || c.brandId === brandName))
+    .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+  function setDate(c: Content, stage: string, val: string) {
+    c.sched = { ...c.sched, [stage]: val };
+    if (stage === "upload") c.plannedDate = val;
+    setTick((t) => t + 1);
+    updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { });
+  }
+  function setStatus(c: Content, st: string) { c.status = st as Content["status"]; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
+  async function add() {
+    const cn = creatorName ?? addCreator; const bn = brandName ?? addBrand;
+    if (!addProduct.trim() || !cn) return;
+    try { const c = await createPlannedContent(bn, cn, addProduct.trim(), d.brands, d.creators); d.contents.push(c); setAddProduct(""); setTick((t) => t + 1); }
+    catch (e) { alert(T("추가 실패: ") + (e as Error).message); }
+  }
+  async function del(c: Content) {
+    if (!confirm(`'${c.product}' ${T("일정을 삭제할까요?")}`)) return;
+    try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); }
+    catch (e) { alert(T("삭제 실패: ") + (e as Error).message); }
+  }
+  const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
+  return (<>
+    {!readonly && <div className="filterbar" style={{ flexWrap: "wrap" }}>
+      {!brandName && <select value={addBrand} onChange={(e) => setAddBrand(e.target.value)}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
+      {!creatorName && <select value={addCreator} onChange={(e) => setAddCreator(e.target.value)}>{d.creators.filter((c) => c.status === "active").sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
+      <input placeholder={T("콘텐츠명 (예: 신제품 릴스)")} value={addProduct} onChange={(e) => setAddProduct(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+      <button className="btn acc" onClick={add}>+ {T("일정 추가")}</button>
+    </div>}
+    {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요.")}</div> :
+      <div className="tablewrap"><table><thead><tr>
+        <th>{T("콘텐츠")}</th>{!brandName && <th>{T("브랜드")}</th>}{!creatorName && <th>{T("크리에이터")}</th>}
+        {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th>{!readonly && <th></th>}
+      </tr></thead><tbody>
+        {items.map((c) => (
+          <tr key={c.id}>
+            <td><b style={{ fontSize: 13 }}>{c.product}</b></td>
+            {!brandName && <td><span className="chip">{c.brandName}</span></td>}
+            {!creatorName && <td>{withCode(c.creatorName)}</td>}
+            {SCHED_STAGES.map((s) => <td key={s.k}>
+              {readonly ? <span className="num" style={{ color: c.sched[s.k as keyof typeof c.sched] ? "var(--ink)" : "var(--faint)" }}>{c.sched[s.k as keyof typeof c.sched] || "—"}</span>
+                : <input type="date" style={stIn} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onChange={(e) => setDate(c, s.k, e.target.value)} />}
+            </td>)}
+            <td>{readonly ? <span className={`pill ${c.status === "uploaded" ? "p-ok" : "p-plan"}`}><span className="d" />{c.status === "uploaded" ? T("업로드") : T("예정")}</span>
+              : <select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>}</td>
+            {!readonly && <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button></td>}
+          </tr>
+        ))}
+      </tbody></table></div>}
+    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>{T("기획·촬영·편집·업로드 일정을 입력하면 관리자·브랜드에게 공유됩니다.")}</div>
+  </>);
+}
+
 /* 비용 관리 (단가 · 고정비 편집) */
 function CostTable({ creators }: { creators: Creator[] }) {
   const [, setTick] = useState(0);
@@ -1523,6 +1587,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
   if (pane === "b-creators") return <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />;
   if (pane === "b-archive") return <ContentArchive contents={d.contents.filter((c) => c.brandId === scope)} showBrand={false} />;
   if (pane === "b-secondary") return <SecondaryView mode="brand" d={d} scope={scope} />;
+  if (pane === "b-schedule") return <ScheduleEditor d={d} brandName={scope} readonly />;
   return <Placeholder name={pane} />;
 }
 
@@ -1770,8 +1835,6 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
       return { brand: a.brandId, q: a.quota, done };
     });
   const totalQ = asg.reduce((s, a) => s + a.q, 0), totalDone = asg.reduce((s, a) => s + a.done, 0);
-  const sched = d.contents.filter((c) => c.creatorName === me && (c.status === "planned" || monthOf(c) === month))
-    .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
   return (<>
     <div className="card pad" style={{ marginBottom: 18 }}>
       <div className="ring-wrap" style={{ marginBottom: 6 }}>
@@ -1781,7 +1844,7 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
       </div>
     </div>
     <div className="sec-h"><h2>{T("제작 일정")}</h2><span className="hint">{T("기획·촬영·편집·업로드 예정일")}</span></div>
-    <ScheduleRows items={sched} />
+    <ScheduleEditor d={d} creatorName={me} />
     <div className="sec-h"><h2>{T("브랜드별 진행")}</h2></div>
     <div className="list card pad">
       {asg.map((a) => (<div className="li" key={a.brand}><Avatar name={a.brand!} size={34} radius={9} />
