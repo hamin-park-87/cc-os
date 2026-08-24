@@ -338,7 +338,8 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
 }
 
 /* ── 브랜드 관리 ───── */
-function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
+function BrandAdmin({ d, month: gMonth }: { d: Bundle; month: string }) {
+  const [month, setMonth] = useState(gMonth);
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
   const [products, setProducts] = useState<Brand | null>(null);
@@ -375,7 +376,7 @@ function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
         <option value="period">{T("계약기간순")}</option>
         <option value="amount">{T("월 계약금액순")}</option>
       </select>
-      <span className="num" style={{ alignSelf: "center", color: "var(--accent-ink)", fontSize: 12.5, fontWeight: 600 }}>{month.slice(0, 4)}. {+month.slice(5)}{T("월 기준")}</span>
+      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
       <span className="count">{list.length}{T("개")}</span>
     </div>
     {!list.length ? <div className="placeholder">{T("등록된 브랜드가 없어요. ‘+ 브랜드 추가’로 시작하세요.")}</div> :
