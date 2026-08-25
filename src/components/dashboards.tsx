@@ -1998,6 +1998,7 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
 function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
   const [month, setMonth] = useState("2026-08");
   const [fCreator, setFCreator] = useState("");
+  const [detail, setDetail] = useState<Creator | null>(null);
   const mine = d.contents.filter((c) => c.brandId === scope || c.brandName === scope);
   const asg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === month);
   let names = [...new Set([...asg.map((a) => a.creatorId), ...mine.filter((c) => monthOf(c) === month || c.status === "planned").map((c) => c.creatorName)])];
@@ -2029,6 +2030,7 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
                 <Avatar name={name} size={38} radius={10} />
                 <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>{withCode(name)}</div>
                   <div style={{ color: "var(--faint)", fontSize: 12 }}>{T("배정")} {q}{T("건")} · {T("완료")} {done}{T("건")}</div></div>
+                <button className="btn sm" onClick={() => { const cr = d.creators.find((x) => x.name === name); if (cr) setDetail(cr); }}>{T("프로필")}</button>
                 <span className={`pill ${done >= q && q > 0 ? "p-ok" : "p-plan"}`}><span className="d" />{done >= q && q > 0 ? T("완료") : T("진행중")}</span>
               </div>
               {!items.length ? <div className="note">{T("등록된 콘텐츠가 없어요.")}</div> :
@@ -2056,6 +2058,7 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
           );
         })}
       </div>}
+    {detail && <CreatorPublicModal creator={detail} contents={d.contents.filter((c) => c.creatorName === detail.name)} onClose={() => setDetail(null)} />}
   </>);
 }
 
