@@ -2093,6 +2093,24 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
   registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
+  // 마감 임박/지연 리마인드 (인앱)
+  const dU = (ds?: string | null) => ds ? Math.round((new Date(ds).getTime() - Date.now()) / 86400000) : null;
+  const rem: { label: string; du: number }[] = [];
+  d.deals.filter((x) => x.creatorName === me && x.step < 5).forEach((x) => { const du = dU(x.dueDate); if (du != null && du <= 3) rem.push({ label: `PR ${x.title}`, du }); });
+  mine.filter((c) => c.kind === "pr" && c.status === "planned").forEach((c) => { const du = dU(c.sched?.upload); if (du != null && du <= 3) rem.push({ label: c.product, du }); });
+  rem.sort((a, b) => a.du - b.du);
+  const remBanner = rem.length ? (
+    <div style={{ padding: "12px 14px", borderRadius: 11, background: "var(--critical-weak)", borderLeft: "3px solid var(--critical)", marginBottom: 18 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--critical)", marginBottom: 6 }}>⏰ {T("마감 임박·지연 알림")} ({rem.length})</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        {rem.slice(0, 6).map((r, i) => <div key={i} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between" }}>
+          <span>{r.label}</span>
+          <b style={{ color: r.du < 0 ? "var(--critical)" : "var(--warning)" }}>{r.du < 0 ? `${T("납기 경과")} ${-r.du}${T("일")}` : r.du === 0 ? T("오늘 마감") : `D-${r.du}`}</b>
+        </div>)}
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘이번 달 할 일’에서 일정을 확인하고 업로드를 완료하세요.")}</div>
+    </div>
+  ) : null;
   if (pane === "c-growth") {
     const cr = d.creators.find((x) => x.name === me)!;
     const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
@@ -2102,6 +2120,7 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
     const ups2 = mine.filter((c) => c.status === "uploaded" && c.views > 0);
     const avgSave = ups2.length ? (ups2.reduce((s, c) => s + (c.saves / c.views * 100), 0) / ups2.length).toFixed(1) : "0";
     return (<>
+      {remBanner}
       <div className="grid-kpi">
         <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} spark={series.map((v) => v / 1000)} />
         <Kpi lab={T("이번 달 조회")} val={fmt(monthViews)} />
@@ -2147,7 +2166,7 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
   }
   if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
-  if (pane === "c-todo") return <CreatorTodo d={d} me={me} />;
+  if (pane === "c-todo") return (<>{remBanner}<CreatorTodo d={d} me={me} /></>);
   return <Placeholder name={pane} />;
 }
 
