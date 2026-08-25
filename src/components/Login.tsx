@@ -69,14 +69,6 @@ export function Login({ onDemoLogin }: { onDemoLogin: (s: Session) => void }) {
           </>
         )}
         {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
-        <div className="quick">
-          <div className="qlabel">데모 빠른 로그인 {real && "(임시 · anon 조회)"}</div>
-          <div className="qrow">
-            <button onClick={() => demo("hmpark@81degree.com")}>관리자<small>81degree</small></button>
-            <button onClick={() => demo("marketing@abib.com")}>브랜드<small>abib</small></button>
-            <button onClick={() => demo("hina.creator@gmail.com")}>크리에이터<small>hina</small></button>
-          </div>
-        </div>
       </div>
     </div>
   );
