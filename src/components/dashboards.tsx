@@ -5,7 +5,7 @@ import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
 import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./charts";
-import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
+import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent, uploadAttachment } from "@/lib/data/writes";
@@ -798,7 +798,7 @@ function ConnTable({ creators }: { creators: Creator[] }) {
       {list.map((c) => {
         const s = c.ig?.status;
         const [cls, lab] = s === "active" ? ["p-ok", T("연동됨")] : s === "expired" ? ["p-warn", T("토큰 만료")] : s === "revoked" ? ["p-plan", T("연동 해제")] : ["p-plan", T("미연동")];
-        const synced = c.ig?.lastSyncedAt ? String(c.ig.lastSyncedAt).slice(0, 16).replace("T", " ") : null;
+        const synced = localDT(c.ig?.lastSyncedAt);
         return (<tr key={c.id}><td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{c.code ?? "—"}</td><td><b>{c.name}</b></td><td className="num" style={{ color: "var(--muted)" }}>{c.handle}</td>
           <td className="num" style={{ color: "var(--muted)" }}>{c.ig?.linkedAt ? String(c.ig.linkedAt).slice(0, 10) : "—"}</td>
           <td className="num" style={{ color: synced ? "var(--accent-ink)" : "var(--faint)" }}>{synced ? `✓ ${synced}` : "—"}</td>
@@ -1287,7 +1287,7 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
           <td><b>{displayId(a.email)}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
           <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
-          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 16).replace("T", " ") : T("로그인 기록 없음")}</td>
+          <td className="num" style={{ color: "var(--muted)" }}>{localDT(a.lastLogin) ?? T("로그인 기록 없음")}</td>
           <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setPwTarget(a)}>{T("비번 변경")}</button></td></tr>
       ))}
     </tbody></table></div>

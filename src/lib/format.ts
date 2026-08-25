@@ -7,6 +7,12 @@ export const yen = (n: number) => "¥" + fmt(Math.round(n));
 export const engRate = (c: Content) =>
   c.views ? (((c.likes + c.comments + c.saves + c.shares) / c.views) * 100).toFixed(1) + "%" : "—";
 export const monthOf = (c: Content) => (c.publishedAt ? c.publishedAt.slice(0, 7) : null);
+// UTC ISO → 뷰어 로컬 시각 "YYYY-MM-DD HH:mm"
+export const localDT = (iso?: string | null): string | null => {
+  if (!iso) return null;
+  try { return new Date(iso).toLocaleString("sv-SE").slice(0, 16); }
+  catch { return String(iso).slice(0, 16).replace("T", " "); }
+};
 export const CREATOR_STATUS_LABEL: Record<string, string> = {
   active: "활동중", preparing: "계약준비", on_hold: "보류",
 };
