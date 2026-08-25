@@ -2171,29 +2171,63 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
 }
 
 function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
-  const month = "2026-08";
-  const asg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month)
-    .map((a) => {
-      const done = d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === me && c.status === "uploaded" && monthOf(c) === month).length;
-      return { brand: a.brandId, q: a.quota, done };
-    });
-  const totalQ = asg.reduce((s, a) => s + a.q, 0), totalDone = asg.reduce((s, a) => s + a.done, 0);
+  const [month, setMonth] = useState("2026-08");
+  const [, setTick] = useState(0);
+  const brandsAsg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month);
+  const myContentsFor = (brand: string) => d.contents.filter((c) => c.creatorName === me && (c.brandName === brand || c.brandId === brand) && (monthOf(c) === month || c.status === "planned"));
+  const totalQ = brandsAsg.reduce((s, a) => s + a.quota, 0);
+  const totalDone = d.contents.filter((c) => c.creatorName === me && c.status === "uploaded" && monthOf(c) === month && c.kind === "pr").length;
+  const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
+  function setDate(c: Content, stage: string, val: string) { c.sched = { ...c.sched, [stage]: val }; if (stage === "upload") c.plannedDate = val; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { }); }
+  function setStatus(c: Content, st: string) { c.status = st as Content["status"]; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
+  async function genShort(brand: string, qty: number) {
+    const items = myContentsFor(brand);
+    try { for (let i = items.length; i < qty; i++) { const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${i + 1}`, d.brands, d.creators); d.contents.push(nc); } setTick((t) => t + 1); }
+    catch (e) { alert(T("생성 실패: ") + (e as Error).message); }
+  }
+  async function addOne(brand: string) { try { const items = myContentsFor(brand); const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${items.length + 1}`, d.brands, d.creators); d.contents.push(nc); setTick((t) => t + 1); } catch (e) { alert(T("생성 실패: ") + (e as Error).message); } }
+  async function del(c: Content) { if (!confirm(`'${c.product}' ${T("삭제할까요?")}`)) return; try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); } }
   return (<>
+    <div className="filterbar" style={{ marginBottom: 14 }}>
+      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
+    </div>
     <div className="card pad" style={{ marginBottom: 18 }}>
       <div className="ring-wrap" style={{ marginBottom: 6 }}>
         <Ring p={totalQ ? Math.round(totalDone / totalQ * 100) : 0} label={`${totalDone}/${totalQ}`} />
         <div><div style={{ fontWeight: 600, fontSize: 15 }}>{T("이번 달 배정")} {totalQ}{T("건 중")} {totalDone}{T("건 완료")}</div>
-          <div className="note">{T("남은")} {Math.max(0, totalQ - totalDone)}{T("건 · 관리자가 배정한 브랜드별 편수")}</div></div>
+          <div className="note">{T("남은")} {Math.max(0, totalQ - totalDone)}{T("건 · 아래 브랜드별로 기획→촬영→편집→업로드를 진행하세요")}</div></div>
       </div>
     </div>
-    <div className="sec-h"><h2>{T("제작 일정")}</h2><span className="hint">{T("기획·촬영·편집·업로드 예정일")}</span></div>
-    <ScheduleEditor d={d} creatorName={me} />
-    <div className="sec-h"><h2>{T("브랜드별 진행")}</h2></div>
-    <div className="list card pad">
-      {asg.map((a) => (<div className="li" key={a.brand}><Avatar name={a.brand!} size={34} radius={9} />
-        <div className="main"><div className="t">{a.brand}</div><div className="s">{a.done}/{a.q} {T("완료")}</div></div>
-        <div className="r"><span className={`pill ${a.done >= a.q ? "p-ok" : "p-plan"}`}><span className="d" />{a.done >= a.q ? T("완료") : T("진행중")}</span></div></div>))}
-    </div>
+    {!brandsAsg.length ? <div className="placeholder">{T("이 달 배정된 브랜드가 없어요.")}</div> :
+      brandsAsg.map((a) => {
+        const brand = a.brandId; const items = myContentsFor(brand);
+        const done = items.filter((c) => c.status === "uploaded").length;
+        const short = a.quota - items.length;
+        return (
+          <div key={brand} className="card pad" style={{ marginBottom: 14 }}>
+            <div className="sec-h" style={{ margin: "0 0 12px" }}>
+              <h2><span className="chip" style={{ marginRight: 8 }}><span className="sw" style={{ background: BRAND_COLOR[brand] ?? "var(--surface-3)" }} />{brand}</span>{T("배정")} {a.quota}{T("건")} · {T("완료")} {done}{T("건")}</h2>
+              <span style={{ display: "flex", gap: 6 }}>
+                {short > 0 && <button className="btn acc sm" onClick={() => genShort(brand, a.quota)}>{T("부족분")} {short}{T("건 일정 만들기")}</button>}
+                <button className="btn sm" onClick={() => addOne(brand)}>+ {T("추가")}</button>
+              </span>
+            </div>
+            {!items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 만들기’로 시작하세요.")}</div> :
+              <div className="tablewrap"><table><thead><tr>
+                <th>{T("콘텐츠")}</th>{SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th></th>
+              </tr></thead><tbody>
+                {items.map((c) => (
+                  <tr key={c.id}>
+                    <td><b style={{ fontSize: 13 }}>{c.product}</b></td>
+                    {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={stIn} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
+                    <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
+                    <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button></td>
+                  </tr>
+                ))}
+              </tbody></table></div>}
+          </div>
+        );
+      })}
   </>);
 }
 
