@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent, uploadAttachment } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
@@ -1137,7 +1137,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; cr
             {showBrandCol && <td><span className="chip">{c.brandName}</span></td>}
             {SCHED_STAGES.map((s) => <td key={s.k}>
               {readonly ? <span className="num" style={{ color: c.sched[s.k as keyof typeof c.sched] ? "var(--ink)" : "var(--faint)" }}>{c.sched[s.k as keyof typeof c.sched] || "—"}</span>
-                : <input type="date" style={stIn} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onChange={(e) => setDate(c, s.k, e.target.value)} />}
+                : <input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } }} onChange={(e) => setDate(c, s.k, e.target.value)} />}
             </td>)}
             <td>{readonly ? <span className={`pill ${c.status === "uploaded" ? "p-ok" : "p-plan"}`}><span className="d" />{c.status === "uploaded" ? T("업로드") : T("예정")}</span>
               : <select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>}</td>
@@ -2299,6 +2299,8 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
   function setDate(c: Content, stage: string, val: string) { c.sched = { ...c.sched, [stage]: val }; if (stage === "upload") c.plannedDate = val; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { }); }
   function setStatus(c: Content, st: string) { c.status = st as Content["status"]; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
+  function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); patchContentFields(c.id, { permalink: val || null }).catch(() => { }); }
+  const openCal = (e: React.MouseEvent<HTMLInputElement>) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } };
   async function genShort(brand: string, qty: number) {
     const items = myContentsFor(brand);
     try { for (let i = items.length; i < qty; i++) { const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${i + 1}`, d.brands, d.creators); d.contents.push(nc); } setTick((t) => t + 1); }
@@ -2337,8 +2339,14 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
               </tr></thead><tbody>
                 {items.map((c) => (
                   <tr key={c.id}>
-                    <td><b style={{ fontSize: 13 }}>{c.product}</b></td>
-                    {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={stIn} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
+                    <td style={{ minWidth: 200 }}>
+                      <b style={{ fontSize: 13 }}>{c.product}</b>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 5 }}>
+                        <input style={{ ...stIn, flex: 1, minWidth: 130 }} placeholder={T("업로드 URL 입력")} value={c.permalink ?? ""} onChange={(e) => setUrl(c, e.target.value)} />
+                        {c.permalink && <a className="btn" style={{ padding: "5px 8px", fontSize: 11 }} href={c.permalink} target="_blank" rel="noopener">{T("열기")}</a>}
+                      </div>
+                    </td>
+                    {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
                     <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
                     <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button></td>
                   </tr>
