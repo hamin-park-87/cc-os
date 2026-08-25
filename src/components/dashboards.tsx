@@ -41,7 +41,6 @@ const md = (dt?: string) => dt ? `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}` : "—
 function Ring({ p, label }: { p: number; label: string }) {
   return <div className="ring" style={{ ["--p" as string]: p }}><b>{label}</b></div>;
 }
-const SPK = { views: [62, 58, 70, 66, 80, 88, 120], reach: [40, 52, 48, 60, 58, 72, 86], eng: [21, 24, 22, 26, 25, 28, 29], save: [120, 140, 130, 180, 210, 260, 311], fol: [131, 132, 133, 135, 136, 138, 140] };
 
 const STAGES: [keyof Content["sched"], string][] = [["plan", T("기획")], ["shoot", T("촬영")], ["edit", T("편집")], ["upload", T("업로드")]];
 function ScheduleRows({ items }: { items: Content[] }) {
@@ -89,7 +88,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
     return (
       <>
         <div className="grid-kpi">
-          <Kpi lab={T("전체 이행률")} val={totQ ? Math.round(totDone / totQ * 100) : 0} unit="%" spark={[48, 52, 55, 58, 60, 62, 63]} />
+          <Kpi lab={T("전체 이행률")} val={totQ ? Math.round(totDone / totQ * 100) : 0} unit="%" />
           <Kpi lab={T("활성 크리에이터")} val={active} unit={T("명")} />
           <Kpi lab={T("진행 PR 안건")} val={d.deals.length} unit={T("건")} />
           <Kpi lab={T("연동 이슈")} val={issues} unit={T("계정")} />
@@ -274,7 +273,7 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
     else if (pct >= 15) cards.push({ t: T("안정적 성장"), s: `+${pct.toFixed(0)}${T("% 성장. 업로드 빈도를 늘리면 곡선을 끌어올릴 수 있습니다.")}` });
     else cards.push({ t: T("성장 정체"), s: `+${pct.toFixed(0)}${T("%. 새 훅·주제 실험, 트렌드 오디오 활용 권장.")}` });
     if (ups.length) { const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0]; cards.push({ t: T("베스트 콘텐츠"), s: `'${best.product}'${T("가 참여율")} ${engRate(best)}${T("로 최고. 유사 포맷 반복 추천.")}` }); }
-    cards.push({ t: T("오디언스 제안"), s: `${T("주 시청층 여성")} ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} ${T("중심. 해당 층 주제 강화.")}` });
+    if (aud.female >= 0 && aud.regions.length) cards.push({ t: T("오디언스 제안"), s: `${T("주 시청층 여성")} ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} ${T("중심. 해당 층 주제 강화.")}` });
     setAi(cards);
   }
   return (
@@ -1169,7 +1168,7 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
     else if (pct >= 15) cards.push({ t: T("안정적 성장"), s: `+${pct.toFixed(0)}${T("% 성장. 업로드 빈도를 늘리면 곡선을 끌어올릴 수 있습니다.")}` });
     else cards.push({ t: T("성장 정체"), s: `+${pct.toFixed(0)}${T("%. 새 훅·주제 실험, 트렌드 오디오 활용 권장.")}` });
     if (ups.length) { const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0]; cards.push({ t: T("베스트 콘텐츠"), s: `‘${best.product}’${T("가 참여율")} ${engRate(best)}${T("로 최고. 유사 포맷 반복 추천.")}` }); }
-    cards.push({ t: T("오디언스 제안"), s: `${T("주 시청층 여성")} ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} ${T("중심. 해당 층 주제 강화.")}` });
+    if (aud.female >= 0 && aud.regions.length) cards.push({ t: T("오디언스 제안"), s: `${T("주 시청층 여성")} ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} ${T("중심. 해당 층 주제 강화.")}` });
     setAi(cards);
   }
   return (<>
@@ -1182,9 +1181,11 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
     <div className="two">
       <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle} · {T("최근 12주")}</span></div><div style={{ marginTop: 8 }}><Spark data={series} /></div></div>
       <div className="card pad"><div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스")}</h2></div>
-        <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} /><div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div><div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div></div>
-        <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
-        <Bars items={aud.ages} />
+        {aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
+          <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} /><div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div><div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div></div>
+          <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
+          <Bars items={aud.ages} />
+        </>}
       </div>
     </div>
     <div className="card pad" style={{ marginTop: 18 }}>
@@ -1735,10 +1736,10 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
     return (<>
       <div className="banner">{T("✦ 자동 수집 기준 · 확정 성과는 게시 후 D+7 스냅샷입니다. 실시간 값과 다를 수 있어요.")}</div>
       <div className="grid-kpi">
-        <Kpi lab={T("총 조회수")} val={fmt(tv)} delta={T("18.2% vs 지난달")} dir="up" spark={SPK.views} />
-        <Kpi lab={T("총 도달")} val={fmt(tr)} delta="12.4%" dir="up" spark={SPK.reach} />
-        <Kpi lab={T("평균 참여율")} val={engAvg} unit="%" delta="0.3%p" dir="up" spark={SPK.eng} />
-        <Kpi lab={T("저장 합계")} val={fmt(ts)} spark={SPK.save} />
+        <Kpi lab={T("총 조회수")} val={fmt(tv)} />
+        <Kpi lab={T("총 도달")} val={fmt(tr)} />
+        <Kpi lab={T("평균 참여율")} val={engAvg} unit="%" />
+        <Kpi lab={T("저장 합계")} val={fmt(ts)} />
       </div>
       <div className="two">
         <div className="card pad">
@@ -1963,12 +1964,14 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
     const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
     const series = growthSeries(me, cr?.followers ?? 0);
     const aud = audienceOf(me);
-    const maxAge = Math.max(...aud.ages.map((a) => a[1]));
+    const maxAge = Math.max(1, ...aud.ages.map((a) => a[1]));
+    const ups2 = mine.filter((c) => c.status === "uploaded" && c.views > 0);
+    const avgSave = ups2.length ? (ups2.reduce((s, c) => s + (c.saves / c.views * 100), 0) / ups2.length).toFixed(1) : "0";
     return (<>
       <div className="grid-kpi">
-        <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} delta={`+${fmt(series[series.length - 1] - series[series.length - 4])} ${T("(30일)")}`} dir="up" spark={SPK.fol} />
-        <Kpi lab={T("이번 달 조회")} val={fmt(monthViews)} delta="24%" dir="up" spark={SPK.views} />
-        <Kpi lab={T("평균 저장률")} val="1.9" unit="%" delta="0.2%p" dir="up" spark={[1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.9]} />
+        <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} spark={series.map((v) => v / 1000)} />
+        <Kpi lab={T("이번 달 조회")} val={fmt(monthViews)} />
+        <Kpi lab={T("평균 저장률")} val={avgSave} unit="%" />
         <Kpi lab={T("업로드")} val={mine.filter((c) => c.status === "uploaded").length} unit={T("건")} />
       </div>
       <div className="two">
@@ -1978,17 +1981,15 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
         </div>
         <div className="card pad">
           <div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스 · 성별")}</h2></div>
-          <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} />
-            <div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div>
-              <div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div>
-          </div>
-          <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
-          <div className="bars">{aud.ages.map(([l, v]) => (<div className="bar" key={l}><span>{l}</span><div className="track"><div className="fill" style={{ width: `${v / maxAge * 100}%` }} /></div><span className="pct">{v}%</span></div>))}</div>
+          {aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
+            <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} />
+              <div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div>
+                <div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div>
+            </div>
+            <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
+            <div className="bars">{aud.ages.map(([l, v]) => (<div className="bar" key={l}><span>{l}</span><div className="track"><div className="fill" style={{ width: `${v / maxAge * 100}%` }} /></div><span className="pct">{v}%</span></div>))}</div>
+          </>}
         </div>
-      </div>
-      <div className="card pad" style={{ marginTop: 18 }}>
-        <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>{T("주요 지역")}</h2></div>
-        <div className="row">{aud.regions.map(([r, v]) => (<span className="chip" key={r}><span className="sw" style={{ background: "var(--accent)" }} />{r} {v}%</span>))}</div>
       </div>
       <div className="sec-h"><h2>{T("내 콘텐츠 아카이브")}</h2><span className="hint">{T("최근 게시물 · 클릭하면 재생")}</span></div>
       <ContentArchive contents={mine} showCreator={false} showBrand={false} />

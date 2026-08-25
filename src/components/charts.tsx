@@ -64,19 +64,12 @@ export function Bars({ items }: { items: [string, number][] }) {
 }
 
 // 이름 기반 결정적 성장 시계열/오디언스 (프로토타입과 동일 로직)
-export function growthSeries(name: string, followers: number): number[] {
-  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h); h = Math.abs(h);
-  const rate = 0.03 + (h % 9) / 100;
-  const arr: number[] = []; let v = followers;
-  for (let i = 0; i < 13; i++) { arr.unshift(Math.round(v)); v = v / (1 + rate / 4); }
-  return arr;
+// 실데이터 전용: 팔로워 시계열 스냅샷이 없으므로 현재값으로 평탄 (가짜 성장 곡선 제거)
+export function growthSeries(_name: string, followers: number): number[] {
+  return Array(13).fill(Math.round(followers || 0));
 }
-export function audienceOf(name: string) {
-  let h = 0; for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h); h = Math.abs(h);
-  const female = Math.min(93, 52 + h % 38);
-  let a = [4 + h % 5, 28 + h % 14, 32 + (h >> 2) % 14, 11 + (h >> 3) % 8, 3 + (h >> 4) % 5];
-  const sum = a.reduce((x, y) => x + y, 0); a = a.map((v) => Math.round(v / sum * 100));
-  const ages: [string, number][] = [["13–17", a[0]], ["18–24", a[1]], ["25–34", a[2]], ["35–44", a[3]], ["45+", a[4]]];
-  const regions: [string, number][] = [["도쿄", 20 + h % 18], ["오사카", 12 + (h >> 1) % 9], ["서울", 6 + (h >> 2) % 9], ["후쿠오카", 5 + (h >> 3) % 5], ["나고야", 4 + (h >> 4) % 4]];
-  return { female, ages, regions };
+// 오디언스: Instagram 인사이트 연동 전에는 빈 값 (가짜 데이터 제거). female<0 = 데이터 없음.
+export function audienceOf(_name: string) {
+  const ages: [string, number][] = [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]];
+  return { female: -1, ages, regions: [] as [string, number][] };
 }
