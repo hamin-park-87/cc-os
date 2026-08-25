@@ -1810,7 +1810,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
   }
   if (pane === "b-roster") return <CreatorDirectory creators={d.creators.filter((c) => c.status === "active")} allContents={d.contents} />;
   if (pane === "b-creators") return <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />;
-  if (pane === "b-archive") return <ContentArchive contents={d.contents.filter((c) => c.brandId === scope)} showBrand={false} />;
+  if (pane === "b-archive") return <RemoteContentArchive />;
   if (pane === "b-secondary") return <SecondaryView mode="brand" d={d} scope={scope} />;
   if (pane === "b-assign") return <BrandAssignView d={d} scope={scope} />;
   if (pane === "b-schedule") return <ScheduleEditor d={d} brandName={scope} readonly />;
@@ -2065,8 +2065,38 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
   </>);
 }
 
+// 서버(포트폴리오 API)로 연동 콘텐츠를 불러와 아카이브 표시 — 브랜드도 크리에이터 콘텐츠 열람 가능
+function RemoteContentArchive({ name, showCreator = true, showBrand = true }: { name?: string; showCreator?: boolean; showBrand?: boolean }) {
+  const [rows, setRows] = useState<Content[] | null>(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await getSupabase().auth.getSession();
+        if (!session) { setRows([]); return; }
+        const res = await fetch(`/api/creator/portfolio${name ? `?name=${encodeURIComponent(name)}` : ""}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const j = await res.json().catch(() => ({ rows: [] }));
+        setRows(j.rows ?? []);
+      } catch { setRows([]); }
+    })();
+  }, [name]);
+  if (rows === null) return <div className="placeholder">{T("불러오는 중…")}</div>;
+  return <ContentArchive contents={rows} showCreator={showCreator} showBrand={showBrand} />;
+}
+
 // 브랜드/외부용 크리에이터 상세 (PII 제외 — 프로필·인게이지먼트·콘텐츠)
-function CreatorPublicModal({ creator: c, contents, onClose }: { creator: Creator; contents: Content[]; onClose: () => void }) {
+function CreatorPublicModal({ creator: c, onClose }: { creator: Creator; contents?: Content[]; onClose: () => void }) {
+  const [contents, setContents] = useState<Content[]>([]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { session } } = await getSupabase().auth.getSession();
+        if (!session) return;
+        const res = await fetch(`/api/creator/portfolio?name=${encodeURIComponent(c.name)}`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const j = await res.json().catch(() => ({ rows: [] }));
+        setContents(j.rows ?? []);
+      } catch { /* ignore */ }
+    })();
+  }, [c.name]);
   const ups = contents.filter((x) => x.status === "uploaded" && x.views > 0);
   const totalViews = ups.reduce((s, x) => s + x.views, 0);
   const avgEng = ups.length ? (ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length).toFixed(1) : "0";
