@@ -1207,6 +1207,7 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [fRole, setFRole] = useState("");
+  const [pwTarget, setPwTarget] = useState<AccountRow | null>(null);
   const load = useCallback(async () => {
     if (!supabaseConfigured()) { setRows(ACCOUNTS.map((a, i) => ({ id: String(i), email: a.email, role: a.role, scope: a.scope, status: a.status, lastLogin: a.lastLogin }))); return; }
     try {
@@ -1254,7 +1255,7 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
     </div>
     <div className="tablewrap"><table><thead><tr>
       {master && <th style={{ width: 34 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every((a) => sel.has(a.id))} onChange={() => { const all = filtered.every((a) => sel.has(a.id)); setSel(all ? new Set() : new Set(filtered.map((a) => a.id))); }} aria-label={T("전체 선택")} /></th>}
-      <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th>
+      <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th><th></th>
     </tr></thead><tbody>
       {filtered.map((a) => (
         <tr key={a.id} style={master && sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
@@ -1262,12 +1263,14 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
           <td><b>{displayId(a.email)}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
           <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
-          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 16).replace("T", " ") : T("로그인 기록 없음")}</td></tr>
+          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 16).replace("T", " ") : T("로그인 기록 없음")}</td>
+          <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setPwTarget(a)}>{T("비번 변경")}</button></td></tr>
       ))}
     </tbody></table></div>
     {!filtered.length && <div className="placeholder">{T("등록된 계정이 없어요.")}</div>}
     {invite && <InviteModal creators={creators} brands={brands} canMakeAdmin={master} onClose={() => setInvite(false)} onSaved={() => { setInvite(false); load(); }} />}
     {bulk && <BulkAccountModal creators={creators} brands={brands} canMakeAdmin={master} onClose={() => setBulk(false)} onSaved={load} />}
+    {pwTarget && <PasswordModal account={pwTarget} onClose={() => setPwTarget(null)} />}
   </>);
 }
 
@@ -1302,6 +1305,44 @@ function BulkAccountModal({ creators, brands, canMakeAdmin, onClose, onSaved }: 
         value={text} onChange={(e) => setText(e.target.value)} />
       <div className="note" style={{ marginTop: 8 }}>{T("인식된 행:")} <b className="num">{valid.length}</b></div>
       {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
+    </Modal>
+  );
+}
+
+function PasswordModal({ account, onClose }: { account: AccountRow; onClose: () => void }) {
+  const [pw, setPw] = useState(genPassword());
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState(""); const [ok, setOk] = useState(false);
+  async function save() {
+    if (pw.length < 6) { setErr(T("비밀번호는 6자 이상")); return; }
+    setBusy(true); setErr("");
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      if (!session) { setErr(T("관리자 로그인이 필요합니다 (비밀번호로 로그인 후)")); setBusy(false); return; }
+      const res = await fetch("/api/account/password", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ id: account.id, password: pw }) });
+      const j = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) { setErr(j.error || T("변경 실패")); return; }
+      setOk(true);
+    } catch (e) { setErr((e as Error).message); setBusy(false); }
+  }
+  return (
+    <Modal title={T("비밀번호 변경")} onClose={onClose} width={420}
+      footer={ok ? <button className="btn acc" onClick={onClose}>{T("완료")}</button>
+        : <><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" disabled={busy} onClick={save}>{busy ? T("변경 중…") : T("변경")}</button></>}>
+      <div className="note" style={{ marginBottom: 12 }}>{displayId(account.email)} · {account.scope}</div>
+      {ok ? <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px", fontFamily: "var(--mono)", fontSize: 13, lineHeight: 1.9 }}>
+        <div style={{ color: "var(--accent-ink)", fontFamily: "var(--body)", marginBottom: 6 }}>{T("✓ 비밀번호가 변경되었습니다. 담당자에게 전달하세요.")}</div>
+        <div>{T("아이디:")} {displayId(account.email)}</div>
+        <div>{T("비밀번호:")} {pw}</div>
+      </div> : <>
+        <Field label={T("새 비밀번호")}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input style={inp} value={pw} onChange={(e) => setPw(e.target.value)} />
+            <button className="btn sm" onClick={() => setPw(genPassword())}>{T("자동생성")}</button>
+          </div>
+        </Field>
+        {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 8 }}>{err}</div>}
+      </>}
     </Modal>
   );
 }

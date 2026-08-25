@@ -15,14 +15,21 @@ export async function GET(req: NextRequest) {
   const { data: caller } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (caller?.role !== "admin") return NextResponse.json({ error: "관리자 전용" }, { status: 403 });
 
-  const [{ data: profiles }, authRes] = await Promise.all([
+  const [{ data: profiles }, authRes, { data: bm }, { data: crs }] = await Promise.all([
     admin.from("profiles").select("id, email, role, status"),
     admin.auth.admin.listUsers({ perPage: 1000 }),
+    admin.from("brand_members").select("user_id, brands(name)"),
+    admin.from("creators").select("user_id, name").not("user_id", "is", null),
   ]);
   const lastById = new Map((authRes.data?.users ?? []).map((u) => [u.id, u.last_sign_in_at]));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const brandByUser = new Map((bm ?? []).map((r: any) => [r.user_id, r.brands?.name]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const creatorByUser = new Map((crs ?? []).map((r: any) => [r.user_id, r.name]));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rows = (profiles ?? []).map((r: any) => ({
-    id: r.id, email: r.email ?? "", role: r.role, scope: r.role === "admin" ? "81degree" : "—",
+    id: r.id, email: r.email ?? "", role: r.role,
+    scope: r.role === "admin" ? "81degree" : r.role === "brand" ? (brandByUser.get(r.id) ?? "—") : r.role === "creator" ? (creatorByUser.get(r.id) ?? "—") : "—",
     status: r.status, lastLogin: lastById.get(r.id) ?? null,
   }));
   return NextResponse.json({ rows });
