@@ -25,9 +25,9 @@ export async function POST(req: NextRequest) {
   const { data: caller } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (caller?.role !== "admin") return NextResponse.json({ error: "관리자만 동기화할 수 있습니다" }, { status: 403 });
 
-  // 2) 동기화
+  // 2) 동기화 (수동: 최근 50건 지표)
   try {
-    const r = await syncCreatorData(admin, creatorId);
+    const r = await syncCreatorData(admin, creatorId, { maxMetrics: 50 });
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
