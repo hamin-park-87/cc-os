@@ -15,13 +15,14 @@ export async function GET(req: NextRequest) {
   let admin;
   try { admin = getAdminClient(); } catch { return NextResponse.json({ error: "service role 미설정" }, { status: 500 }); }
 
-  // 활성 연동 계정만
-  const { data: accts } = await admin.from("ig_accounts").select("creator_id").eq("status", "active");
+  // 활성 연동 계정 — 가장 오래 동기화 안 된 순으로 (매 실행마다 스탈한 것부터)
+  const { data: accts } = await admin.from("ig_accounts").select("creator_id")
+    .eq("status", "active").order("last_synced_at", { ascending: true, nullsFirst: true });
   const ids = (accts ?? []).map((a) => a.creator_id as string);
   const results: { creatorId: string; ok: boolean; followers?: number; contents?: number; error?: string }[] = [];
   for (const id of ids) {
     try {
-      const r = await syncCreatorData(admin, id);
+      const r = await syncCreatorData(admin, id, { maxMetrics: 15 }); // 크론은 최근 15건만 지표 조회(타임아웃 방지)
       results.push({ creatorId: id, ok: true, followers: r.followers, contents: r.contents });
     } catch (e) {
       results.push({ creatorId: id, ok: false, error: (e as Error).message });
