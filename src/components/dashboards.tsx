@@ -1938,20 +1938,20 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
     </div>
     <div className="crgrid">
       {list.map((c) => (
-        <button key={c.id} className="crcard" style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)" }} onClick={() => setDetail(c)}>
+        <div key={c.id} className="crcard" style={{ cursor: "pointer" }} onClick={() => setDetail(c)}>
           <div className="top">
             <Avatar creator={c} size={46} radius={13} />
-            <div style={{ minWidth: 0 }}><div className="nm">{withCode(c.name)}</div><div className="hd">{c.handle}</div></div>
-            <div className="fol"><b>{kfmt(c.followers)}</b><small>{T("팔로워")}</small></div>
+            <div style={{ minWidth: 0, flex: 1 }}><div className="nm">{withCode(c.name)}</div><div className="hd">{c.handle}</div></div>
+            <div className="fol" style={{ textAlign: "right", flexShrink: 0 }}><b style={{ display: "block", fontSize: 16 }}>{fmt(c.followers)}</b><small style={{ color: "var(--faint)" }}>{T("팔로워")}</small></div>
           </div>
           <div><SnsBadges c={c} /></div>
           <div className="tags">
             {c.category && <span className="chip"><span className="sw" style={{ background: "var(--accent)" }} />{c.category}</span>}
             {c.tone && <span className="chip">{c.tone}</span>}
           </div>
-          <div className="intro">{c.intro}</div>
-          <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 12, color: "var(--accent-ink)", fontSize: 12.5, fontWeight: 600 }}>{T("프로필·콘텐츠 보기")} →</div>
-        </button>
+          {c.intro && <div className="intro">{c.intro}</div>}
+          <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 12, marginTop: "auto", color: "var(--accent-ink)", fontSize: 12.5, fontWeight: 600 }}>{T("프로필·콘텐츠 보기")} →</div>
+        </div>
       ))}
     </div>
     {detail && <CreatorPublicModal creator={detail} contents={(allContents ?? []).filter((c) => c.creatorName === detail.name)} onClose={() => setDetail(null)} />}
