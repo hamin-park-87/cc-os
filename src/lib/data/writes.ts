@@ -144,7 +144,18 @@ function dealRow(d: Deal, creatorId: string | null) {
     source: d.source, type: d.type, brief: d.brief ?? null, fee: d.fee, secondary_fee: d.secondaryFee ?? null,
     share_company: d.shareCompany, share_creator: d.shareCreator,
     due_date: d.dueDate || null, upload_date: d.uploadDate || null, step: d.step,
+    received_date: d.receivedDate || null, payment_due: d.paymentDue || null, paid_date: d.paidDate || null, invoice_file: d.invoiceFile ?? null,
   };
+}
+// 첨부파일 업로드 → 공개 URL 반환 (attachments 버킷)
+export async function uploadAttachment(file: File, prefix = "invoice"): Promise<string> {
+  if (!isDb()) return "";
+  const sb = getSupabase();
+  const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${prefix}/${Math.round((Date.now?.() ?? 0))}_${safe}`;
+  const { error } = await sb.storage.from("attachments").upload(path, file, { upsert: true });
+  if (error) throw error;
+  return sb.storage.from("attachments").getPublicUrl(path).data.publicUrl;
 }
 export async function saveDeal(d: Deal, isNew: boolean, creators: Creator[]): Promise<Deal> {
   if (!isDb()) return d;

@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent, uploadAttachment } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
@@ -1490,7 +1490,7 @@ function RiskList({ d }: { d: Bundle }) {
 }
 
 /* ── DEAL LIST (admin & creator 공용) ───── */
-const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드")];
+const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드"), T("청구서 발행"), T("입금 확인")];
 export function DealList({ deals, contents, readonly, creators }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[] }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
@@ -1585,7 +1585,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <td className="num">{yen(dl.fee)}</td>
               <td className="num" style={{ color: "var(--muted)" }}>{md(dl.dueDate ?? undefined)}</td>
               {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                {dl.step < 5 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
+                {dl.step < 7 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
                 <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
               </td>}
             </tr>
@@ -1621,7 +1621,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
             {ct && <div className="note" style={{ marginTop: 10 }}>{T("업로드 콘텐츠:")} {ct.permalink ? <a href={ct.permalink} target="_blank" rel="noopener" style={{ color: "var(--accent-ink)" }}>{ct.permalink}</a> : "—"} · {T("조회")} <b className="num">{fmt(ct.views)}</b></div>}
             {!readonly && <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end" }}>
               {dl.step >= 4 && <button className="btn sm" onClick={() => setInvoice(dl)}>{T("청구서")}</button>}
-              {dl.step < 5 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
+              {dl.step < 7 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
               <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
             </div>}
           </div>
@@ -1684,6 +1684,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
   const existingContent = deal?.contentId ? contents.find((c) => c.id === deal.contentId) : null;
   const [contentUrl, setContentUrl] = useState(existingContent?.permalink ?? "");
   const [hasSecondary, setHasSecondary] = useState(deal?.secondaryFee != null);
+  const [invBusy, setInvBusy] = useState(false);
   const sortedCreators = [...creators].sort(cmpCreatorByCode);
   const up = (k: keyof Deal, v: unknown) => setF((s) => ({ ...s, [k]: v } as Deal));
   async function save() {
@@ -1722,9 +1723,20 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
         <Field label={T("회사 쉐어 (%)")}><input style={inp} type="number" value={f.shareCompany} onChange={(e) => up("shareCompany", +e.target.value)} /></Field>
         <Field label={T("크리에이터 쉐어 (%)")}><input style={inp} type="number" value={f.shareCreator} onChange={(e) => up("shareCreator", +e.target.value)} /></Field>
         <Field label={T("진행 단계")}><select style={inp} value={f.step} onChange={(e) => up("step", +e.target.value)}>{DEAL_STEPS.map((s, i) => <option key={i} value={i}>{i + 1}. {s}</option>)}</select></Field>
+        <Field label={T("수주일 (최초 수신)")}><input style={inp} type="date" value={f.receivedDate ?? ""} onChange={(e) => up("receivedDate", e.target.value)} /></Field>
         <Field label={T("납기일")}><input style={inp} type="date" value={f.dueDate ?? ""} onChange={(e) => up("dueDate", e.target.value)} /></Field>
         <Field label={T("업로드 일자")}><input style={inp} type="date" value={f.uploadDate ?? ""} onChange={(e) => up("uploadDate", e.target.value)} /></Field>
+        <Field label={T("입금 예정일")}><input style={inp} type="date" value={f.paymentDue ?? ""} onChange={(e) => up("paymentDue", e.target.value)} /></Field>
+        <Field label={T("입금일")}><input style={inp} type="date" value={f.paidDate ?? ""} onChange={(e) => up("paidDate", e.target.value)} /></Field>
       </div>
+      <Field label={T("청구서 첨부")}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <label className="btn" style={{ cursor: "pointer" }}>{invBusy ? T("업로드 중…") : T("파일 선택")}
+            <input type="file" style={{ display: "none" }} onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setInvBusy(true); try { const url = await uploadAttachment(file, "invoice"); up("invoiceFile", url); } catch (err) { alert(T("업로드 실패: ") + (err as Error).message); } setInvBusy(false); }} /></label>
+          {f.invoiceFile && <a href={f.invoiceFile} target="_blank" rel="noopener" style={{ color: "var(--accent-ink)", fontSize: 12.5 }}>{T("첨부된 청구서 보기")}</a>}
+          {f.invoiceFile && <button className="btn sm" onClick={() => up("invoiceFile", null)}>{T("제거")}</button>}
+        </div>
+      </Field>
       <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, margin: "2px 0 8px" }}>
         <input type="checkbox" checked={hasSecondary} onChange={(e) => { setHasSecondary(e.target.checked); if (!e.target.checked) up("secondaryFee", null); }} /> {T("2차 활용 해당")}
       </label>

@@ -134,8 +134,13 @@ export interface Deal {
   shareCreator: number;
   dueDate?: string | null;
   uploadDate?: string | null;
-  step: number;                 // 0~5
+  step: number;                 // 0~7
   contentId?: string | null;
+  // 외부 PR 정산
+  receivedDate?: string | null; // 수주(최초 메일 수신)일
+  paymentDue?: string | null;   // 입금 예정일
+  paidDate?: string | null;     // 입금일
+  invoiceFile?: string | null;  // 청구서 첨부 URL
 }
 
 export interface SecondaryRequest {
