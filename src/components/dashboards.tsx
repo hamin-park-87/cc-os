@@ -1206,15 +1206,23 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
   const [rows, setRows] = useState<AccountRow[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => {
-    if (supabaseConfigured()) getAccounts().then(setRows).catch(() => setRows([]));
-    else setRows(ACCOUNTS.map((a, i) => ({ id: String(i), email: a.email, role: a.role, scope: a.scope, status: a.status, lastLogin: a.lastLogin })));
+  const [fRole, setFRole] = useState("");
+  const load = useCallback(async () => {
+    if (!supabaseConfigured()) { setRows(ACCOUNTS.map((a, i) => ({ id: String(i), email: a.email, role: a.role, scope: a.scope, status: a.status, lastLogin: a.lastLogin }))); return; }
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      if (session) {
+        const res = await fetch("/api/account/list", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        if (res.ok) { const j = await res.json(); setRows(j.rows ?? []); return; }
+      }
+    } catch { /* fallback */ }
+    getAccounts().then(setRows).catch(() => setRows([]));
   }, []);
   useEffect(() => { load(); }, [load]);
+  const filtered = rows.filter((a) => !fRole || a.role === fRole);
   const ROLE: Record<string, string> = { admin: T("관리자"), brand: T("브랜드"), creator: T("크리에이터") };
   const ST: Record<string, [string, string]> = { active: ["p-ok", T("활성")], pending: ["p-warn", T("초대중")], disabled: ["p-plan", T("비활성")] };
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const allChecked = rows.length > 0 && rows.every((a) => sel.has(a.id));
   async function bulkDelete() {
     const ids = [...sel];
     if (!ids.length || !confirm(`${T("선택한")} ${ids.length}${T("개 계정을 삭제할까요? 되돌릴 수 없습니다.")}`)) return;
@@ -1238,20 +1246,26 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
         <button className="btn acc" onClick={() => setInvite(true)}>+ {T("계정 생성")}</button>
       </span></div>
     {!master && <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 10 }}>{T("※ 계정 삭제·관리자 생성은 마스터 관리자만 가능합니다.")}</div>}
+    <div className="filterbar">
+      <select value={fRole} onChange={(e) => setFRole(e.target.value)}>
+        <option value="">{T("전체")}</option><option value="admin">{T("관리자")}</option><option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option>
+      </select>
+      <span className="count">{filtered.length}{T("명")}</span>
+    </div>
     <div className="tablewrap"><table><thead><tr>
-      {master && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(rows.map((a) => a.id)))} aria-label={T("전체 선택")} /></th>}
+      {master && <th style={{ width: 34 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every((a) => sel.has(a.id))} onChange={() => { const all = filtered.every((a) => sel.has(a.id)); setSel(all ? new Set() : new Set(filtered.map((a) => a.id))); }} aria-label={T("전체 선택")} /></th>}
       <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th>
     </tr></thead><tbody>
-      {rows.map((a) => (
+      {filtered.map((a) => (
         <tr key={a.id} style={master && sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
           {master && <td><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} aria-label={a.email} /></td>}
           <td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
           <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
-          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 10) : "—"}</td></tr>
+          <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 16).replace("T", " ") : T("로그인 기록 없음")}</td></tr>
       ))}
     </tbody></table></div>
-    {!rows.length && <div className="placeholder">{T("등록된 계정이 없어요.")}</div>}
+    {!filtered.length && <div className="placeholder">{T("등록된 계정이 없어요.")}</div>}
     {invite && <InviteModal creators={creators} brands={brands} canMakeAdmin={master} onClose={() => setInvite(false)} onSaved={() => { setInvite(false); load(); }} />}
     {bulk && <BulkAccountModal creators={creators} brands={brands} canMakeAdmin={master} onClose={() => setBulk(false)} onSaved={load} />}
   </>);
