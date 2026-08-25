@@ -22,7 +22,7 @@ const NAV: Record<string, NavGroup[]> = {
     { group: "콘텐츠", items: [["b-assign", "콘텐츠 배정 및 관리"], ["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
   ],
   creator: [
-    { group: "", items: [["c-growth", "내 계정 성장"]] },
+    { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
     { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 매출"]] },
     { group: "콘텐츠", items: [["c-content", "내 콘텐츠"], ["c-secondary", "2차 활용"], ["c-todo", "이번 달 할 일"]] },
   ],

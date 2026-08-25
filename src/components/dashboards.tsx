@@ -2166,8 +2166,91 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
   }
   if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
+  if (pane === "c-profile") return <CreatorProfile d={d} me={me} />;
   if (pane === "c-todo") return (<>{remBanner}<CreatorTodo d={d} me={me} /></>);
   return <Placeholder name={pane} />;
+}
+
+function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
+  const creator = d.creators.find((c) => c.name === me);
+  const [f, setF] = useState<Creator | null>(creator ? { ...creator, sns: { ...creator.sns }, rates: { ...creator.rates } } : null);
+  const [busy, setBusy] = useState(false); const [ok, setOk] = useState(false); const [err, setErr] = useState("");
+  if (!f || !creator) return <div className="placeholder">{T("연결된 크리에이터 정보가 없습니다.")}</div>;
+  const up = (k: keyof Creator, v: unknown) => { setF((s) => ({ ...s!, [k]: v })); setOk(false); };
+  function pickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const rd = new FileReader(); rd.onload = () => up("photoUrl", rd.result as string); rd.readAsDataURL(file);
+  }
+  async function save() {
+    setBusy(true); setErr("");
+    try {
+      const { data: { session } } = await getSupabase().auth.getSession();
+      if (!session) { setErr(T("로그인이 필요합니다")); setBusy(false); return; }
+      const payload = {
+        name_kanji: f!.nameKanji, name_en: f!.nameEn, handle: f!.handle, photo_url: f!.photoUrl ?? null,
+        category: f!.category, tone: f!.tone, intro: f!.intro, sns: f!.sns,
+        email: f!.email, phone: f!.phone, address: f!.address, address_en: f!.addressEn,
+        bank_account: f!.bankAccount, invoice_reg_no: f!.invoiceRegNo, entity_type: f!.entityType,
+      };
+      const res = await fetch("/api/profile/update", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify(payload) });
+      const j = await res.json().catch(() => ({}));
+      setBusy(false);
+      if (!res.ok) { setErr(j.error || T("저장 실패")); return; }
+      Object.assign(creator!, f!); setOk(true);
+    } catch (e) { setErr((e as Error).message); setBusy(false); }
+  }
+  const ro = (label: string, val: React.ReactNode) => <Field label={label}><div style={{ padding: "9px 11px", background: "var(--surface-2)", borderRadius: 9, fontSize: 13, color: "var(--muted)" }}>{val ?? "—"}</div></Field>;
+  return (<div style={{ maxWidth: 680 }}>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("내 프로필 관리")}</h2>
+      <button className="btn acc" disabled={busy} onClick={save}>{busy ? T("저장 중…") : ok ? T("저장됨 ✓") : T("저장")}</button></div>
+    <div className="card pad">
+      <Field label={T("프로필 사진")}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Avatar creator={f} name={f.name} size={56} radius={15} />
+          <label className="btn" style={{ cursor: "pointer" }}>{T("사진 업로드")}<input type="file" accept="image/*" style={{ display: "none" }} onChange={pickPhoto} /></label>
+          {f.photoUrl && <button className="btn" onClick={() => up("photoUrl", null)}>{T("제거")}</button>}
+        </div>
+      </Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        {ro(T("고유번호 (CC번호)"), f.code)}
+        {ro(T("크리에이터명"), f.name)}
+        <Field label={T("한자(일본어) 이름")}><input style={inp} value={f.nameKanji ?? ""} onChange={(e) => up("nameKanji", e.target.value)} /></Field>
+        <Field label={T("영문 이름")}><input style={inp} value={f.nameEn ?? ""} onChange={(e) => up("nameEn", e.target.value)} /></Field>
+        <Field label={T("인스타 핸들")}><input style={inp} value={f.handle ?? ""} onChange={(e) => up("handle", e.target.value)} /></Field>
+        {ro(T("팔로워"), fmt(f.followers))}
+        <Field label={T("주력 카테고리")}><input style={inp} value={f.category ?? ""} onChange={(e) => up("category", e.target.value)} /></Field>
+        <Field label={T("콘텐츠 톤")}><input style={inp} value={f.tone ?? ""} onChange={(e) => up("tone", e.target.value)} /></Field>
+      </div>
+      <Field label={T("소개")}><textarea style={{ ...inp, minHeight: 60 }} value={f.intro ?? ""} onChange={(e) => up("intro", e.target.value)} /></Field>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "4px 0 8px" }}>{T("추가 SNS")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        {(["youtube", "tiktok", "x", "line"] as const).map((k) => (
+          <Field key={k} label={k === "x" ? "X" : k}><input style={inp} value={f.sns[k] ?? ""} onChange={(e) => setF((s) => ({ ...s!, sns: { ...s!.sns, [k]: e.target.value } }))} /></Field>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 8px" }}>{T("연락처·정산 (본인 입력)")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label={T("이메일")}><input style={inp} type="email" value={f.email ?? ""} onChange={(e) => up("email", e.target.value)} /></Field>
+        <Field label={T("전화번호")}><input style={inp} value={f.phone ?? ""} onChange={(e) => up("phone", e.target.value)} /></Field>
+      </div>
+      <Field label={T("주소")}><input style={inp} value={f.address ?? ""} onChange={(e) => up("address", e.target.value)} /></Field>
+      <Field label={T("영문 주소")}><input style={inp} value={f.addressEn ?? ""} onChange={(e) => up("addressEn", e.target.value)} /></Field>
+      <Field label={T("은행계좌")}><input style={inp} value={f.bankAccount ?? ""} onChange={(e) => up("bankAccount", e.target.value)} /></Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        <Field label={T("인보이스 등록번호 (T번호)")}><input style={inp} value={f.invoiceRegNo ?? ""} onChange={(e) => up("invoiceRegNo", e.target.value)} /></Field>
+        <Field label={T("구분")}><select style={inp} value={f.entityType ?? "individual"} onChange={(e) => up("entityType", e.target.value)}><option value="individual">{T("개인")}</option><option value="corporation">{T("법인")}</option></select></Field>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 8px" }}>{T("계약 정보 (회사 관리 · 읽기전용)")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
+        {ro(T("계약기간"), f.contractDate || f.contractEnd ? `${f.contractDate ?? "—"} ~ ${f.contractEnd ?? "—"}` : "—")}
+        {ro(T("기본보수 (세전/월)"), f.baseFee != null ? yen(f.baseFee) : "—")}
+        {ro(T("월 계약 수량"), f.monthlyQuota != null ? `${f.monthlyQuota}${T("건")}` : "—")}
+        {ro(T("릴스 1건당"), yen(f.rates.reels))}
+      </div>
+      {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
+      <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>{T("※ 계약·보수·단가·번호는 회사가 관리합니다. 본인 정보(이름·연락처·계좌·SNS·사진)를 직접 입력·수정하세요.")}</div>
+    </div>
+  </div>);
 }
 
 function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
