@@ -3,6 +3,7 @@ import { useState } from "react";
 import { findAccount, saveSession, type Session } from "@/lib/auth/session";
 import { sendMagicLink, signInPassword } from "@/lib/auth/supabaseAuth";
 import { supabaseConfigured } from "@/lib/supabase/client";
+import { toLoginEmail } from "@/lib/roles";
 
 export function Login({ onDemoLogin }: { onDemoLogin: (s: Session) => void }) {
   const [email, setEmail] = useState("");
@@ -13,16 +14,16 @@ export function Login({ onDemoLogin }: { onDemoLogin: (s: Session) => void }) {
   const real = supabaseConfigured();
 
   async function pwLogin() {
-    if (!email.trim() || !pw) { setErr("이메일과 비밀번호를 입력해주세요"); return; }
+    if (!email.trim() || !pw) { setErr("아이디와 비밀번호를 입력해주세요"); return; }
     setBusy(true); setErr("");
-    const { error } = await signInPassword(email, pw);
+    const { error } = await signInPassword(toLoginEmail(email), pw);
     setBusy(false);
     if (error) { setErr(error.message); return; }
     // 세션 변화는 page.tsx의 onAuthChange가 감지
   }
 
   async function magic() {
-    if (!email.trim()) { setErr("이메일을 입력해주세요"); return; }
+    if (!email.trim() || !email.includes("@")) { setErr("매직링크는 이메일 계정만 가능합니다"); return; }
     setBusy(true); setErr("");
     const { error } = await sendMagicLink(email);
     setBusy(false);
@@ -41,25 +42,23 @@ export function Login({ onDemoLogin }: { onDemoLogin: (s: Session) => void }) {
       <div className="login-card">
         <div className="brandmark"><b className="logo">81'<span>DEGREE</span></b></div>
         <h2>로그인</h2>
-        <div className="sub">creator-os.81degree.com</div>
+        <div className="sub">cc-os.81degree.com</div>
         {!sent ? (
           <>
             <div className="field">
-              <label htmlFor="email">이메일</label>
-              <input id="email" type="email" placeholder="name@company.com"
-                value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && real) magic(); }} />
+              <label htmlFor="email">아이디 또는 이메일</label>
+              <input id="email" type="text" placeholder="아이디 (또는 name@company.com)"
+                value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") real ? pwLogin() : (email.trim() ? setSent(true) : setErr("아이디를 입력해주세요")); }} />
             </div>
-            <button className="btn acc" disabled={busy} onClick={() => real ? magic() : (email.trim() ? setSent(true) : setErr("이메일을 입력해주세요"))}>
-              {busy ? "전송 중…" : "로그인 링크 전송 (매직링크)"}
-            </button>
-            {real && <>
-              <div className="divider">또는 비밀번호</div>
-              <div className="field"><input type="password" placeholder="비밀번호" value={pw}
-                onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") pwLogin(); }} /></div>
-              <button className="btn" disabled={busy} onClick={pwLogin}>비밀번호로 로그인</button>
+            <div className="field"><input type="password" placeholder="비밀번호" value={pw}
+              onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") real ? pwLogin() : demo(email); }} /></div>
+            {real ? <>
+              <button className="btn acc" disabled={busy} onClick={pwLogin}>{busy ? "로그인 중…" : "로그인"}</button>
+              <div className="divider">이메일 계정이면</div>
+              <button className="btn" disabled={busy} onClick={magic}>이메일로 매직링크 받기</button>
+            </> : <>
+              <button className="btn acc" onClick={() => demo(email.trim() || "hmpark@81degree.com")}>로그인</button>
             </>}
-            {!real && <><div className="divider">또는</div>
-              <button className="btn" onClick={() => demo(email.trim() || "hmpark@81degree.com")}>Google로 계속</button></>}
           </>
         ) : (
           <>

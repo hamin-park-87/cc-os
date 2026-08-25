@@ -11,7 +11,7 @@ import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
-import { isMaster } from "@/lib/roles";
+import { isMaster, displayId } from "@/lib/roles";
 import { T } from "@/lib/i18n";
 
 export interface Bundle {
@@ -1259,7 +1259,7 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
       {filtered.map((a) => (
         <tr key={a.id} style={master && sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
           {master && <td><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} aria-label={a.email} /></td>}
-          <td><b>{a.email}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
+          <td><b>{displayId(a.email)}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
           <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
           <td className="num" style={{ color: "var(--muted)" }}>{a.lastLogin ? String(a.lastLogin).slice(0, 16).replace("T", " ") : T("로그인 기록 없음")}</td></tr>
@@ -1275,8 +1275,8 @@ function BulkAccountModal({ creators, brands, canMakeAdmin, onClose, onSaved }: 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false); const [ok, setOk] = useState(0); const [err, setErr] = useState("");
   const parsed = text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => (l.includes("\t") ? l.split("\t") : l.split(",")).map((s) => s.trim()));
-  // 마스터가 아니면 admin 역할 행은 제외
-  const valid = parsed.filter((r) => r[0] && r[0].includes("@") && (canMakeAdmin || (r[1] ?? "brand") !== "admin"));
+  // 아이디 또는 이메일 허용. 마스터가 아니면 admin 역할 행은 제외
+  const valid = parsed.filter((r) => r[0] && (canMakeAdmin || (r[1] ?? "brand") !== "admin"));
   async function run() {
     if (!valid.length) { setErr(T("등록할 행이 없습니다")); return; }
     setBusy(true); setErr(""); setOk(0);
@@ -1295,10 +1295,10 @@ function BulkAccountModal({ creators, brands, canMakeAdmin, onClose, onSaved }: 
       footer={<><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" disabled={busy || !valid.length} onClick={run}>{busy ? `${T("등록 중…")} (${ok}/${valid.length})` : `${valid.length}${T("개 등록")}`}</button></>}>
       <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 8 }}>
         {T("한 줄에 한 계정 (탭 또는 콤마 구분). 비밀번호 생략 시 자동 생성됩니다.")}<br />
-        {T("순서:")} <b>{T("이메일 · 역할(admin/brand/creator) · 소속 · 비밀번호")}</b>
+        {T("순서:")} <b>{T("아이디/이메일 · 역할(admin/brand/creator) · 소속 · 비밀번호")}</b>
       </div>
       <textarea style={{ ...inp, minHeight: 160, fontFamily: "var(--mono)", fontSize: 12.5 }}
-        placeholder={"abib@brand.com\tbrand\tabib\nmerumi@81degree.com\tcreator\tmerumi"}
+        placeholder={"abib_kim\tbrand\tabib\nmerumi\tcreator\tmerumi"}
         value={text} onChange={(e) => setText(e.target.value)} />
       <div className="note" style={{ marginTop: 8 }}>{T("인식된 행:")} <b className="num">{valid.length}</b></div>
       {err && <div style={{ color: "var(--critical)", fontSize: 12, marginTop: 10 }}>{err}</div>}
@@ -1351,13 +1351,13 @@ function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onC
         <div className="note" style={{ color: "var(--accent-ink)", marginBottom: 12 }}>{T("✓ 계정 생성 완료 — 아래 정보를 담당자에게 전달하세요.")}</div>
         <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "12px 14px", fontFamily: "var(--mono)", fontSize: 13, lineHeight: 1.9 }}>
           <div>{T("사이트:")} https://cc-os.81degree.com</div>
-          <div>{T("이메일:")} {email}</div>
+          <div>{T("아이디:")} {email}</div>
           <div>{T("비밀번호:")} {password}</div>
           <div>{T("권한:")} {role === "brand" ? finalScope + T(" 브랜드") : role === "creator" ? finalScope + T(" 크리에이터") : T("관리자")}</div>
         </div>
-        <button className="btn sm" style={{ marginTop: 10 }} onClick={() => navigator.clipboard?.writeText(`${T("사이트:")} https://cc-os.81degree.com\n${T("이메일:")} ${email}\n${T("비밀번호:")} ${password}`)}>{T("복사")}</button>
+        <button className="btn sm" style={{ marginTop: 10 }} onClick={() => navigator.clipboard?.writeText(`${T("사이트:")} https://cc-os.81degree.com\n${T("아이디:")} ${email}\n${T("비밀번호:")} ${password}`)}>{T("복사")}</button>
       </div> : <>
-        <Field label={T("이메일")}><input style={inp} type="email" placeholder="name@company.com" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field label={T("아이디 또는 이메일")}><input style={inp} type="text" placeholder={T("아이디 (예: abib_kim)")} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
           <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { setRole(e.target.value as "admin" | "brand" | "creator"); }}>{canMakeAdmin && <option value="admin">{T("관리자")}</option>}<option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option></select></Field>
           <Field label={T("소속")}><select style={inp} value={scope} onChange={(e) => setScope(e.target.value)} disabled={role === "admin"}>{scopes.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>

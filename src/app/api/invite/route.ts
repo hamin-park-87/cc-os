@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAdminClient } from "@/lib/supabase/admin";
-import { isMaster } from "@/lib/roles";
+import { isMaster, toLoginEmail } from "@/lib/roles";
 
 // 관리자가 브랜드/크리에이터 계정을 초대. 호출자가 admin인지 검증 후 service_role로 처리.
 export async function POST(req: NextRequest) {
@@ -9,9 +9,10 @@ export async function POST(req: NextRequest) {
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   let body: { email?: string; role?: string; scope?: string; password?: string };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "bad request" }, { status: 400 }); }
-  const { email, role, scope, password } = body;
-  if (!email || !role) return NextResponse.json({ error: "email·role 필요" }, { status: 400 });
+  const { email: rawId, role, scope, password } = body;
+  if (!rawId || !role) return NextResponse.json({ error: "email·role 필요" }, { status: 400 });
   if (!password || password.length < 6) return NextResponse.json({ error: "비밀번호는 6자 이상" }, { status: 400 });
+  const email = toLoginEmail(rawId); // 아이디면 아이디@cc-os.local 로 변환
 
   // 1) 호출자 admin 검증 (로그인 토큰)
   const token = req.headers.get("authorization")?.replace("Bearer ", "");
