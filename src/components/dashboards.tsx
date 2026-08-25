@@ -2036,21 +2036,24 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
               {!items.length ? <div className="note">{T("등록된 콘텐츠가 없어요.")}</div> :
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {items.map((c) => (
-                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", background: "var(--surface-2)", borderRadius: 9 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{c.product}</div>
-                        <div style={{ color: "var(--faint)", fontSize: 11.5 }}>
-                          {c.status === "uploaded" ? `${T("게시")} ${c.publishedAt ?? ""}` : c.sched?.upload ? `${T("업로드 예정")} ${c.sched.upload}` : T("예정")}
-                        </div>
+                    <div key={c.id} style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 13 }}>{c.product}</div>
+                        {c.status === "uploaded" && <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>{T("조회")} <b className="num">{fmt(c.views)}</b> · {T("참여율")} <b className="num">{engRate(c)}</b></div>}
+                        <span className={`pill ${c.status === "uploaded" ? "p-ok" : "p-plan"}`} style={{ flexShrink: 0 }}><span className="d" />{c.status === "uploaded" ? T("업로드") : T("예정")}</span>
+                        {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noopener" style={{ flexShrink: 0 }}>{T("보러가기")}</a>}
                       </div>
-                      {c.status === "uploaded" && <div style={{ textAlign: "right", fontSize: 11.5, color: "var(--muted)" }}>
-                        <div>{T("조회")} <b className="num">{fmt(c.views)}</b></div>
-                        <div>{T("참여율")} <b className="num">{engRate(c)}</b></div>
-                      </div>}
-                      {c.status === "uploaded"
-                        ? <span className="pill p-ok" style={{ flexShrink: 0 }}><span className="d" />{T("업로드")}</span>
-                        : <span className="pill p-plan" style={{ flexShrink: 0 }}><span className="d" />{T("예정")}</span>}
-                      {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noopener" style={{ flexShrink: 0 }}>{T("보러가기")}</a>}
+                      {/* 제작 단계 타임라인 */}
+                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+                        {SCHED_STAGES.map((s) => {
+                          const dt = c.sched?.[s.k as keyof typeof c.sched];
+                          const isUp = s.k === "upload" && c.status === "uploaded";
+                          return <div key={s.k} style={{ flex: "1 1 90px", minWidth: 84, padding: "5px 8px", borderRadius: 7, background: dt ? "var(--accent-weak)" : "var(--surface-3)", border: "1px solid var(--border)" }}>
+                            <div style={{ fontSize: 10, color: "var(--faint)", fontWeight: 600 }}>{isUp ? "✓ " : ""}{T(s.label)}</div>
+                            <div className="num" style={{ fontSize: 11.5, color: dt ? "var(--accent-ink)" : "var(--faint)" }}>{dt || "—"}</div>
+                          </div>;
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>}
