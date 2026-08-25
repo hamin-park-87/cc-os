@@ -1916,20 +1916,29 @@ function BrandCreatorTable({ rows, allContents }: { rows: Content[]; allContents
 
 function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allContents?: Content[] }) {
   const [cat, setCat] = useState(""); const [q, setQ] = useState("");
-  const [open, setOpen] = useState<string>("");
+  const [sortBy, setSortBy] = useState<"code" | "followers" | "name">("code");
+  const [detail, setDetail] = useState<Creator | null>(null);
+  const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
   const cats = [...new Set(creators.map((c) => c.category).filter(Boolean))] as string[];
-  let list = [...creators].sort((a, b) => b.followers - a.followers);
+  let list = [...creators].sort((a, b) => {
+    if (sortBy === "followers") return b.followers - a.followers;
+    if (sortBy === "name") return a.name.localeCompare(b.name);
+    return codeNum(a) - codeNum(b) || a.name.localeCompare(b.name);
+  });
   if (cat) list = list.filter((c) => c.category === cat);
   if (q) list = list.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()) || (c.handle ?? "").toLowerCase().includes(q.toLowerCase()));
   return (<>
     <div className="filterbar">
+      <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
+        <option value="code">{T("번호순")}</option><option value="followers">{T("팔로워순")}</option><option value="name">{T("이름순")}</option>
+      </select>
       <select value={cat} onChange={(e) => setCat(e.target.value)}><option value="">{T("모든 카테고리")}</option>{cats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
       <input placeholder={T("이름·핸들 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
       <span className="count">{list.length}{T("명")}</span>
     </div>
     <div className="crgrid">
       {list.map((c) => (
-        <div key={c.id} className="crcard">
+        <button key={c.id} className="crcard" style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)" }} onClick={() => setDetail(c)}>
           <div className="top">
             <Avatar creator={c} size={46} radius={13} />
             <div style={{ minWidth: 0 }}><div className="nm">{withCode(c.name)}</div><div className="hd">{c.handle}</div></div>
@@ -1941,17 +1950,41 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
             {c.tone && <span className="chip">{c.tone}</span>}
           </div>
           <div className="intro">{c.intro}</div>
-          <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 12 }}>
-            <button className="btn sm" style={{ flex: 1 }} onClick={() => setOpen(open === c.name ? "" : c.name)}>▶ {T("콘텐츠 보기")}</button>
-          </div>
-        </div>
+          <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 12, color: "var(--accent-ink)", fontSize: 12.5, fontWeight: 600 }}>{T("프로필·콘텐츠 보기")} →</div>
+        </button>
       ))}
     </div>
-    {open && allContents && <div style={{ marginTop: 18 }}>
-      <div className="sec-h"><h2>{open} · {T("콘텐츠")}</h2></div>
-      <ContentArchive contents={allContents.filter((c) => c.creatorName === open)} showCreator={false} showBrand={false} />
-    </div>}
+    {detail && <CreatorPublicModal creator={detail} contents={(allContents ?? []).filter((c) => c.creatorName === detail.name)} onClose={() => setDetail(null)} />}
   </>);
+}
+
+// 브랜드/외부용 크리에이터 상세 (PII 제외 — 프로필·인게이지먼트·콘텐츠)
+function CreatorPublicModal({ creator: c, contents, onClose }: { creator: Creator; contents: Content[]; onClose: () => void }) {
+  const ups = contents.filter((x) => x.status === "uploaded" && x.views > 0);
+  const totalViews = ups.reduce((s, x) => s + x.views, 0);
+  const avgEng = ups.length ? (ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length).toFixed(1) : "0";
+  return (
+    <Modal title={T("크리에이터 프로필")} onClose={onClose} width={620}
+      footer={<button className="btn acc" onClick={onClose}>{T("닫기")}</button>}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+        <Avatar creator={c} name={c.name} size={56} radius={15} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>{c.code ? <span style={{ color: "var(--faint)", fontWeight: 600, marginRight: 6 }}>{c.code}</span> : null}{c.name}</div>
+          <div style={{ color: "var(--faint)", fontSize: 12.5, marginTop: 3 }}>{c.handle} · {T("팔로워")} {fmt(c.followers)} · {c.category ?? "—"}</div>
+          <div style={{ marginTop: 6 }}><SnsBadges c={c} /></div>
+        </div>
+      </div>
+      {c.intro && <div className="note" style={{ marginBottom: 14 }}>{c.intro}</div>}
+      <div className="grid-kpi" style={{ marginBottom: 16 }}>
+        <Kpi lab={T("팔로워")} val={fmt(c.followers)} />
+        <Kpi lab={T("업로드")} val={ups.length} unit={T("건")} />
+        <Kpi lab={T("누적 조회")} val={fmt(totalViews)} />
+        <Kpi lab={T("평균 참여율")} val={avgEng} unit="%" />
+      </div>
+      <div className="sec-h" style={{ margin: "0 0 10px" }}><h2>{T("콘텐츠 아카이브")}</h2></div>
+      <ContentArchive contents={contents} showCreator={false} />
+    </Modal>
+  );
 }
 
 /* ── CREATOR ───────────────────────────── */
