@@ -1,4 +1,5 @@
 import { avatarSVG } from "@/lib/avatar";
+import { creatorPhoto } from "@/lib/format";
 import type { Creator } from "@/lib/types";
 
 export function Avatar({ creator, name, size = 40, radius }: {
@@ -6,7 +7,8 @@ export function Avatar({ creator, name, size = 40, radius }: {
 }) {
   const nm = creator?.name ?? name ?? "?";
   const r = radius ?? Math.round(size * 0.28);
-  const photo = creator?.photoUrl;
+  // creator 객체의 사진 우선, 없으면 이름으로 전역 등록된 사진 사용
+  const photo = creator?.photoUrl ?? (name ? creatorPhoto(name) : undefined);
   return (
     <span className="avimg" style={{ width: size, height: size, borderRadius: r }}>
       {photo ? (
