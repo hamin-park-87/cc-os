@@ -938,6 +938,28 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
   }
   const prodTotalFor = (name: string) => prods.reduce((s, p) => s + (pa[paKey(p.id, name)] ?? 0), 0);
   const prodRowTotal = (pid: string) => actives.reduce((s, c) => s + (pa[paKey(pid, c.name)] ?? 0), 0);
+  // 배정 수량만큼 제작 일정(계획 콘텐츠) 자동 생성 — 이미 있는 만큼은 건너뜀
+  async function generateSchedule() {
+    let created = 0;
+    try {
+      if (prods.length) {
+        for (const p of prods) for (const c of actives) {
+          const qty = pa[paKey(p.id, c.name)] ?? 0;
+          const existing = d.contents.filter((x) => x.creatorName === c.name && (x.brandName === brand || x.brandId === brand) && x.product === p.name && x.status !== "canceled").length;
+          for (let i = existing; i < qty; i++) { const nc = await createPlannedContent(brand, c.name, p.name, d.brands, d.creators); d.contents.push(nc); created++; }
+        }
+      } else {
+        for (const c of actives) {
+          const qty = qOf(c.name);
+          const label = `${brand} ${T("콘텐츠")}`;
+          const existing = d.contents.filter((x) => x.creatorName === c.name && (x.brandName === brand || x.brandId === brand) && x.status !== "canceled" && (monthOf(x) === month || x.status === "planned")).length;
+          for (let i = existing; i < qty; i++) { const nc = await createPlannedContent(brand, c.name, label, d.brands, d.creators); d.contents.push(nc); created++; }
+        }
+      }
+      setTick((t) => t + 1);
+      alert(created ? `${created}${T("건의 제작 일정을 생성했습니다.")}` : T("이미 최신 상태입니다."));
+    } catch (e) { alert(T("생성 실패: ") + (e as Error).message); }
+  }
   function set(name: string, delta: number) {
     const a = d.assignments.find((x) => x.brandId === brand && x.creatorId === name && x.yearMonth === month);
     let finalQ = 0;
@@ -956,6 +978,7 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
         <option value="name">{T("이름순")}</option>
         <option value="assigned">{T("배정 많은순")}</option>
       </select>
+      <button className="btn acc" style={{ marginLeft: "auto" }} onClick={generateSchedule}>{T("제작 일정 생성")}</button>
     </div>
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
       <b>{brand}</b> · {month.slice(0, 4)}{T("년")} {+month.slice(5)}{T("월 계약")} <b>{target}</b>{T("건")} · {T("배정 합계")} <b>{sum}</b>{T("건")} — {diff === 0 ? T("계약과 일치") : diff > 0 ? `${diff}${T("건 초과")}` : `${-diff}${T("건 미배정")}`}
