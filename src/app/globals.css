@@ -81,7 +81,10 @@
   .navitem.sub.active::before{background:var(--accent); opacity:1}
   .sidebar-foot{margin-top:auto; padding-top:12px; border-top:1px solid var(--border)}
   .who{display:flex; align-items:center; gap:10px; padding:8px 6px}
-  .who small{display:block; color:var(--faint); font-size:11.5px}
+  .who small{display:block; color:var(--faint); font-size:11.5px; word-break:break-all}
+  /* 모바일 드로어 요소 — 데스크톱에선 숨김 */
+  .nav-open, .nav-close, .nav-scrim{display:none}
+  .modal-backdrop{padding:24px}
 
   .main{min-width:0; display:flex; flex-direction:column}
   .topbar{
@@ -330,16 +333,48 @@
   .synced{display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--accent-ink); font-weight:600}
   :root[data-theme="dark"] .synced,:root:not([data-theme="light"]) .synced{color:var(--accent)}
 
-  @media (max-width:900px){
+  @media (max-width:860px){
     .app{grid-template-columns:1fr}
-    .sidebar{position:static; height:auto; flex-direction:row; overflow-x:auto; border-right:0; border-bottom:1px solid var(--border); align-items:center}
-    .sidebar .navlabel,.sidebar-foot{display:none}
-    .brandmark{padding:6px 8px}
+    /* 사이드바 = 오프캔버스 드로어 */
+    .sidebar{
+      position:fixed; top:0; left:0; height:100dvh; width:80vw; max-width:300px; z-index:60;
+      transform:translateX(-100%); transition:transform .22s ease; box-shadow:var(--shadow-lg);
+    }
+    .sidebar.open{transform:translateX(0)}
+    .nav-scrim{display:block; position:fixed; inset:0; z-index:55; background:rgba(0,0,0,.45); opacity:0; pointer-events:none; transition:opacity .2s}
+    .nav-scrim.show{opacity:1; pointer-events:auto}
+    .nav-open{display:grid; flex:none}
+    .nav-close{display:grid; margin-left:auto}
+    .brandmark{justify-content:space-between}
+
+    .topbar{padding:11px 14px; gap:10px}
+    .topbar h1{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .topbar .sub{font-size:11px}
+    .content{padding:14px}
+    .grid-kpi{grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px}
+    .kpi .val{font-size:22px}
     .two{grid-template-columns:1fr}
     .modal{grid-template-columns:1fr}
-    .player{min-height:300px}
-    .content{padding:18px}
-    .topbar{padding:12px 16px; flex-wrap:wrap}
+    .player{min-height:260px}
+    .sec-h{flex-direction:column; align-items:flex-start; gap:6px; margin:20px 0 12px}
+    .card.pad{padding:14px}
+    /* 필터바 = 가로 스크롤 대신 감싸기 + 풀폭 컨트롤 */
+    .filterbar{flex-wrap:wrap; gap:8px}
+    .filterbar select,.filterbar input{flex:1 1 44%; min-width:0}
+    .filterbar .count{flex-basis:100%}
+    /* 아카이브 카드 그리드 */
+    .archive{grid-template-columns:1fr 1fr; gap:10px}
+    .crgrid{grid-template-columns:1fr}
+    /* 모달: 화면 폭에 맞춤 */
+    .modal-backdrop{padding:10px}
+    .modal-card{padding:18px !important}
+    .backdrop{padding:0}
+    /* 표는 tablewrap이 가로 스크롤 처리 */
+    .tablewrap{ -webkit-overflow-scrolling:touch }
+  }
+  @media (max-width:440px){
+    .grid-kpi{grid-template-columns:1fr}
+    .archive{grid-template-columns:1fr}
   }
 
   /* login */

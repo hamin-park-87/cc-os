@@ -1,9 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "81'DEGREE",
   description: "크리에이터 PR 콘텐츠 아카이빙 & 리포팅 플랫폼",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: "#0F120F",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

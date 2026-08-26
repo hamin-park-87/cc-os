@@ -9,9 +9,9 @@ export function Modal({ title, onClose, children, footer, width = 560 }: {
     window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h);
   }, [onClose]);
   return (
-    <div onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}
-      style={{ position: "fixed", inset: 0, background: "rgba(8,14,13,.62)", backdropFilter: "blur(4px)", zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div className="card" style={{ width: `min(${width}px,100%)`, maxHeight: "92vh", overflow: "auto", padding: 24, position: "relative" }}>
+    <div className="modal-backdrop" onClick={(e) => { if (e.currentTarget === e.target) onClose(); }}
+      style={{ position: "fixed", inset: 0, background: "rgba(8,14,13,.62)", backdropFilter: "blur(4px)", zIndex: 70, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="card modal-card" style={{ width: `min(${width}px,100%)`, maxHeight: "92dvh", overflow: "auto", padding: 24, position: "relative" }}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ fontSize: 16 }}>{title}</h3>
           <button className="iconbtn" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button>

@@ -37,6 +37,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const [lang, setLang] = useState<Lang>("ko");
   const [theme, setTheme] = useState<string>("");
   const [month, setMonth] = useState("2026-08");
+  const [navOpen, setNavOpen] = useState(false);
 
   useEffect(() => {
     const api = getData();
@@ -68,14 +69,16 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brandmark"><b className="logo">81'<span>DEGREE</span></b></div>
+      <div className={`nav-scrim ${navOpen ? "show" : ""}`} onClick={() => setNavOpen(false)} />
+      <aside className={`sidebar ${navOpen ? "open" : ""}`}>
+        <div className="brandmark"><b className="logo">81'<span>DEGREE</span></b>
+          <button className="iconbtn nav-close" title="닫기" onClick={() => setNavOpen(false)}>✕</button></div>
         <div className="navlabel">{t(ROLE_LABEL[session.role], lang)}</div>
         {groups.map((g, gi) => (
           <div key={gi} className="navgroup">
             {g.group && <div className="navgroup-h">{t(g.group, lang)}</div>}
             {g.items.map(([key, label]) => (
-              <button key={key} className={`navitem ${g.group ? "sub" : ""} ${pane === key ? "active" : ""}`} onClick={() => setPane(key)}>
+              <button key={key} className={`navitem ${g.group ? "sub" : ""} ${pane === key ? "active" : ""}`} onClick={() => { setPane(key); setNavOpen(false); }}>
                 {t(label, lang)}
               </button>
             ))}
@@ -91,7 +94,8 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
 
       <div className="main">
         <div className="topbar">
-          <div><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {session.role === "admin" ? "81degree" : session.scope}</div></div>
+          <button className="iconbtn nav-open" title="메뉴" onClick={() => setNavOpen(true)}>☰</button>
+          <div style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {session.role === "admin" ? "81degree" : session.scope}</div></div>
           <div className="spacer" />
           {session.role === "admin" && <select value={month} onChange={(e) => setMonth(e.target.value)}
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
