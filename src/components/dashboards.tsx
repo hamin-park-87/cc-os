@@ -1077,9 +1077,6 @@ interface ProdRow {
 }
 function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, month }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean; includeDeals?: boolean; month?: string }) {
   const [, setTick] = useState(0);
-  const [addBrand, setAddBrand] = useState((brandName ?? d.brands[0]?.name) ?? "");
-  const [addCreator, setAddCreator] = useState((creatorName ?? d.creators.find((c) => c.status === "active")?.name) ?? "");
-  const [addProduct, setAddProduct] = useState("");
   const [fBrand, setFBrand] = useState(""); const [fCreator, setFCreator] = useState("");
   const [fType, setFType] = useState<"" | "brand" | "pr">(""); const [fStatus, setFStatus] = useState<"" | "up" | "plan">("");
   const groupByCreator = !creatorName;
@@ -1177,12 +1174,6 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
     r.content.status = st as Content["status"]; r.uploaded = st === "uploaded"; setTick((t) => t + 1);
     updateContentSchedule(r.content.id, r.content.sched as Record<string, string>, st).catch(() => { });
   }
-  async function add() {
-    const cn = creatorName ?? addCreator; const bn = brandName ?? addBrand;
-    if (!addProduct.trim() || !cn) return;
-    try { const c = await createPlannedContent(bn, cn, addProduct.trim(), d.brands, d.creators); d.contents.push(c); setAddProduct(""); setTick((t) => t + 1); }
-    catch (e) { alert(T("추가 실패: ") + (e as Error).message); }
-  }
   async function del(r: ProdRow) {
     if (!r.content || r.type !== "brand") return;
     if (!confirm(`'${r.label}' ${T("일정을 삭제할까요?")}`)) return;
@@ -1233,16 +1224,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
         })}
       </div>
     </div>}
-    {/* 브랜드 콘텐츠 일정 추가 */}
-    {!readonly && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, marginBottom: 12 }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>+ {T("브랜드 콘텐츠 추가")}</span>
-      {!brandName && <select style={{ ...stIn, padding: "7px 9px" }} value={addBrand} onChange={(e) => setAddBrand(e.target.value)}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
-      {!creatorName && <select style={{ ...stIn, padding: "7px 9px" }} value={addCreator} onChange={(e) => setAddCreator(e.target.value)}>{d.creators.filter((c) => c.status === "active").sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
-      <input style={{ ...stIn, padding: "7px 9px", flex: 1, minWidth: 160 }} placeholder={T("콘텐츠명 (예: 신제품 릴스)")} value={addProduct} onChange={(e) => setAddProduct(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
-      <button className="btn acc" onClick={add}>{T("추가")}</button>
-      {includeDeals && <span style={{ fontSize: 11.5, color: "var(--faint)" }}>{T("외부 PR 안건은 ‘외부 PR’ 탭에서 추가됩니다.")}</span>}
-    </div>}
-    {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요.")}</div> :
+    {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요. 위 ‘전략 브랜드 진행 현황’에서 배정 물량을 확인하고 ‘일정 생성’으로 만들 수 있어요.")}</div> :
       <div className="tablewrap"><table><thead><tr>
         <th>{T("콘텐츠")}</th><th>{T("구분")}</th>
         {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th>{T("콘텐츠")}</th>{!readonly && <th></th>}
