@@ -113,7 +113,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
   if (pane === "a-brands") return <BrandAdmin d={d} month={month} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
-  if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals />;
+  if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals month={month} />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
@@ -1075,7 +1075,7 @@ interface ProdRow {
   sched: ContentSched; uploaded: boolean; permalink?: string | null; stepLabel?: string;
   content?: Content; deal?: Deal;
 }
-function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean; includeDeals?: boolean }) {
+function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, month }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean; includeDeals?: boolean; month?: string }) {
   const [, setTick] = useState(0);
   const [addBrand, setAddBrand] = useState((brandName ?? d.brands[0]?.name) ?? "");
   const [addCreator, setAddCreator] = useState((creatorName ?? d.creators.find((c) => c.status === "active")?.name) ?? "");
@@ -1084,6 +1084,16 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals }: {
   const [fType, setFType] = useState<"" | "brand" | "pr">(""); const [fStatus, setFStatus] = useState<"" | "up" | "plan">("");
   const groupByCreator = !creatorName;
   const today = localToday();
+  const curMonth = today.slice(0, 7);
+  const [fMonth, setFMonth] = useState(month ?? (ASSIGN_MONTHS.includes(curMonth) ? curMonth : ASSIGN_MONTHS[0]));
+  const monthOpts = Array.from(new Set([...ASSIGN_MONTHS, ...(month ? [month] : []), curMonth])).sort();
+  // 해당 월에 진행해야 하는 항목: 4단계 일정 중 하나라도 그 달이면 매칭. 날짜 미설정(미정)은 항상 노출(스케줄링 필요).
+  const inMonth = (s: ContentSched) => {
+    if (!fMonth) return true;
+    const ds = [s.plan, s.shoot, s.edit, s.upload].filter(Boolean) as string[];
+    if (!ds.length) return true; // 미정
+    return ds.some((dt) => dt.slice(0, 7) === fMonth);
+  };
   const byId = new Map(d.contents.map((c) => [c.id, c]));
 
   // 1) 전략 브랜드 콘텐츠 (kind=pr)
@@ -1107,7 +1117,8 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals }: {
   }
   // 필터
   const items = rows.filter((r) =>
-    (!fBrand || r.target === fBrand) && (!fCreator || r.creatorName === fCreator)
+    inMonth(r.sched)
+    && (!fBrand || r.target === fBrand) && (!fCreator || r.creatorName === fCreator)
     && (!fType || r.type === fType) && (!fStatus || (fStatus === "up" ? r.uploaded : !r.uploaded))
   ).sort((a, b) => {
     if (groupByCreator) { const cc = cmpNameByCode(a.creatorName, b.creatorName); if (cc) return cc; }
@@ -1158,6 +1169,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals }: {
     </div>
     {/* 필터 */}
     <div className="filterbar">
+      <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}>{monthOpts.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}<option value="">{T("전체 기간")}</option></select>
       {includeDeals && <select value={fType} onChange={(e) => setFType(e.target.value as "" | "brand" | "pr")}><option value="">{T("전체 유형")}</option><option value="brand">{T("전략 브랜드")}</option><option value="pr">{T("외부 PR")}</option></select>}
       {!brandName && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 대상")}</option>{Array.from(new Set(rows.map((r) => r.target).filter(Boolean))).sort().map((t) => <option key={t} value={t}>{t}</option>)}</select>}
       {!creatorName && <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{d.creators.sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
@@ -1181,13 +1193,14 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals }: {
         {items.map((r, i) => {
           const newGroup = groupByCreator && r.creatorName !== (i > 0 ? items[i - 1].creatorName : null);
           const isDelay = !r.uploaded && r.sched.upload && r.sched.upload < today;
+          const noDates = !r.sched.plan && !r.sched.shoot && !r.sched.edit && !r.sched.upload;
           const canEdit = !readonly;
           return (<Fragment key={r.key}>
           {newGroup && <tr><td colSpan={colSpan} style={{ background: "var(--surface-2)", fontWeight: 700, fontSize: 12.5, padding: "8px 10px" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={r.creatorName} size={22} radius={11} />{withCode(r.creatorName)}</span>
           </td></tr>}
           <tr>
-            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{isDelay && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>}</td>
+            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{isDelay && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>}{noDates && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: "var(--faint)" }}>{T("일정 미정")}</span>}</td>
             <td><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <span className="tag" style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: r.type === "brand" ? "color-mix(in srgb,var(--accent) 18%,transparent)" : "color-mix(in srgb,#c9793a 20%,transparent)", color: r.type === "brand" ? "var(--accent)" : "#d98a4a" }}>{r.type === "brand" ? T("전략") : T("PR")}</span>
               {r.type === "brand" ? <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.target] ?? "var(--surface-3)" }} />{r.target}</span> : <span style={{ fontSize: 12.5 }}>{r.target}</span>}
