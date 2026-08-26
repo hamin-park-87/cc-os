@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, Fragment } from "react";
-import type { Brand, BrandProduct, Creator, Content, Deal, Contract, Assignment } from "@/lib/types";
+import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, Contract, Assignment } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
@@ -113,7 +113,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
   if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
   if (pane === "a-brands") return <BrandAdmin d={d} month={month} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
-  if (pane === "a-schedule") return <ScheduleEditor d={d} />;
+  if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
@@ -1065,88 +1065,149 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
 const SCHED_STAGES: { k: string; label: string }[] = [
   { k: "plan", label: "기획" }, { k: "shoot", label: "촬영" }, { k: "edit", label: "편집" }, { k: "upload", label: "업로드" },
 ];
-function ScheduleEditor({ d, creatorName, brandName, readonly }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean }) {
+// 오늘(로컬) YYYY-MM-DD — 지연 판정용
+function localToday(): string {
+  try { return new Date().toLocaleDateString("sv-SE"); } catch { return "9999-12-31"; }
+}
+// 통합 제작 보드 행 (전략 브랜드 콘텐츠 + 외부 PR 안건)
+interface ProdRow {
+  key: string; type: "brand" | "pr"; creatorName: string; label: string; target: string;
+  sched: ContentSched; uploaded: boolean; permalink?: string | null; stepLabel?: string;
+  content?: Content; deal?: Deal;
+}
+function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean; includeDeals?: boolean }) {
   const [, setTick] = useState(0);
   const [addBrand, setAddBrand] = useState((brandName ?? d.brands[0]?.name) ?? "");
   const [addCreator, setAddCreator] = useState((creatorName ?? d.creators.find((c) => c.status === "active")?.name) ?? "");
   const [addProduct, setAddProduct] = useState("");
   const [fBrand, setFBrand] = useState(""); const [fCreator, setFCreator] = useState("");
-  // 그룹: 크리에이터 필터 없으면 크리에이터별, 있으면 브랜드별
+  const [fType, setFType] = useState<"" | "brand" | "pr">(""); const [fStatus, setFStatus] = useState<"" | "up" | "plan">("");
   const groupByCreator = !creatorName;
-  const items = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled"
-    && (!creatorName || c.creatorName === creatorName)
-    && (!brandName || c.brandName === brandName || c.brandId === brandName)
-    && (!fBrand || c.brandName === fBrand) && (!fCreator || c.creatorName === fCreator))
-    .sort((a, b) => {
-      if (groupByCreator) { const cc = cmpNameByCode(a.creatorName, b.creatorName); if (cc) return cc; }
-      const bc = (a.brandName ?? "").localeCompare(b.brandName ?? ""); if (bc) return bc;
-      return (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999");
-    });
-  const showBrandCol = !brandName && groupByCreator;
-  const colSpan = 1 + (showBrandCol ? 1 : 0) + SCHED_STAGES.length + 1 + (readonly ? 0 : 1);
-  function setDate(c: Content, stage: string, val: string) {
-    c.sched = { ...c.sched, [stage]: val };
-    if (stage === "upload") c.plannedDate = val;
-    setTick((t) => t + 1);
-    updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { });
+  const today = localToday();
+  const byId = new Map(d.contents.map((c) => [c.id, c]));
+
+  // 1) 전략 브랜드 콘텐츠 (kind=pr)
+  const rows: ProdRow[] = [];
+  for (const c of d.contents) {
+    if (c.kind !== "pr" || c.status === "canceled") continue;
+    if (creatorName && c.creatorName !== creatorName) continue;
+    if (brandName && !(c.brandName === brandName || c.brandId === brandName)) continue;
+    rows.push({ key: c.id, type: "brand", creatorName: c.creatorName, label: c.product, target: c.brandName ?? "", sched: c.sched, uploaded: c.status === "uploaded", permalink: c.permalink, content: c });
   }
-  function setStatus(c: Content, st: string) { c.status = st as Content["status"]; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
+  // 2) 외부 PR 안건 (deals) — 관리자·크리에이터 화면만 (브랜드에는 미노출)
+  if (includeDeals) {
+    for (const dl of d.deals) {
+      if (creatorName && dl.creatorName !== creatorName) continue;
+      const linked = dl.contentId ? byId.get(dl.contentId) : undefined;
+      const up = !!(dl.contentId) || (dl.step >= 5 && !!dl.uploadDate);
+      const sched: ContentSched = { ...(dl.sched ?? {}) };
+      if (!sched.upload && dl.uploadDate) sched.upload = dl.uploadDate;
+      rows.push({ key: "deal-" + dl.id, type: "pr", creatorName: dl.creatorName, label: dl.title, target: dl.client, sched, uploaded: up, permalink: linked?.permalink ?? null, stepLabel: DEAL_STEPS[dl.step], content: linked, deal: dl });
+    }
+  }
+  // 필터
+  const items = rows.filter((r) =>
+    (!fBrand || r.target === fBrand) && (!fCreator || r.creatorName === fCreator)
+    && (!fType || r.type === fType) && (!fStatus || (fStatus === "up" ? r.uploaded : !r.uploaded))
+  ).sort((a, b) => {
+    if (groupByCreator) { const cc = cmpNameByCode(a.creatorName, b.creatorName); if (cc) return cc; }
+    if (a.type !== b.type) return a.type === "brand" ? -1 : 1;
+    return (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999");
+  });
+  // 요약
+  const total = items.length, done = items.filter((r) => r.uploaded).length;
+  const delayed = items.filter((r) => !r.uploaded && r.sched.upload && r.sched.upload < today).length;
+  const colSpan = 2 + SCHED_STAGES.length + 2 + (readonly ? 0 : 1);
+
+  function setDate(r: ProdRow, stage: string, val: string) {
+    const s = { ...r.sched, [stage]: val }; r.sched = s;
+    if (r.type === "brand" && r.content) {
+      r.content.sched = s; if (stage === "upload") r.content.plannedDate = val;
+      updateContentSchedule(r.content.id, s as Record<string, string>, r.content.status).catch(() => { });
+    } else if (r.deal) {
+      r.deal.sched = s; if (stage === "upload") r.deal.uploadDate = val;
+      updateDealSchedule(r.deal.id, s as Record<string, string>).catch(() => { });
+    }
+    setTick((t) => t + 1);
+  }
+  function setStatus(r: ProdRow, st: string) {
+    if (r.type !== "brand" || !r.content) return;
+    r.content.status = st as Content["status"]; r.uploaded = st === "uploaded"; setTick((t) => t + 1);
+    updateContentSchedule(r.content.id, r.content.sched as Record<string, string>, st).catch(() => { });
+  }
   async function add() {
     const cn = creatorName ?? addCreator; const bn = brandName ?? addBrand;
     if (!addProduct.trim() || !cn) return;
     try { const c = await createPlannedContent(bn, cn, addProduct.trim(), d.brands, d.creators); d.contents.push(c); setAddProduct(""); setTick((t) => t + 1); }
     catch (e) { alert(T("추가 실패: ") + (e as Error).message); }
   }
-  async function del(c: Content) {
-    if (!confirm(`'${c.product}' ${T("일정을 삭제할까요?")}`)) return;
-    try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); }
+  async function del(r: ProdRow) {
+    if (!r.content || r.type !== "brand") return;
+    if (!confirm(`'${r.label}' ${T("일정을 삭제할까요?")}`)) return;
+    try { await deleteContent(r.content.id); const i = d.contents.indexOf(r.content); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); }
     catch (e) { alert(T("삭제 실패: ") + (e as Error).message); }
   }
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
   return (<>
-    {/* 필터 (목록에 적용) */}
+    {/* 요약 */}
+    <div className="grid-kpi" style={{ marginBottom: 14 }}>
+      <Kpi lab={T("총 제작")} val={total} unit={T("건")} />
+      <Kpi lab={T("업로드 완료")} val={done} unit={T("건")} />
+      <Kpi lab={T("진행중")} val={total - done} unit={T("건")} />
+      <Kpi lab={T("지연")} val={delayed} unit={T("건")} dir={delayed ? "down" : undefined} />
+    </div>
+    {/* 필터 */}
     <div className="filterbar">
-      {!brandName && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 브랜드")}</option>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
+      {includeDeals && <select value={fType} onChange={(e) => setFType(e.target.value as "" | "brand" | "pr")}><option value="">{T("전체 유형")}</option><option value="brand">{T("전략 브랜드")}</option><option value="pr">{T("외부 PR")}</option></select>}
+      {!brandName && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 대상")}</option>{Array.from(new Set(rows.map((r) => r.target).filter(Boolean))).sort().map((t) => <option key={t} value={t}>{t}</option>)}</select>}
       {!creatorName && <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{d.creators.sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
+      <select value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | "up" | "plan")}><option value="">{T("전체 상태")}</option><option value="plan">{T("진행중")}</option><option value="up">{T("업로드")}</option></select>
       <span className="count">{items.length}{T("건")}</span>
     </div>
-    {/* 일정 추가 (별도) */}
+    {/* 브랜드 콘텐츠 일정 추가 */}
     {!readonly && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, marginBottom: 12 }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>+ {T("일정 추가")}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>+ {T("브랜드 콘텐츠 추가")}</span>
       {!brandName && <select style={{ ...stIn, padding: "7px 9px" }} value={addBrand} onChange={(e) => setAddBrand(e.target.value)}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
       {!creatorName && <select style={{ ...stIn, padding: "7px 9px" }} value={addCreator} onChange={(e) => setAddCreator(e.target.value)}>{d.creators.filter((c) => c.status === "active").sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
       <input style={{ ...stIn, padding: "7px 9px", flex: 1, minWidth: 160 }} placeholder={T("콘텐츠명 (예: 신제품 릴스)")} value={addProduct} onChange={(e) => setAddProduct(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
       <button className="btn acc" onClick={add}>{T("추가")}</button>
+      {includeDeals && <span style={{ fontSize: 11.5, color: "var(--faint)" }}>{T("외부 PR 안건은 ‘외부 PR’ 탭에서 추가됩니다.")}</span>}
     </div>}
     {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요.")}</div> :
       <div className="tablewrap"><table><thead><tr>
-        <th>{T("콘텐츠")}</th>{showBrandCol && <th>{T("브랜드")}</th>}
-        {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th>{!readonly && <th></th>}
+        <th>{T("콘텐츠")}</th><th>{T("구분")}</th>
+        {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th>{T("콘텐츠")}</th>{!readonly && <th></th>}
       </tr></thead><tbody>
-        {items.map((c, i) => {
-          const groupVal = groupByCreator ? c.creatorName : (c.brandName ?? "");
-          const prevVal = i > 0 ? (groupByCreator ? items[i - 1].creatorName : (items[i - 1].brandName ?? "")) : null;
-          const newGroup = groupVal !== prevVal;
-          return (<Fragment key={c.id}>
+        {items.map((r, i) => {
+          const newGroup = groupByCreator && r.creatorName !== (i > 0 ? items[i - 1].creatorName : null);
+          const isDelay = !r.uploaded && r.sched.upload && r.sched.upload < today;
+          const canEdit = !readonly;
+          return (<Fragment key={r.key}>
           {newGroup && <tr><td colSpan={colSpan} style={{ background: "var(--surface-2)", fontWeight: 700, fontSize: 12.5, padding: "8px 10px" }}>
-            {groupByCreator ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={c.creatorName} size={22} radius={11} />{withCode(c.creatorName)}</span>
-              : <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[c.brandName ?? ""] ?? "var(--surface-3)" }} />{c.brandName}</span>}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={r.creatorName} size={22} radius={11} />{withCode(r.creatorName)}</span>
           </td></tr>}
           <tr>
-            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{c.product}</b></td>
-            {showBrandCol && <td><span className="chip">{c.brandName}</span></td>}
+            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{isDelay && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>}</td>
+            <td><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span className="tag" style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: r.type === "brand" ? "color-mix(in srgb,var(--accent) 18%,transparent)" : "color-mix(in srgb,#c9793a 20%,transparent)", color: r.type === "brand" ? "var(--accent)" : "#d98a4a" }}>{r.type === "brand" ? T("전략") : T("PR")}</span>
+              {r.type === "brand" ? <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.target] ?? "var(--surface-3)" }} />{r.target}</span> : <span style={{ fontSize: 12.5 }}>{r.target}</span>}
+            </span></td>
             {SCHED_STAGES.map((s) => <td key={s.k}>
-              {readonly ? <span className="num" style={{ color: c.sched[s.k as keyof typeof c.sched] ? "var(--ink)" : "var(--faint)" }}>{c.sched[s.k as keyof typeof c.sched] || "—"}</span>
-                : <input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } }} onChange={(e) => setDate(c, s.k, e.target.value)} />}
+              {canEdit ? <input type="date" style={{ ...stIn, cursor: "pointer" }} value={r.sched[s.k as keyof ContentSched] ?? ""} onClick={(e) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } }} onChange={(e) => setDate(r, s.k, e.target.value)} />
+                : <span className="num" style={{ color: r.sched[s.k as keyof ContentSched] ? "var(--ink)" : "var(--faint)" }}>{r.sched[s.k as keyof ContentSched] || "—"}</span>}
             </td>)}
-            <td>{readonly ? <span className={`pill ${c.status === "uploaded" ? "p-ok" : "p-plan"}`}><span className="d" />{c.status === "uploaded" ? T("업로드") : T("예정")}</span>
-              : <select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>}</td>
-            {!readonly && <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button></td>}
+            <td>{(canEdit && r.type === "brand") ? <select style={stIn} value={r.uploaded ? "uploaded" : "planned"} onChange={(e) => setStatus(r, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>
+              : <span className={`pill ${r.uploaded ? "p-ok" : "p-plan"}`}><span className="d" />{r.uploaded ? T("업로드") : (r.type === "pr" ? (r.stepLabel ?? T("예정")) : T("예정"))}</span>}</td>
+            <td>{r.permalink ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <a className="btn sm" href={r.permalink} target="_blank" rel="noreferrer" style={{ padding: "4px 9px", fontSize: 11.5 }}>▶ {T("보기")}</a>
+                {r.content && r.content.views > 0 && <span className="num" style={{ fontSize: 11.5, color: "var(--muted)" }} title={T("참여율")}>{engRate(r.content)}% · {fmt(r.content.views)}</span>}
+              </span> : <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>}</td>
+            {!readonly && <td style={{ textAlign: "right" }}>{r.type === "brand" ? <button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(r)}>{T("삭제")}</button> : null}</td>}
           </tr>
           </Fragment>);
         })}
       </tbody></table></div>}
-    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>{T("기획·촬영·편집·업로드 일정을 입력하면 관리자·브랜드에게 공유됩니다.")}</div>
+    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>{T("전략 브랜드 콘텐츠와 외부 PR 안건의 기획·촬영·편집·업로드 일정이 한 화면에 모입니다. 업로드되면 브랜드·관리자가 링크와 인게이지먼트를 바로 확인합니다.")}</div>
   </>);
 }
 

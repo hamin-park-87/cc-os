@@ -143,9 +143,17 @@ function dealRow(d: Deal, creatorId: string | null) {
     code: d.code ?? null, title: d.title, client: d.client, creator_id: creatorId, manager: d.manager ?? null,
     source: d.source, type: d.type, brief: d.brief ?? null, fee: d.fee, secondary_fee: d.secondaryFee ?? null,
     share_company: d.shareCompany, share_creator: d.shareCreator,
-    due_date: d.dueDate || null, upload_date: d.uploadDate || null, step: d.step,
+    due_date: d.dueDate || null, upload_date: d.uploadDate || null, step: d.step, sched: d.sched ?? {},
     received_date: d.receivedDate || null, payment_due: d.paymentDue || null, paid_date: d.paidDate || null, invoice_file: d.invoiceFile ?? null,
   };
+}
+// PR 안건 제작 일정(기획/촬영/편집/업로드) 수정 — 업로드 단계는 upload_date에도 반영
+export async function updateDealSchedule(id: string, sched: Record<string, string>): Promise<void> {
+  if (!isDb()) return;
+  const patch: Record<string, unknown> = { sched };
+  if (sched.upload) patch.upload_date = sched.upload;
+  const { error } = await getSupabase().from("deals").update(patch).eq("id", id);
+  if (error) throw error;
 }
 // 첨부파일 업로드 → 공개 URL 반환 (attachments 버킷)
 export async function uploadAttachment(file: File, prefix = "invoice"): Promise<string> {

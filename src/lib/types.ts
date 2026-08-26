@@ -141,6 +141,7 @@ export interface Deal {
   paymentDue?: string | null;   // 입금 예정일
   paidDate?: string | null;     // 입금일
   invoiceFile?: string | null;  // 청구서 첨부 URL
+  sched?: ContentSched;         // 제작 일정 (기획/촬영/편집/업로드)
 }
 
 export interface SecondaryRequest {

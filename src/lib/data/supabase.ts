@@ -67,7 +67,7 @@ export const supabaseProvider: DataProvider = {
       manager: r.manager, source: r.source, type: r.type, brief: r.brief, fee: Number(r.fee ?? 0),
       secondaryFee: r.secondary_fee != null ? Number(r.secondary_fee) : null,
       shareCompany: r.share_company, shareCreator: r.share_creator, dueDate: r.due_date, uploadDate: r.upload_date,
-      step: r.step, contentId: r.content_id,
+      step: r.step, contentId: r.content_id, sched: r.sched ?? {},
       receivedDate: r.received_date, paymentDue: r.payment_due, paidDate: r.paid_date, invoiceFile: r.invoice_file,
     }));
   },
