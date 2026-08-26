@@ -1085,6 +1085,8 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   const groupByCreator = !creatorName;
   const today = localToday();
   const curMonth = today.slice(0, 7);
+  // 콘텐츠 귀속 월: 업로드=게시월, 그 외=업로드 예정월, 없으면 null(미정)
+  const effMonth = (c: Content): string | null => c.status === "uploaded" ? monthOf(c) : (c.sched.upload ? c.sched.upload.slice(0, 7) : null);
   const [fMonth, setFMonth] = useState(month ?? (ASSIGN_MONTHS.includes(curMonth) ? curMonth : ASSIGN_MONTHS[0]));
   const monthOpts = Array.from(new Set([...ASSIGN_MONTHS, ...(month ? [month] : []), curMonth])).sort();
   // 해당 월에 진행해야 하는 항목: 4단계 일정 중 하나라도 그 달이면 매칭. 날짜 미설정(미정)은 항상 노출(스케줄링 필요).
@@ -1129,6 +1131,35 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   const total = items.length, done = items.filter((r) => r.uploaded).length;
   const delayed = items.filter((r) => !r.uploaded && r.sched.upload && r.sched.upload < today).length;
   const colSpan = 2 + SCHED_STAGES.length + 2 + (readonly ? 0 : 1);
+
+  // 전략 브랜드 진행 현황 (배정 수량 대비) — 선택 월 기준, 일정 없어도 배정 물량 전체 노출
+  const showBrandProg = fType !== "pr" && !!fMonth;
+  const brandProg = showBrandProg ? d.brands
+    .filter((b) => (!brandName || b.name === brandName || b.id === brandName) && (!fBrand || b.name === fBrand))
+    .map((b) => {
+      const inP = (!b.contractStart || b.contractStart <= fMonth) && (!b.contractEnd || b.contractEnd >= fMonth);
+      const asgQ = d.assignments.filter((a) => a.brandId === b.name && a.yearMonth === fMonth).reduce((s, a) => s + a.quota, 0);
+      const mc = d.contracts.find((c) => c.brandId === b.name && c.yearMonth === fMonth);
+      const quota = asgQ || mc?.quota || (inP ? (b.monthlyQuota ?? 0) : 0);
+      const mine = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled" && (c.brandName === b.name || c.brandId === b.name) && (() => { const em = effMonth(c); return em === fMonth || em === null; })());
+      const created = mine.length, uploaded = mine.filter((c) => c.status === "uploaded").length;
+      return { b, quota, created, uploaded, inprog: created - uploaded, missing: Math.max(0, quota - created) };
+    })
+    .filter((x) => x.quota > 0 || x.created > 0)
+    .sort((a, b) => (a.b.code ?? a.b.name).localeCompare(b.b.code ?? b.b.name)) : [];
+  // 배정 대비 부족분(미생성) 계획 콘텐츠 생성
+  async function genMissing(bn: string) {
+    let created = 0;
+    try {
+      const asgs = d.assignments.filter((a) => a.brandId === bn && a.yearMonth === fMonth);
+      for (const a of asgs) {
+        const existing = d.contents.filter((x) => x.creatorName === a.creatorId && (x.brandName === bn || x.brandId === bn) && x.status !== "canceled" && (() => { const em = effMonth(x); return em === fMonth || em === null; })()).length;
+        for (let i = existing; i < a.quota; i++) { const nc = await createPlannedContent(bn, a.creatorId, `${bn} ${T("콘텐츠")}`, d.brands, d.creators); d.contents.push(nc); created++; }
+      }
+      setTick((t) => t + 1);
+      alert(created ? `${created}${T("건의 제작 일정을 생성했습니다.")}` : T("이미 최신 상태입니다."));
+    } catch (e) { alert(T("생성 실패: ") + (e as Error).message); }
+  }
 
   function setDate(r: ProdRow, stage: string, val: string) {
     const s = { ...r.sched, [stage]: val }; r.sched = s;
@@ -1176,6 +1207,32 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       <select value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | "up" | "plan")}><option value="">{T("전체 상태")}</option><option value="plan">{T("진행중")}</option><option value="up">{T("업로드")}</option></select>
       <span className="count">{items.length}{T("건")}</span>
     </div>
+    {/* 전략 브랜드 진행 현황 */}
+    {showBrandProg && brandProg.length > 0 && <div style={{ marginBottom: 14 }}>
+      <div className="sec-h" style={{ margin: "0 0 8px" }}><h2 style={{ fontSize: 14 }}>{T("전략 브랜드 진행 현황")}</h2><span className="hint">{fMonth.slice(0, 4)}. {+fMonth.slice(5)}{T("월")} · {T("배정 물량 기준")}</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(215px,1fr))", gap: 10 }}>
+        {brandProg.map(({ b, quota, uploaded, inprog, missing }) => {
+          const upPct = quota ? Math.min(100, uploaded / quota * 100) : (uploaded ? 100 : 0);
+          const ipPct = quota ? Math.min(100 - upPct, inprog / quota * 100) : 0;
+          return <div key={b.id} className="card" style={{ padding: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span className="chip"><span className="sw" style={{ background: b.color ?? BRAND_COLOR[b.name] ?? "var(--surface-3)" }} /><b>{b.name}</b></span>
+              <span className="num" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700 }}>{uploaded}<span style={{ color: "var(--faint)" }}>/{quota || "—"}</span></span>
+            </div>
+            <div style={{ height: 8, borderRadius: 6, background: "var(--surface-3)", overflow: "hidden", display: "flex", marginBottom: 8 }}>
+              <span style={{ width: `${upPct}%`, background: "#3fb984" }} />
+              <span style={{ width: `${ipPct}%`, background: "var(--accent)" }} />
+            </div>
+            <div style={{ display: "flex", gap: 10, fontSize: 11.5, flexWrap: "wrap", alignItems: "center" }}>
+              <span style={{ color: "#3fb984", fontWeight: 600 }}>● {T("업로드")} {uploaded}</span>
+              <span style={{ color: "var(--accent)", fontWeight: 600 }}>● {T("진행중")} {inprog}</span>
+              {missing > 0 && <span style={{ color: "#d98a4a", fontWeight: 600 }}>● {T("미생성")} {missing}</span>}
+              {!readonly && missing > 0 && <button className="btn sm" style={{ marginLeft: "auto", padding: "3px 8px", fontSize: 11 }} onClick={() => genMissing(b.name)}>+ {T("일정 생성")}</button>}
+            </div>
+          </div>;
+        })}
+      </div>
+    </div>}
     {/* 브랜드 콘텐츠 일정 추가 */}
     {!readonly && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, marginBottom: 12 }}>
       <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>+ {T("브랜드 콘텐츠 추가")}</span>
