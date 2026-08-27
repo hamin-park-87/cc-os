@@ -2413,16 +2413,20 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   const totalQ = brandsAsg.reduce((s, a) => s + a.quota, 0);
   const totalDone = d.contents.filter((c) => c.creatorName === me && c.status === "uploaded" && monthOf(c) === month && c.kind === "pr").length;
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
-  const [savedId, setSavedId] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
+  const toggle = (brand: string) => setCollapsed((prev) => { const n = new Set(prev); n.has(brand) ? n.delete(brand) : n.add(brand); return n; });
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast((v) => (v === msg ? null : v)), 1800); };
   const stampPub = (c: Content) => { c.publishedAt = c.status === "uploaded" ? (c.sched.upload || localToday()) : null; };
   function setDate(c: Content, stage: string, val: string) { c.sched = { ...c.sched, [stage]: val }; if (stage === "upload") c.plannedDate = val; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { }); }
   function setStatus(c: Content, st: string) { c.status = st as Content["status"]; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
   function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); }
-  async function saveRow(c: Content) {
+  async function saveRow(c: Content, brand: string) {
     try {
       await updateContentSchedule(c.id, c.sched as Record<string, string>, c.status);
       await patchContentFields(c.id, { permalink: c.permalink || null });
-      setSavedId(c.id); setTimeout(() => setSavedId((v) => (v === c.id ? null : v)), 1600);
+      setCollapsed((prev) => new Set(prev).add(brand)); // 저장하면 폴더 닫힘
+      showToast(T("일정 추가 완료"));
     } catch (e) { alert(T("저장 실패: ") + (e as Error).message); }
   }
   const openCal = (e: React.MouseEvent<HTMLInputElement>) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } };
@@ -2449,16 +2453,22 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
         const brand = a.brandId; const items = myContentsFor(brand);
         const done = items.filter((c) => c.status === "uploaded").length;
         const short = a.quota - items.length;
+        const isOpen = !collapsed.has(brand);
         return (
           <div key={brand} className="card pad" style={{ marginBottom: 14 }}>
-            <div className="sec-h" style={{ margin: "0 0 12px" }}>
-              <h2><span className="chip" style={{ marginRight: 8 }}><span className="sw" style={{ background: BRAND_COLOR[brand] ?? "var(--surface-3)" }} />{brand}</span>{T("배정")} {a.quota}{T("건")} · {T("완료")} {done}{T("건")}</h2>
-              <span style={{ display: "flex", gap: 6 }}>
-                {short > 0 && <button className="btn acc sm" onClick={() => genShort(brand, a.quota)}>{T("일정 등록")} ({short})</button>}
-                <button className="btn sm" onClick={() => addOne(brand)}>+ {T("추가")}</button>
+            <div className="sec-h" style={{ margin: isOpen ? "0 0 12px" : 0, cursor: "pointer" }} onClick={() => toggle(brand)}>
+              <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12, color: "var(--muted)", transition: "transform .15s", transform: isOpen ? "rotate(90deg)" : "none", display: "inline-block", width: 12 }}>▶</span>
+                <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[brand] ?? "var(--surface-3)" }} />{brand}</span>
+                <span style={{ fontWeight: 600 }}>{T("배정")} {a.quota}{T("건")} · {T("완료")} {done}{T("건")}</span>
+                {done >= a.quota && a.quota > 0 && <span className="pill p-ok" style={{ fontSize: 10.5 }}><span className="d" />{T("완료")}</span>}
+              </h2>
+              <span style={{ display: "flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                {isOpen && short > 0 && <button className="btn acc sm" onClick={() => genShort(brand, a.quota)}>{T("일정 등록")} ({short})</button>}
+                {isOpen && <button className="btn sm" onClick={() => addOne(brand)}>+ {T("추가")}</button>}
               </span>
             </div>
-            {!items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 등록’으로 시작하세요.")}</div> :
+            {!isOpen ? null : !items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 등록’으로 시작하세요.")}</div> :
               <div className="tablewrap"><table><thead><tr>
                 <th>{T("콘텐츠")}</th>{SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th></th>
               </tr></thead><tbody>
@@ -2474,7 +2484,7 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
                     {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
                     <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                      <button className="btn acc sm" style={{ padding: "5px 10px", fontSize: 11.5, marginRight: 6, minWidth: 62 }} onClick={() => saveRow(c)}>{savedId === c.id ? "✓ " + T("저장됨") : T("저장")}</button>
+                      <button className="btn acc sm" style={{ padding: "5px 10px", fontSize: 11.5, marginRight: 6, minWidth: 62 }} onClick={() => saveRow(c, brand)}>{T("저장")}</button>
                       <button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button>
                     </td>
                   </tr>
@@ -2483,6 +2493,7 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
           </div>
         );
       })}
+    {toast && <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 90, background: "var(--accent)", color: "#0b0f0d", fontWeight: 800, fontSize: 13.5, padding: "11px 20px", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 8 }}>✓ {toast}</div>}
   </>);
 }
 
