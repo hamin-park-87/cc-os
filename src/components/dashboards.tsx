@@ -52,6 +52,7 @@ function ScheduleRows({ items }: { items: Content[] }) {
         <div className="hd">
           <Avatar name={c.creatorName} size={34} radius={9} />
           <div style={{ flex: 1, minWidth: 0 }}><div className="t">{c.product}</div><div className="s">{withCode(c.creatorName)} · {c.brandName}</div></div>
+          {(c.permalink || (c.views ?? 0) > 0) && <ContentActions c={c} />}
           {c.status === "uploaded" ? <span className="pill p-ok"><span className="d" />{T("완료")}</span> : <span className="pill p-warn"><span className="d" />{T("업로드")} {md(c.sched.upload)}</span>}
         </div>
         <div className="sgtrack">
@@ -84,7 +85,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
     const totDone = asg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === month).length, 0);
     const crs = [...new Set(asg.map((a) => a.creatorId))].sort(cmpNameByCode);
     const cellStyle = (r: number) => r >= 1 ? ["var(--success-weak)", "var(--success)"] : r > 0 ? ["var(--warning-weak)", "var(--warning)"] : ["var(--critical-weak)", "var(--critical)"];
-    const sched = d.contents.filter((c) => c.status === "planned").sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    const sched = d.contents.filter((c) => (c.kind === "pr" || c.kind === "deal") && (c.status === "planned" || (c.status === "uploaded" && monthOf(c) === month))).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     return (
       <>
         <div className="grid-kpi">
@@ -1768,7 +1769,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <span>{T("납기")} <b className="num">{md(dl.dueDate ?? undefined)}</b></span>
               <span>{T("업로드")} <b className="num">{md(dl.uploadDate ?? undefined)}</b></span>
             </div>
-            {ct && <div className="note" style={{ marginTop: 10 }}>{T("업로드 콘텐츠:")} {ct.permalink ? <a href={ct.permalink} target="_blank" rel="noopener" style={{ color: "var(--accent-ink)" }}>{ct.permalink}</a> : "—"} · {T("조회")} <b className="num">{fmt(ct.views)}</b></div>}
+            {ct && <div className="note" style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{T("업로드 콘텐츠")}</span><ContentActions c={ct} /></div>}
             {!readonly && <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end" }}>
               {dl.step >= 4 && <button className="btn sm" onClick={() => setInvoice(dl)}>{T("청구서")}</button>}
               {dl.step < 7 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
