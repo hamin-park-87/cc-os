@@ -1069,6 +1069,43 @@ const SCHED_STAGES: { k: string; label: string }[] = [
 function localToday(): string {
   try { return new Date().toLocaleDateString("sv-SE"); } catch { return "9999-12-31"; }
 }
+
+/* 공통: 업로드 영상 보기 + 인게이지먼트 확인 (관리자/브랜드/크리에이터 공용) */
+function ContentActions({ c }: { c?: Content | null }) {
+  const [open, setOpen] = useState(false);
+  if (!c) return <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>;
+  const hasMetrics = (c.views ?? 0) > 0 || (c.likes ?? 0) > 0 || (c.comments ?? 0) > 0;
+  if (!c.permalink && !hasMetrics) return <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>;
+  const rate = engRate(c);
+  const cells: [string, number][] = [["조회", c.views], ["도달", c.reach], ["좋아요", c.likes], ["댓글", c.comments], ["저장", c.saves], ["공유", c.shares]];
+  return (<span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+    {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noreferrer" style={{ padding: "4px 9px", fontSize: 11.5 }}>▶ {T("영상")}</a>}
+    {hasMetrics ? <button className="btn sm" style={{ padding: "4px 9px", fontSize: 11.5 }} onClick={() => setOpen(true)}>📊 {rate}%</button>
+      : c.permalink ? <span style={{ fontSize: 11, color: "var(--faint)" }} title={T("Instagram 연동·동기화 후 지표가 표시됩니다.")}>{T("지표 대기")}</span> : null}
+    {open && <Modal title={T("인게이지먼트")} width={440} onClose={() => setOpen(false)}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14 }}>
+        {c.thumbnailUrl ? <img src={c.thumbnailUrl} alt="" style={{ width: 72, height: 96, objectFit: "cover", borderRadius: 8, flexShrink: 0 }} /> : null}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{c.product}</div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{withCode(c.creatorName)}{c.brandName ? ` · ${c.brandName}` : ""}</div>
+          {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noreferrer" style={{ marginTop: 8, display: "inline-block" }}>▶ {T("영상 열기")}</a>}
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+        {cells.map(([lab, v]) => (
+          <div key={lab} style={{ background: "var(--surface-2)", borderRadius: 9, padding: "9px 10px" }}>
+            <div style={{ fontSize: 10.5, color: "var(--muted)" }}>{T(lab)}</div>
+            <div className="num" style={{ fontSize: 15, fontWeight: 700 }}>{fmt(v ?? 0)}</div>
+          </div>
+        ))}
+        <div style={{ background: "color-mix(in srgb,var(--accent) 14%,transparent)", borderRadius: 9, padding: "9px 10px" }}>
+          <div style={{ fontSize: 10.5, color: "var(--accent)" }}>{T("참여율")}</div>
+          <div className="num" style={{ fontSize: 15, fontWeight: 700, color: "var(--accent)" }}>{rate}%</div>
+        </div>
+      </div>
+    </Modal>}
+  </span>);
+}
 // 통합 제작 보드 행 (전략 브랜드 콘텐츠 + 외부 PR 안건)
 interface ProdRow {
   key: string; type: "brand" | "pr"; creatorName: string; label: string; target: string;
@@ -1253,10 +1290,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
             </td>)}
             <td>{(canEdit && r.type === "brand") ? <select style={stIn} value={r.uploaded ? "uploaded" : "planned"} onChange={(e) => setStatus(r, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>
               : <span className={`pill ${r.uploaded ? "p-ok" : "p-plan"}`}><span className="d" />{r.uploaded ? T("업로드") : (r.type === "pr" ? (r.stepLabel ?? T("예정")) : T("예정"))}</span>}</td>
-            <td>{r.permalink ? <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <a className="btn sm" href={r.permalink} target="_blank" rel="noreferrer" style={{ padding: "4px 9px", fontSize: 11.5 }}>▶ {T("보기")}</a>
-                {r.content && r.content.views > 0 && <span className="num" style={{ fontSize: 11.5, color: "var(--muted)" }} title={T("참여율")}>{engRate(r.content)}% · {fmt(r.content.views)}</span>}
-              </span> : <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>}</td>
+            <td><ContentActions c={r.content} /></td>
             {!readonly && <td style={{ textAlign: "right" }}>{r.type === "brand" ? <button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(r)}>{T("삭제")}</button> : null}</td>}
           </tr>
           </Fragment>);
@@ -2155,9 +2189,8 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
                     <div key={c.id} style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 13 }}>{c.product}</div>
-                        {c.status === "uploaded" && <div style={{ fontSize: 11.5, color: "var(--muted)", whiteSpace: "nowrap" }}>{T("조회")} <b className="num">{fmt(c.views)}</b> · {T("참여율")} <b className="num">{engRate(c)}</b></div>}
                         <span className={`pill ${c.status === "uploaded" ? "p-ok" : "p-plan"}`} style={{ flexShrink: 0 }}><span className="d" />{c.status === "uploaded" ? T("업로드") : T("예정")}</span>
-                        {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noopener" style={{ flexShrink: 0 }}>{T("보러가기")}</a>}
+                        <span style={{ flexShrink: 0 }}><ContentActions c={c} /></span>
                       </div>
                       {/* 제작 단계 타임라인 */}
                       <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
@@ -2502,7 +2535,7 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
                       <b style={{ fontSize: 13 }}>{c.product}</b>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 5 }}>
                         <input style={{ ...stIn, flex: 1, minWidth: 130 }} placeholder={T("업로드 URL 입력")} value={c.permalink ?? ""} onChange={(e) => setUrl(c, e.target.value)} />
-                        {c.permalink && <a className="btn" style={{ padding: "5px 8px", fontSize: 11 }} href={c.permalink} target="_blank" rel="noopener">{T("열기")}</a>}
+                        <ContentActions c={c} />
                       </div>
                     </td>
                     {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
