@@ -2251,15 +2251,39 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
   d.deals.filter((x) => x.creatorName === me && x.step < 5).forEach((x) => { const du = dU(x.dueDate); if (du != null && du <= 3) rem.push({ label: `PR ${x.title}`, du }); });
   mine.filter((c) => c.kind === "pr" && c.status === "planned").forEach((c) => { const du = dU(c.sched?.upload); if (du != null && du <= 3) rem.push({ label: c.product, du }); });
   rem.sort((a, b) => a.du - b.du);
-  const remBanner = rem.length ? (
+  // 월말 기준 배정 미완료(미등록 포함) 경고 — 일정을 아직 안 잡은 물량도 잡아냄
+  const now = new Date();
+  const curMonth = now.toLocaleDateString("sv-SE").slice(0, 7);
+  const todayD = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const daysLeft = Math.round((endOfMonth.getTime() - todayD.getTime()) / 86400000);
+  const MONTH_WARN_DAYS = 7;
+  const quotaWarn: { brand: string; quota: number; done: number; registered: number; gap: number }[] = [];
+  if (daysLeft <= MONTH_WARN_DAYS) {
+    d.assignments.filter((a) => a.creatorId === me && a.yearMonth === curMonth).forEach((a) => {
+      const forBrand = mine.filter((c) => c.kind === "pr" && (c.brandName === a.brandId || c.brandId === a.brandId) && (monthOf(c) === curMonth || c.status === "planned"));
+      const done = forBrand.filter((c) => c.status === "uploaded" && monthOf(c) === curMonth).length;
+      const gap = a.quota - done;
+      if (gap > 0) quotaWarn.push({ brand: a.brandId, quota: a.quota, done, registered: forBrand.length, gap });
+    });
+  }
+  const warnCount = rem.length + quotaWarn.length;
+  const remBanner = warnCount ? (
     <div style={{ padding: "12px 14px", borderRadius: 11, background: "var(--critical-weak)", borderLeft: "3px solid var(--critical)", marginBottom: 18 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--critical)", marginBottom: 6 }}>⏰ {T("마감 임박·지연 알림")} ({rem.length})</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--critical)", marginBottom: 6 }}>⏰ {T("마감 임박·지연 알림")} ({warnCount})</div>
+      {quotaWarn.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: rem.length ? 8 : 0 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--warning)" }}>📌 {T("이번 달 마감")} {daysLeft <= 0 ? T("오늘") : `D-${daysLeft}`} · {T("배정 미완료")}</div>
+        {quotaWarn.map((q, i) => <div key={"q" + i} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+          <span><span className="chip" style={{ marginRight: 6 }}><span className="sw" style={{ background: BRAND_COLOR[q.brand] ?? "var(--surface-3)" }} />{q.brand}</span>{T("배정")} {q.quota}{T("건")} · {T("완료")} {q.done}{T("건")}{q.registered < q.quota && <span style={{ color: "var(--faint)" }}> · {T("일정 미등록")} {q.quota - q.registered}{T("건")}</span>}</span>
+          <b style={{ color: "var(--critical)", whiteSpace: "nowrap" }}>{q.gap}{T("건 미완료")}</b>
+        </div>)}
+      </div>}
+      {rem.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {rem.slice(0, 6).map((r, i) => <div key={i} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between" }}>
           <span>{r.label}</span>
           <b style={{ color: r.du < 0 ? "var(--critical)" : "var(--warning)" }}>{r.du < 0 ? `${T("납기 경과")} ${-r.du}${T("일")}` : r.du === 0 ? T("오늘 마감") : `D-${r.du}`}</b>
         </div>)}
-      </div>
+      </div>}
       <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘이번 달 할 일’에서 일정을 확인하고 업로드를 완료하세요.")}</div>
     </div>
   ) : null;
