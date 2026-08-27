@@ -241,7 +241,11 @@ export async function createPlannedContent(brandName: string, creatorName: strin
 export async function updateContentSchedule(contentId: string, sched: Record<string, string>, status?: string): Promise<void> {
   if (!isDb()) return;
   const patch: Record<string, unknown> = { sched, planned_date: sched.upload || null };
-  if (status) patch.status = status;
+  if (status) {
+    patch.status = status;
+    // 이행률/게시월 집계가 정확하도록 업로드 시 게시월(published_at) 기록, 예정으로 되돌리면 해제
+    patch.published_at = status === "uploaded" ? (sched.upload || new Date().toISOString().slice(0, 10)) : null;
+  }
   const { error } = await getSupabase().from("contents").update(patch).eq("id", contentId);
   if (error) throw error;
 }

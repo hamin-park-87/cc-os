@@ -1162,6 +1162,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
     const s = { ...r.sched, [stage]: val }; r.sched = s;
     if (r.type === "brand" && r.content) {
       r.content.sched = s; if (stage === "upload") r.content.plannedDate = val;
+      r.content.publishedAt = r.content.status === "uploaded" ? (s.upload || localToday()) : null;
       updateContentSchedule(r.content.id, s as Record<string, string>, r.content.status).catch(() => { });
     } else if (r.deal) {
       r.deal.sched = s; if (stage === "upload") r.deal.uploadDate = val;
@@ -1171,7 +1172,9 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   }
   function setStatus(r: ProdRow, st: string) {
     if (r.type !== "brand" || !r.content) return;
-    r.content.status = st as Content["status"]; r.uploaded = st === "uploaded"; setTick((t) => t + 1);
+    r.content.status = st as Content["status"]; r.uploaded = st === "uploaded";
+    r.content.publishedAt = st === "uploaded" ? (r.content.sched.upload || localToday()) : null;
+    setTick((t) => t + 1);
     updateContentSchedule(r.content.id, r.content.sched as Record<string, string>, st).catch(() => { });
   }
   async function del(r: ProdRow) {
@@ -1218,7 +1221,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
               <span style={{ color: "#3fb984", fontWeight: 600 }}>● {T("업로드")} {uploaded}</span>
               <span style={{ color: "var(--accent)", fontWeight: 600 }}>● {T("진행중")} {inprog}</span>
               {missing > 0 && <span style={{ color: "#d98a4a", fontWeight: 600 }}>● {T("미생성")} {missing}</span>}
-              {!readonly && missing > 0 && <button className="btn sm" style={{ marginLeft: "auto", padding: "3px 8px", fontSize: 11 }} onClick={() => genMissing(b.name)}>+ {T("일정 생성")}</button>}
+              {!readonly && missing > 0 && <button className="btn sm" style={{ marginLeft: "auto", padding: "3px 8px", fontSize: 11 }} onClick={() => genMissing(b.name)}>+ {T("일정 등록")}</button>}
             </div>
           </div>;
         })}
@@ -2410,9 +2413,18 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   const totalQ = brandsAsg.reduce((s, a) => s + a.quota, 0);
   const totalDone = d.contents.filter((c) => c.creatorName === me && c.status === "uploaded" && monthOf(c) === month && c.kind === "pr").length;
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
-  function setDate(c: Content, stage: string, val: string) { c.sched = { ...c.sched, [stage]: val }; if (stage === "upload") c.plannedDate = val; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { }); }
-  function setStatus(c: Content, st: string) { c.status = st as Content["status"]; setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
-  function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); patchContentFields(c.id, { permalink: val || null }).catch(() => { }); }
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const stampPub = (c: Content) => { c.publishedAt = c.status === "uploaded" ? (c.sched.upload || localToday()) : null; };
+  function setDate(c: Content, stage: string, val: string) { c.sched = { ...c.sched, [stage]: val }; if (stage === "upload") c.plannedDate = val; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { }); }
+  function setStatus(c: Content, st: string) { c.status = st as Content["status"]; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
+  function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); }
+  async function saveRow(c: Content) {
+    try {
+      await updateContentSchedule(c.id, c.sched as Record<string, string>, c.status);
+      await patchContentFields(c.id, { permalink: c.permalink || null });
+      setSavedId(c.id); setTimeout(() => setSavedId((v) => (v === c.id ? null : v)), 1600);
+    } catch (e) { alert(T("저장 실패: ") + (e as Error).message); }
+  }
   const openCal = (e: React.MouseEvent<HTMLInputElement>) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } };
   async function genShort(brand: string, qty: number) {
     const items = myContentsFor(brand);
@@ -2442,11 +2454,11 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
             <div className="sec-h" style={{ margin: "0 0 12px" }}>
               <h2><span className="chip" style={{ marginRight: 8 }}><span className="sw" style={{ background: BRAND_COLOR[brand] ?? "var(--surface-3)" }} />{brand}</span>{T("배정")} {a.quota}{T("건")} · {T("완료")} {done}{T("건")}</h2>
               <span style={{ display: "flex", gap: 6 }}>
-                {short > 0 && <button className="btn acc sm" onClick={() => genShort(brand, a.quota)}>{T("부족분")} {short}{T("건 일정 만들기")}</button>}
+                {short > 0 && <button className="btn acc sm" onClick={() => genShort(brand, a.quota)}>{T("일정 등록")} ({short})</button>}
                 <button className="btn sm" onClick={() => addOne(brand)}>+ {T("추가")}</button>
               </span>
             </div>
-            {!items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 만들기’로 시작하세요.")}</div> :
+            {!items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 등록’으로 시작하세요.")}</div> :
               <div className="tablewrap"><table><thead><tr>
                 <th>{T("콘텐츠")}</th>{SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th></th>
               </tr></thead><tbody>
@@ -2461,7 +2473,10 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
                     </td>
                     {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
                     <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
-                    <td style={{ textAlign: "right" }}><button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button></td>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                      <button className="btn acc sm" style={{ padding: "5px 10px", fontSize: 11.5, marginRight: 6, minWidth: 62 }} onClick={() => saveRow(c)}>{savedId === c.id ? "✓ " + T("저장됨") : T("저장")}</button>
+                      <button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button>
+                    </td>
                   </tr>
                 ))}
               </tbody></table></div>}
