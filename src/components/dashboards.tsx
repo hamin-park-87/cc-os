@@ -1731,7 +1731,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
             <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
               {!readonly && <td><input type="checkbox" checked={sel.has(dl.id)} onChange={() => toggle(dl.id)} aria-label={`${dl.title} ${T("선택")}`} /></td>}
               <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.dueDate)}</td>
-              <td>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}<b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
+              <td>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}<b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span>{dl.source === "company_email" && <span className="chip" title={T("메일에서 자동 등록")} style={{ marginLeft: 4 }}>✉️ {T("메일")}</span>}</td>
               <td style={{ color: "var(--muted)" }}>{dl.client}</td>
               <td>{withCode(dl.creatorName)}</td>
               <td style={{ color: "var(--muted)" }}>{dl.manager}</td>
