@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
@@ -37,6 +37,7 @@ const statusPill = (s: Creator["status"]) => {
   return <span className={`pill ${cls}`}><span className="d" />{CREATOR_STATUS_LABEL[s]}</span>;
 };
 const md = (dt?: string) => dt ? `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}` : "—";
+const ymd = (dt?: string | null) => dt ? dt.slice(0, 10).replace(/-/g, "/") : "—"; // 2026/08/27
 
 function Ring({ p, label }: { p: number; label: string }) {
   return <div className="ring" style={{ ["--p" as string]: p }}><b>{label}</b></div>;
@@ -1653,6 +1654,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   const STEPS = DEAL_STEPS;
   const dealDate = (d: Deal) => d.uploadDate || d.dueDate || "";
   const dealMonth = (d: Deal) => dealDate(d).slice(0, 7);
+  const isDone = (d: Deal) => !!d.contentId || (d.step >= 5 && !!d.uploadDate); // 콘텐츠 업로드 완료
   const managers = [...new Set(deals.map((d) => d.manager).filter(Boolean))] as string[];
   const dealCreators = [...new Set(deals.map((d) => d.creatorName))];
   const months = [...new Set(deals.map(dealMonth).filter(Boolean))].sort().reverse();
@@ -1723,18 +1725,18 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
        view === "list" ? (
         <div className="tablewrap"><table><thead><tr>
           {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label={T("전체 선택")} /></th>}
-          <th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("납기")}</th>{!readonly && <th></th>}
+          <th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th>{!readonly && <th></th>}
         </tr></thead><tbody>
           {list.map((dl) => (
             <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
               {!readonly && <td><input type="checkbox" checked={sel.has(dl.id)} onChange={() => toggle(dl.id)} aria-label={`${dl.title} ${T("선택")}`} /></td>}
-              <td><b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
+              <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.dueDate)}</td>
+              <td>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}<b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
               <td style={{ color: "var(--muted)" }}>{dl.client}</td>
               <td>{withCode(dl.creatorName)}</td>
               <td style={{ color: "var(--muted)" }}>{dl.manager}</td>
               <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
               <td className="num">{yen(dl.fee)}</td>
-              <td className="num" style={{ color: "var(--muted)" }}>{md(dl.dueDate ?? undefined)}</td>
               {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 {dl.step < 7 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
                 <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
@@ -1753,8 +1755,8 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
             <div className="hd">
               <Avatar name={dl.client} size={36} radius={9} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{dl.title} <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ marginLeft: 4 }}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span></div>
-                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2 }}>{dl.client} · {withCode(dl.creatorName)} · {T("담당")} {dl.manager}</div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}{dl.title} <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ marginLeft: 4 }}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span></div>
+                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2 }}>{T("납기")} {ymd(dl.dueDate)} · {dl.client} · {withCode(dl.creatorName)} · {T("담당")} {dl.manager}</div>
               </div>
               <span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span>
             </div>
@@ -2002,6 +2004,19 @@ function SecondaryView({ mode, d, scope }: { mode: "admin" | "brand" | "creator"
               {!rejected && <div style={{ display: "flex", gap: 6, marginTop: 12, fontSize: 11.5 }}>
                 {STEP_LABELS.map((s, si) => (<span key={si} style={{ flex: 1, textAlign: "center", padding: "5px 4px", borderRadius: 7, background: si <= step ? "var(--accent-weak)" : "var(--surface-2)", color: si <= step ? "var(--accent-ink)" : "var(--faint)", fontWeight: si <= step ? 600 : 400 }}>{si < step ? "✓ " : ""}{s}</span>))}
               </div>}
+              {/* 협력광고 코드 — 관리자 입력 / 브랜드·크리에이터 열람 */}
+              {mode === "admin" ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, padding: "9px 11px", background: "var(--surface-2)", borderRadius: 9 }}>
+                  <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", whiteSpace: "nowrap" }}>📢 {T("협력광고 코드")}</span>
+                  <input style={{ ...inp, padding: "6px 9px", fontSize: 12.5 }} placeholder={T("광고 코드 입력 (협력광고 운영 시)")} defaultValue={r.adCode ?? ""}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (r.adCode ?? "")) { r.adCode = v; setSecondaryAdCode(r.id, v).catch((err) => alert(T("저장 실패: ") + err.message)); } }} />
+                </div>
+              ) : r.adCode ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, padding: "9px 11px", background: "var(--surface-2)", borderRadius: 9, fontSize: 12.5 }}>
+                  <span style={{ fontWeight: 700, color: "var(--muted)" }}>📢 {T("협력광고 코드")}</span>
+                  <b className="num" style={{ userSelect: "all" }}>{r.adCode}</b>
+                </div>
+              ) : null}
               {/* 역할별 액션 */}
               <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end", gap: 8 }}>
                 {r.permalink && <a href={r.permalink} target="_blank" rel="noopener" className="btn sm">{T("콘텐츠 보기")}</a>}

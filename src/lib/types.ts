@@ -173,6 +173,7 @@ export interface SecondaryReq {
   creatorConsentedAt?: string | null;
   permalink?: string | null;
   thumbnailUrl?: string | null;
+  adCode?: string | null;       // 협력광고 코드 (전략 브랜드 영상 광고 운영 시)
 }
 export const SECONDARY_SCOPE_LABEL: Record<SecondaryScope, string> = {
   ad_creative: "광고 소재", sns_regram: "자사 SNS 리그램", offline: "오프라인 매장", web: "웹사이트", other: "기타",

@@ -273,18 +273,25 @@ const mockSecondary: SecondaryReq[] = [];
 export async function getSecondaryRequests(): Promise<SecondaryReq[]> {
   if (!isDb()) return mockSecondary;
   const sb = getSupabase();
-  const { data, error } = await sb.from("secondary_usage_requests")
-    .select("id, scope, channels, period_start, period_end, fee, status, creator_consented_at, content_id, brands(name), contents(product, permalink, thumbnail_url, creators(name))")
-    .order("created_at", { ascending: false });
-  if (error) { console.warn("[secondary]", error.message); return []; }
+  const base = "id, scope, channels, period_start, period_end, fee, status, creator_consented_at, content_id, brands(name), contents(product, permalink, thumbnail_url, creators(name))";
+  const run = (sel: string) => sb.from("secondary_usage_requests").select(sel).order("created_at", { ascending: false });
+  let resp = await run(base + ", ad_code");
+  if (resp.error) resp = await run(base); // ad_code 컬럼 미생성(마이그레이션 전) 시 폴백
+  if (resp.error) { console.warn("[secondary]", resp.error.message); return []; }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data ?? []).map((r: any): SecondaryReq => ({
+  return ((resp.data ?? []) as any[]).map((r: any): SecondaryReq => ({
     id: r.id, contentId: r.content_id, product: r.contents?.product ?? "—",
     creatorName: r.contents?.creators?.name ?? "—", brandName: r.brands?.name ?? "—",
     scope: r.scope, channels: r.channels ?? [], periodStart: r.period_start, periodEnd: r.period_end,
     fee: Number(r.fee ?? 0), status: r.status, creatorConsentedAt: r.creator_consented_at,
-    permalink: r.contents?.permalink, thumbnailUrl: r.contents?.thumbnail_url,
+    permalink: r.contents?.permalink, thumbnailUrl: r.contents?.thumbnail_url, adCode: r.ad_code ?? null,
   }));
+}
+// 협력광고 코드 저장 (2차 활용)
+export async function setSecondaryAdCode(id: string, code: string): Promise<void> {
+  if (!isDb()) { const r = mockSecondary.find((x) => x.id === id); if (r) r.adCode = code; return; }
+  const { error } = await getSupabase().from("secondary_usage_requests").update({ ad_code: code || null }).eq("id", id);
+  if (error) throw error;
 }
 export async function createSecondaryRequest(
   contentId: string, brandName: string, scope: SecondaryScope, channels: string[],
