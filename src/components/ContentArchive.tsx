@@ -9,9 +9,10 @@ import { T } from "@/lib/i18n";
 const bcolor = (b?: string | null) => (b && BRAND_COLOR[b]) || "#3B7DD8";
 const grad = (c: string) => `linear-gradient(150deg, ${c}, ${c}22)`;
 
-export function ContentArchive({ contents, showCreator = true, showBrand = true, hint, tagBrands, onTag }: {
+export function ContentArchive({ contents, showCreator = true, showBrand = true, hint, tagBrands, onTag, compact, limit, onMore }: {
   contents: Content[]; showCreator?: boolean; showBrand?: boolean; hint?: string;
   tagBrands?: string[]; onTag?: (c: Content, brandName: string | null) => Promise<void>;
+  compact?: boolean; limit?: number; onMore?: () => void; // compact: 필터 숨김 + N개 미리보기 + 더보기
 }) {
   const [, setTick] = useState(0);
   const [creator, setCreator] = useState("");
@@ -41,9 +42,10 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
     });
   }, [contents, creator, brand, kind, period, sort, status, q]);
 
+  const shown = compact && limit ? items.slice(0, limit) : items;
   return (
     <>
-      <div className="filterbar">
+      {!compact && <div className="filterbar">
         {showCreator && <select value={creator} onChange={(e) => setCreator(e.target.value)}><option value="">{T("모든 크리에이터")}</option>{creators.map((c) => <option key={c} value={c}>{c}</option>)}</select>}
         {showBrand && <select value={brand} onChange={(e) => setBrand(e.target.value)}><option value="">{T("모든 브랜드")}</option>{brands.map((b) => <option key={b} value={b}>{b}</option>)}</select>}
         <select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">{T("모든 유형")}</option><option value="pr">{T("전략 브랜드")}</option><option value="own">{T("개인")}</option><option value="deal">{T("외부 PR")}</option></select>
@@ -52,10 +54,10 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
         <select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">{T("전체 상태")}</option><option value="uploaded">{T("게시완료")}</option><option value="planned">{T("예정")}</option></select>
         <input placeholder={T("상품 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
         <span className="count">{items.length}{T("개")}</span>
-      </div>
+      </div>}
       {items.length === 0 ? <div className="empty">{T("조건에 맞는 콘텐츠가 없어요.")}</div> : (
         <div className="archive">
-          {items.map((c) => (
+          {shown.map((c) => (
             <button key={c.id} className="rcard" onClick={() => setOpen(c)}>
               <div className="poster" style={c.thumbnailUrl
                 ? { backgroundImage: `url(${c.thumbnailUrl})`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#000" }
@@ -81,6 +83,11 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
             </button>
           ))}
         </div>
+      )}
+      {compact && onMore && items.length > 0 && (
+        <button className="btn" style={{ width: "100%", marginTop: 12, padding: "11px", fontWeight: 700 }} onClick={onMore}>
+          {T("더보기")}{items.length > shown.length ? ` (${items.length - shown.length}+)` : ""} →
+        </button>
       )}
       {open && <VideoModal content={open} tagBrands={tagBrands} onTag={onTag} onChanged={() => setTick((t) => t + 1)} onClose={() => setOpen(null)} />}
     </>

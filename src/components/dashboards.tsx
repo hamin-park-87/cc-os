@@ -2290,7 +2290,7 @@ function CreatorPublicModal({ creator: c, onClose }: { creator: Creator; content
 }
 
 /* ── CREATOR ───────────────────────────── */
-export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
+export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle; scope: string; onNav?: (pane: string) => void }) {
   registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
@@ -2370,7 +2370,7 @@ export function CreatorView({ pane, d, scope }: { pane: string; d: Bundle; scope
         </div>
       </div>
       <div className="sec-h"><h2>{T("내 콘텐츠 아카이브")}</h2><span className="hint">{T("최근 게시물 · 클릭하면 재생")}</span></div>
-      <ContentArchive contents={mine} showCreator={false} showBrand={false} />
+      <ContentArchive contents={mine} showCreator={false} showBrand={false} compact limit={10} onMore={() => onNav?.("c-content")} />
     </>);
   }
   if (pane === "c-deals") return <DealList deals={d.deals.filter((x) => x.creatorName === me)} contents={d.contents} readonly />;

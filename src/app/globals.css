@@ -374,7 +374,7 @@
   }
   @media (max-width:440px){
     .grid-kpi{grid-template-columns:1fr}
-    .archive{grid-template-columns:1fr}
+    .archive{grid-template-columns:1fr 1fr; gap:8px}
   }
 
   /* login */

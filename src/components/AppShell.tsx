@@ -108,7 +108,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           {!d ? <div className="placeholder">불러오는 중…</div>
             : session.role === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} />
             : session.role === "brand" ? <BrandView pane={pane} d={d} scope={session.scope} />
-            : <CreatorView pane={pane} d={d} scope={session.scope} />}
+            : <CreatorView pane={pane} d={d} scope={session.scope} onNav={setPane} />}
         </div>
       </div>
     </div>
