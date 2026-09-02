@@ -53,6 +53,7 @@ export const supabaseProvider: DataProvider = {
         id: r.id, brandId: bName.get(r.brand_id) ?? null, brandName: r.client ?? bName.get(r.brand_id) ?? "", creatorId: r.creator_id,
         creatorName: cName.get(r.creator_id) ?? "", dealId: r.deal_id, client: r.client, igMediaId: r.ig_media_id,
         permalink: r.permalink, thumbnailUrl: r.thumbnail_url, caption: r.caption, product: r.product, kind: r.kind,
+        yearMonth: r.year_month ?? null,
         plannedDate: r.planned_date, publishedAt: r.published_at ? String(r.published_at).slice(0, 10) : null,
         status: r.status, matchSource: r.match_source, sched: r.sched ?? {}, videoStatus: r.video_status, archivedVideoUrl: r.archived_video_url,
         views: m.views ?? 0, reach: m.reach ?? 0, likes: m.likes ?? 0, comments: m.comments ?? 0, saves: m.saved ?? 0, shares: m.shares ?? 0, watch: m.avg_watch_time,

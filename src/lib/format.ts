@@ -7,6 +7,10 @@ export const yen = (n: number) => "¥" + fmt(Math.round(n));
 export const engRate = (c: Content) =>
   c.views ? (((c.likes + c.comments + c.saves + c.shares) / c.views) * 100).toFixed(1) + "%" : "—";
 export const monthOf = (c: Content) => (c.publishedAt ? c.publishedAt.slice(0, 7) : null);
+// 콘텐츠 귀속 월(YYYY-MM): 업로드=게시월, 예정=업로드예정월, 없으면 귀속월(year_month), 그래도 없으면 null
+export const contentMonth = (c: Content): string | null =>
+  c.status === "uploaded" ? monthOf(c)
+    : (c.sched?.upload ? c.sched.upload.slice(0, 7) : (c.yearMonth ?? null));
 // UTC ISO → 뷰어 로컬 시각 "YYYY-MM-DD HH:mm"
 export const localDT = (iso?: string | null): string | null => {
   if (!iso) return null;

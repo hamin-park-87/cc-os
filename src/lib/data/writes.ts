@@ -220,17 +220,17 @@ export async function getAccounts(): Promise<AccountRow[]> {
 }
 
 // 계획 콘텐츠 생성 (배정 → 제작 일정 항목). kind='pr', status='planned'.
-export async function createPlannedContent(brandName: string, creatorName: string, product: string, brands: { id: string; name: string }[], creators: Creator[]): Promise<Content> {
+export async function createPlannedContent(brandName: string, creatorName: string, product: string, brands: { id: string; name: string }[], creators: Creator[], yearMonth?: string): Promise<Content> {
   const creator = creators.find((c) => c.name === creatorName);
   const content: Content = {
     id: `plan-${creatorName}-${Date.now?.() ?? Math.round(Math.random() * 1e9)}`, brandId: brandName, brandName, creatorId: creatorName, creatorName,
-    product, kind: "pr", status: "planned", sched: {}, videoStatus: "none",
+    product, kind: "pr", status: "planned", yearMonth: yearMonth ?? null, sched: {}, videoStatus: "none",
     views: 0, reach: 0, likes: 0, comments: 0, saves: 0, shares: 0,
   };
   if (isDb()) {
     const brand_id = brands.find((b) => b.name === brandName)?.id ?? null;
     const { data, error } = await getSupabase().from("contents").insert({
-      brand_id, creator_id: creator?.id ?? null, product, kind: "pr", status: "planned", sched: {},
+      brand_id, creator_id: creator?.id ?? null, product, kind: "pr", status: "planned", sched: {}, year_month: yearMonth ?? null,
     }).select("id").single();
     if (error) throw error;
     content.id = data.id;

@@ -5,7 +5,7 @@ import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
 import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./charts";
-import { fmt, kfmt, yen, engRate, monthOf, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
+import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
@@ -86,7 +86,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
     const totDone = asg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === a.brandId && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === month).length, 0);
     const crs = [...new Set(asg.map((a) => a.creatorId))].sort(cmpNameByCode);
     const cellStyle = (r: number) => r >= 1 ? ["var(--success-weak)", "var(--success)"] : r > 0 ? ["var(--warning-weak)", "var(--warning)"] : ["var(--critical-weak)", "var(--critical)"];
-    const sched = d.contents.filter((c) => (c.kind === "pr" || c.kind === "deal") && (c.status === "planned" || (c.status === "uploaded" && monthOf(c) === month))).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    const sched = d.contents.filter((c) => (c.kind === "pr" || c.kind === "deal") && c.status !== "canceled" && contentMonth(c) === month).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     return (
       <>
         <div className="grid-kpi">
@@ -947,15 +947,15 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
       if (prods.length) {
         for (const p of prods) for (const c of actives) {
           const qty = pa[paKey(p.id, c.name)] ?? 0;
-          const existing = d.contents.filter((x) => x.creatorName === c.name && (x.brandName === brand || x.brandId === brand) && x.product === p.name && x.status !== "canceled").length;
-          for (let i = existing; i < qty; i++) { const nc = await createPlannedContent(brand, c.name, p.name, d.brands, d.creators); d.contents.push(nc); created++; }
+          const existing = d.contents.filter((x) => x.creatorName === c.name && (x.brandName === brand || x.brandId === brand) && x.product === p.name && x.status !== "canceled" && contentMonth(x) === month).length;
+          for (let i = existing; i < qty; i++) { const nc = await createPlannedContent(brand, c.name, p.name, d.brands, d.creators, month); d.contents.push(nc); created++; }
         }
       } else {
         for (const c of actives) {
           const qty = qOf(c.name);
           const label = `${brand} ${T("콘텐츠")}`;
-          const existing = d.contents.filter((x) => x.creatorName === c.name && (x.brandName === brand || x.brandId === brand) && x.status !== "canceled" && (monthOf(x) === month || x.status === "planned")).length;
-          for (let i = existing; i < qty; i++) { const nc = await createPlannedContent(brand, c.name, label, d.brands, d.creators); d.contents.push(nc); created++; }
+          const existing = d.contents.filter((x) => x.creatorName === c.name && (x.brandName === brand || x.brandId === brand) && x.status !== "canceled" && contentMonth(x) === month).length;
+          for (let i = existing; i < qty; i++) { const nc = await createPlannedContent(brand, c.name, label, d.brands, d.creators, month); d.contents.push(nc); created++; }
         }
       }
       setTick((t) => t + 1);
@@ -1112,7 +1112,7 @@ function ContentActions({ c }: { c?: Content | null }) {
 interface ProdRow {
   key: string; type: "brand" | "pr"; creatorName: string; label: string; target: string;
   sched: ContentSched; uploaded: boolean; permalink?: string | null; stepLabel?: string;
-  content?: Content; deal?: Deal;
+  month: string | null; content?: Content; deal?: Deal;
 }
 function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, month }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean; includeDeals?: boolean; month?: string }) {
   const [, setTick] = useState(0);
@@ -1121,17 +1121,8 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   const groupByCreator = !creatorName;
   const today = localToday();
   const curMonth = today.slice(0, 7);
-  // 콘텐츠 귀속 월: 업로드=게시월, 그 외=업로드 예정월, 없으면 null(미정)
-  const effMonth = (c: Content): string | null => c.status === "uploaded" ? monthOf(c) : (c.sched.upload ? c.sched.upload.slice(0, 7) : null);
   const [fMonth, setFMonth] = useState(month ?? (ASSIGN_MONTHS.includes(curMonth) ? curMonth : ASSIGN_MONTHS[0]));
   const monthOpts = Array.from(new Set([...ASSIGN_MONTHS, ...(month ? [month] : []), curMonth])).sort();
-  // 해당 월에 진행해야 하는 항목: 4단계 일정 중 하나라도 그 달이면 매칭. 날짜 미설정(미정)은 항상 노출(스케줄링 필요).
-  const inMonth = (s: ContentSched) => {
-    if (!fMonth) return true;
-    const ds = [s.plan, s.shoot, s.edit, s.upload].filter(Boolean) as string[];
-    if (!ds.length) return true; // 미정
-    return ds.some((dt) => dt.slice(0, 7) === fMonth);
-  };
   const byId = new Map(d.contents.map((c) => [c.id, c]));
 
   // 1) 전략 브랜드 콘텐츠 (kind=pr)
@@ -1140,7 +1131,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
     if (c.kind !== "pr" || c.status === "canceled") continue;
     if (creatorName && c.creatorName !== creatorName) continue;
     if (brandName && !(c.brandName === brandName || c.brandId === brandName)) continue;
-    rows.push({ key: c.id, type: "brand", creatorName: c.creatorName, label: c.product, target: c.brandName ?? "", sched: c.sched, uploaded: c.status === "uploaded", permalink: c.permalink, content: c });
+    rows.push({ key: c.id, type: "brand", creatorName: c.creatorName, label: c.product, target: c.brandName ?? "", sched: c.sched, uploaded: c.status === "uploaded", permalink: c.permalink, month: contentMonth(c), content: c });
   }
   // 2) 외부 PR 안건 (deals) — 관리자·크리에이터 화면만 (브랜드에는 미노출)
   if (includeDeals) {
@@ -1150,12 +1141,13 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       const up = !!(dl.contentId) || (dl.step >= 5 && !!dl.uploadDate);
       const sched: ContentSched = { ...(dl.sched ?? {}) };
       if (!sched.upload && dl.uploadDate) sched.upload = dl.uploadDate;
-      rows.push({ key: "deal-" + dl.id, type: "pr", creatorName: dl.creatorName, label: dl.title, target: dl.client, sched, uploaded: up, permalink: linked?.permalink ?? null, stepLabel: DEAL_STEPS[dl.step], content: linked, deal: dl });
+      const dm = (dl.uploadDate || dl.dueDate || sched.upload || "").slice(0, 7) || null;
+      rows.push({ key: "deal-" + dl.id, type: "pr", creatorName: dl.creatorName, label: dl.title, target: dl.client, sched, uploaded: up, permalink: linked?.permalink ?? null, stepLabel: DEAL_STEPS[dl.step], month: dm, content: linked, deal: dl });
     }
   }
-  // 필터
+  // 필터 — 선택 월에 귀속된 항목만 (귀속 월 없는 항목은 '전체 기간'에서만)
   const items = rows.filter((r) =>
-    inMonth(r.sched)
+    (!fMonth || r.month === fMonth)
     && (!fBrand || r.target === fBrand) && (!fCreator || r.creatorName === fCreator)
     && (!fType || r.type === fType) && (!fStatus || (fStatus === "up" ? r.uploaded : !r.uploaded))
   ).sort((a, b) => {
@@ -1177,7 +1169,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       const asgQ = d.assignments.filter((a) => a.brandId === b.name && a.yearMonth === fMonth).reduce((s, a) => s + a.quota, 0);
       const mc = d.contracts.find((c) => c.brandId === b.name && c.yearMonth === fMonth);
       const quota = asgQ || mc?.quota || (inP ? (b.monthlyQuota ?? 0) : 0);
-      const mine = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled" && (c.brandName === b.name || c.brandId === b.name) && (() => { const em = effMonth(c); return em === fMonth || em === null; })());
+      const mine = d.contents.filter((c) => c.kind === "pr" && c.status !== "canceled" && (c.brandName === b.name || c.brandId === b.name) && contentMonth(c) === fMonth);
       const created = mine.length, uploaded = mine.filter((c) => c.status === "uploaded").length;
       return { b, quota, created, uploaded, inprog: created - uploaded, missing: Math.max(0, quota - created) };
     })
@@ -1189,8 +1181,8 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
     try {
       const asgs = d.assignments.filter((a) => a.brandId === bn && a.yearMonth === fMonth);
       for (const a of asgs) {
-        const existing = d.contents.filter((x) => x.creatorName === a.creatorId && (x.brandName === bn || x.brandId === bn) && x.status !== "canceled" && (() => { const em = effMonth(x); return em === fMonth || em === null; })()).length;
-        for (let i = existing; i < a.quota; i++) { const nc = await createPlannedContent(bn, a.creatorId, `${bn} ${T("콘텐츠")}`, d.brands, d.creators); d.contents.push(nc); created++; }
+        const existing = d.contents.filter((x) => x.creatorName === a.creatorId && (x.brandName === bn || x.brandId === bn) && x.status !== "canceled" && contentMonth(x) === fMonth).length;
+        for (let i = existing; i < a.quota; i++) { const nc = await createPlannedContent(bn, a.creatorId, `${bn} ${T("콘텐츠")}`, d.brands, d.creators, fMonth); d.contents.push(nc); created++; }
       }
       setTick((t) => t + 1);
       alert(created ? `${created}${T("건의 제작 일정을 생성했습니다.")}` : T("이미 최신 상태입니다."));
@@ -1912,7 +1904,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
   if (pane === "b-dash") {
     const tv = rows.reduce((s, c) => s + c.views, 0), tr = rows.reduce((s, c) => s + c.reach, 0), ts = rows.reduce((s, c) => s + c.saves, 0);
     const engAvg = rows.length ? (rows.reduce((s, c) => s + parseFloat(engRate(c)), 0) / rows.length).toFixed(1) : "0";
-    const upcoming = d.contents.filter((c) => c.brandId === scope && c.status === "planned")
+    const upcoming = d.contents.filter((c) => c.brandId === scope && c.status === "planned" && contentMonth(c) === month)
       .sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     // 계약 진척 (배정 대비 완료)
     const bAsg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === month);
@@ -1920,7 +1912,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
     const bDone = bAsg.reduce((s, a) => s + d.contents.filter((c) => c.brandId === scope && c.creatorName === a.creatorId && c.status === "uploaded" && monthOf(c) === month).length, 0);
     const byCr: Record<string, number> = {};
     rows.forEach((c) => { byCr[c.creatorName] = (byCr[c.creatorName] ?? 0) + c.views; });
-    const sched = d.contents.filter((c) => c.brandId === scope && (c.status === "planned" || monthOf(c) === month)).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
+    const sched = d.contents.filter((c) => c.brandId === scope && c.status !== "canceled" && contentMonth(c) === month).sort((a, b) => (a.sched.upload ?? "9999").localeCompare(b.sched.upload ?? "9999"));
     return (<>
       <div className="banner">{T("✦ 자동 수집 기준 · 확정 성과는 게시 후 D+7 스냅샷입니다. 실시간 값과 다를 수 있어요.")}</div>
       <div className="grid-kpi">
@@ -2167,7 +2159,7 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
   const [detail, setDetail] = useState<Creator | null>(null);
   const mine = d.contents.filter((c) => c.brandId === scope || c.brandName === scope);
   const asg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === month);
-  let names = [...new Set([...asg.map((a) => a.creatorId), ...mine.filter((c) => monthOf(c) === month || c.status === "planned").map((c) => c.creatorName)])];
+  let names = [...new Set([...asg.map((a) => a.creatorId), ...mine.filter((c) => c.status !== "canceled" && contentMonth(c) === month).map((c) => c.creatorName)])];
   if (fCreator) names = names.filter((n) => n === fCreator);
   names.sort(cmpNameByCode);
   const allCreators = [...new Set([...d.assignments.filter((a) => a.brandId === scope).map((a) => a.creatorId), ...mine.map((c) => c.creatorName)])].sort(cmpNameByCode);
@@ -2188,7 +2180,7 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {names.map((name) => {
           const q = asg.find((a) => a.creatorId === name)?.quota ?? 0;
-          const items = mine.filter((c) => c.creatorName === name && (monthOf(c) === month || c.status === "planned"));
+          const items = mine.filter((c) => c.creatorName === name && c.status !== "canceled" && contentMonth(c) === month);
           const done = items.filter((c) => c.status === "uploaded").length;
           return (
             <div key={name} className="card pad">
@@ -2310,7 +2302,7 @@ export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle
   const quotaWarn: { brand: string; quota: number; done: number; registered: number; gap: number }[] = [];
   if (daysLeft <= MONTH_WARN_DAYS) {
     d.assignments.filter((a) => a.creatorId === me && a.yearMonth === curMonth).forEach((a) => {
-      const forBrand = mine.filter((c) => c.kind === "pr" && (c.brandName === a.brandId || c.brandId === a.brandId) && (monthOf(c) === curMonth || c.status === "planned"));
+      const forBrand = mine.filter((c) => c.kind === "pr" && c.status !== "canceled" && (c.brandName === a.brandId || c.brandId === a.brandId) && contentMonth(c) === curMonth);
       const done = forBrand.filter((c) => c.status === "uploaded" && monthOf(c) === curMonth).length;
       const gap = a.quota - done;
       if (gap > 0) quotaWarn.push({ brand: a.brandId, quota: a.quota, done, registered: forBrand.length, gap });
@@ -2482,7 +2474,7 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   const [month, setMonth] = useState("2026-08");
   const [, setTick] = useState(0);
   const brandsAsg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month);
-  const myContentsFor = (brand: string) => d.contents.filter((c) => c.creatorName === me && (c.brandName === brand || c.brandId === brand) && (monthOf(c) === month || c.status === "planned"));
+  const myContentsFor = (brand: string) => d.contents.filter((c) => c.creatorName === me && c.status !== "canceled" && (c.brandName === brand || c.brandId === brand) && contentMonth(c) === month);
   const totalQ = brandsAsg.reduce((s, a) => s + a.quota, 0);
   const totalDone = d.contents.filter((c) => c.creatorName === me && c.status === "uploaded" && monthOf(c) === month && c.kind === "pr").length;
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
@@ -2505,10 +2497,10 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   const openCal = (e: React.MouseEvent<HTMLInputElement>) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } };
   async function genShort(brand: string, qty: number) {
     const items = myContentsFor(brand);
-    try { for (let i = items.length; i < qty; i++) { const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${i + 1}`, d.brands, d.creators); d.contents.push(nc); } setTick((t) => t + 1); }
+    try { for (let i = items.length; i < qty; i++) { const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${i + 1}`, d.brands, d.creators, month); d.contents.push(nc); } setTick((t) => t + 1); }
     catch (e) { alert(T("생성 실패: ") + (e as Error).message); }
   }
-  async function addOne(brand: string) { try { const items = myContentsFor(brand); const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${items.length + 1}`, d.brands, d.creators); d.contents.push(nc); setTick((t) => t + 1); } catch (e) { alert(T("생성 실패: ") + (e as Error).message); } }
+  async function addOne(brand: string) { try { const items = myContentsFor(brand); const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${items.length + 1}`, d.brands, d.creators, month); d.contents.push(nc); setTick((t) => t + 1); } catch (e) { alert(T("생성 실패: ") + (e as Error).message); } }
   async function del(c: Content) { if (!confirm(`'${c.product}' ${T("삭제할까요?")}`)) return; try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); } }
   return (<>
     <div className="filterbar" style={{ marginBottom: 14 }}>
