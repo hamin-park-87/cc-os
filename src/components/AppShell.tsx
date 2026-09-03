@@ -21,7 +21,7 @@ const NAV: Record<string, NavGroup[]> = {
   brand: [
     { group: "", items: [["b-dash", "대시보드"]] },
     { group: "크리에이터", items: [["b-creators", "크리에이터별"], ["b-roster", "소속 크리에이터"]] },
-    { group: "콘텐츠", items: [["b-assign", "콘텐츠 배정 및 관리"], ["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
+    { group: "콘텐츠", items: [["b-assign", "콘텐츠 현황"], ["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
   ],
   creator: [
     { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
@@ -148,7 +148,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       <div className="main">
         <div className="topbar">
           <button className="iconbtn nav-open" title="메뉴" onClick={() => setNavOpen(true)}>☰</button>
-          <div style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{effRole === "admin" ? `${month} · 81degree` : effScope}</div></div>
+          <div style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {effRole === "admin" ? "81degree" : effScope}</div></div>
           <div className="spacer" />
           {/* 관리자 전용: 다른 어드민으로 전환 / 복귀 */}
           {session.role === "admin" && !viewAs && d && <select value="" onChange={(e) => { const v = e.target.value; if (!v) return; const i = v.indexOf(":"); enterViewAs({ role: v.slice(0, i) as "brand" | "creator", scope: v.slice(i + 1) }); }}
@@ -158,10 +158,10 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             <optgroup label={t("크리에이터", lang)}>{[...d.creators].sort(byCode).map((c) => <option key={c.id} value={"creator:" + c.name}>{c.code ? c.code + " · " : ""}{c.name}</option>)}</optgroup>
           </select>}
           {viewAs && <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 700, background: "var(--accent-weak)", color: "var(--accent-ink)" }} onClick={() => enterViewAs(null)}>← {t("관리자로", lang)}</button>}
-          {effRole === "admin" && <select value={month} onChange={(e) => setMonth(e.target.value)}
+          <select value={month} onChange={(e) => setMonth(e.target.value)} title={t("기준 월", lang)}
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
             {MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{t("월", lang)}</option>)}
-          </select>}
+          </select>
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} title={t("이 화면 링크 복사", lang)} onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크", lang)}</button>
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
           <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
@@ -173,8 +173,8 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           </div>}
           {!d ? <div className="placeholder">불러오는 중…</div>
             : effRole === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} />
-            : effRole === "brand" ? <BrandView pane={pane} d={d} scope={effScope} />
-            : <CreatorView pane={pane} d={d} scope={effScope} onNav={go} />}
+            : effRole === "brand" ? <BrandView pane={pane} d={d} scope={effScope} month={month} />
+            : <CreatorView pane={pane} d={d} scope={effScope} month={month} onNav={go} />}
         </div>
       </div>
     </div>

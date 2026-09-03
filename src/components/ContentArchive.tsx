@@ -56,7 +56,7 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
         <input placeholder={T("상품 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
         <span className="count">{items.length}{T("개")}</span>
       </div>}
-      {items.length === 0 ? <div className="empty">{T("조건에 맞는 콘텐츠가 없어요.")}</div> : (
+      {items.length === 0 ? <div className="placeholder">{T("조건에 맞는 콘텐츠가 없어요.")}</div> : (
         <div className="archive">
           {shown.map((c) => (
             <button key={c.id} className="rcard" onClick={() => setOpen(c)}>

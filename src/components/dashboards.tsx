@@ -45,7 +45,7 @@ function Ring({ p, label }: { p: number; label: string }) {
 
 const STAGES: [keyof Content["sched"], string][] = [["plan", T("기획")], ["shoot", T("촬영")], ["edit", T("편집")], ["upload", T("업로드")]];
 function ScheduleRows({ items }: { items: Content[] }) {
-  if (!items.length) return <div className="empty">{T("예정된 제작 일정이 없어요.")}</div>;
+  if (!items.length) return <div className="placeholder">{T("예정된 제작 일정이 없어요.")}</div>;
   return (<>{items.map((c) => {
     let currentSet = false;
     return (
@@ -339,8 +339,7 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
 }
 
 /* ── 브랜드 관리 ───── */
-function BrandAdmin({ d, month: gMonth }: { d: Bundle; month: string }) {
-  const [month, setMonth] = useState(gMonth);
+function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Brand | null | undefined>(undefined);
   const [products, setProducts] = useState<Brand | null>(null);
@@ -377,7 +376,6 @@ function BrandAdmin({ d, month: gMonth }: { d: Bundle; month: string }) {
         <option value="period">{T("계약기간순")}</option>
         <option value="amount">{T("월 계약금액순")}</option>
       </select>
-      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
       <span className="count">{list.length}{T("개")}</span>
     </div>
     {!list.length ? <div className="placeholder">{T("등록된 브랜드가 없어요. ‘+ 브랜드 추가’로 시작하세요.")}</div> :
@@ -1943,9 +1941,8 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
 }
 
 /* ── BRAND ─────────────────────────────── */
-export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
+export function BrandView({ pane, d, scope, month = defaultMonth() }: { pane: string; d: Bundle; scope: string; month?: string }) {
   registerCreatorCodes(d.creators);
-  const month = defaultMonth();
   const rows = d.contents.filter((c) => c.brandId === scope && c.status === "uploaded" && c.views > 0);
   if (pane === "b-dash") {
     const tv = rows.reduce((s, c) => s + c.views, 0), tr = rows.reduce((s, c) => s + c.reach, 0), ts = rows.reduce((s, c) => s + c.saves, 0);
@@ -1976,7 +1973,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
                 <div className="main"><div className="t">{c.product}</div><div className="s">{withCode(c.creatorName)} · {c.brandName}</div></div>
                 <div className="r"><span className={`pill ${i < 2 ? "p-warn" : "p-plan"}`}><span className="d" />{["D-2", "D-4", "D-6", "D-8", "D-9"][i] ?? "D-9"}</span></div></div>
             ))}
-            {!upcoming.length && <div className="empty" style={{ border: 0 }}>{T("예정 콘텐츠 없음")}</div>}
+            {!upcoming.length && <div className="placeholder" style={{ border: 0, padding: "20px" }}>{T("예정 콘텐츠 없음")}</div>}
           </div>
         </div>
         <div className="card pad">
@@ -2003,8 +2000,8 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
   if (pane === "b-creators") return <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />;
   if (pane === "b-archive") return <RemoteContentArchive />;
   if (pane === "b-secondary") return <SecondaryView mode="brand" d={d} scope={scope} />;
-  if (pane === "b-assign") return <BrandAssignView d={d} scope={scope} />;
-  if (pane === "b-schedule") return <ScheduleEditor d={d} brandName={scope} readonly />;
+  if (pane === "b-assign") return <BrandAssignView d={d} scope={scope} month={month} />;
+  if (pane === "b-schedule") return <ScheduleEditor d={d} brandName={scope} readonly month={month} />;
   return <Placeholder name={pane} />;
 }
 
@@ -2199,8 +2196,7 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
 }
 
 // 브랜드: 콘텐츠 배정 및 관리 (월별/크리에이터별 · 배정·진행·업로드·인게이지먼트)
-function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
-  const [month, setMonth] = useState(defaultMonth());
+function BrandAssignView({ d, scope, month = defaultMonth() }: { d: Bundle; scope: string; month?: string }) {
   const [fCreator, setFCreator] = useState("");
   const [detail, setDetail] = useState<Creator | null>(null);
   const mine = d.contents.filter((c) => c.brandId === scope || c.brandName === scope);
@@ -2213,7 +2209,6 @@ function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
   const totalDone = mine.filter((c) => c.status === "uploaded" && monthOf(c) === month).length;
   return (<>
     <div className="filterbar">
-      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
       <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{allCreators.map((n) => <option key={n} value={n}>{withCode(n)}</option>)}</select>
       <span className="count">{names.length}{T("명")}</span>
     </div>
@@ -2418,7 +2413,7 @@ function RosterView({ d, month }: { d: Bundle; month: string }) {
 }
 
 /* ── CREATOR ───────────────────────────── */
-export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle; scope: string; onNav?: (pane: string) => void }) {
+export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: { pane: string; d: Bundle; scope: string; month?: string; onNav?: (pane: string) => void }) {
   registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
@@ -2509,7 +2504,7 @@ export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle
   if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
   if (pane === "c-profile") return <CreatorProfile d={d} me={me} />;
-  if (pane === "c-todo") return (<>{remBanner}<CreatorTodo d={d} me={me} /></>);
+  if (pane === "c-todo") return (<>{remBanner}<CreatorTodo d={d} me={me} month={month} /></>);
   return <Placeholder name={pane} />;
 }
 
@@ -2595,8 +2590,7 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
   </div>);
 }
 
-function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
-  const [month, setMonth] = useState(defaultMonth());
+function CreatorTodo({ d, me, month = defaultMonth() }: { d: Bundle; me: string; month?: string }) {
   const [, setTick] = useState(0);
   const brandsAsg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month);
   const myContentsFor = (brand: string) => d.contents.filter((c) => c.creatorName === me && c.status !== "canceled" && (c.brandName === brand || c.brandId === brand) && contentMonth(c) === month);
@@ -2629,9 +2623,6 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   async function addOne(brand: string) { try { const items = myContentsFor(brand); const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${items.length + 1}`, d.brands, d.creators, month); d.contents.push(nc); setTick((t) => t + 1); } catch (e) { alert(T("생성 실패: ") + (e as Error).message); } }
   async function del(c: Content) { if (!confirm(`'${c.product}' ${T("삭제할까요?")}`)) return; try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); } }
   return (<>
-    <div className="filterbar" style={{ marginBottom: 14 }}>
-      <select value={month} onChange={(e) => setMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
-    </div>
     <div className="card pad" style={{ marginBottom: 18 }}>
       <div className="ring-wrap" style={{ marginBottom: 6 }}>
         <Ring p={totalQ ? Math.round(totalDone / totalQ * 100) : 0} label={`${totalDone}/${totalQ}`} />

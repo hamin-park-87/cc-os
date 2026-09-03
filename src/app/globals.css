@@ -277,7 +277,7 @@
   .filterbar select:focus,.filterbar input:focus{outline:2px solid var(--accent); outline-offset:0; border-color:transparent}
   .filterbar input{min-width:150px}
   .filterbar .count{margin-left:auto; color:var(--faint); font-size:12.5px; font-family:var(--mono)}
-  .empty,.placeholder{grid-column:1/-1; padding:48px 20px; text-align:center; color:var(--faint); font-size:13.5px; border:1px dashed var(--border-strong); border-radius:var(--r)}
+  .placeholder{grid-column:1/-1; padding:48px 20px; text-align:center; color:var(--faint); font-size:13.5px; border:1px dashed var(--border-strong); border-radius:var(--r)}
 
   /* production schedule */
   .schedrow{padding:14px 16px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow); margin-bottom:11px}
