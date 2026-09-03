@@ -45,20 +45,32 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const [month, setMonth] = useState(defaultMonth());
   const [navOpen, setNavOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  // 관리자 전용: 다른 브랜드/크리에이터 어드민으로 들어가 보기 (View as)
+  const [viewAs, setViewAs] = useState<{ role: "brand" | "creator"; scope: string } | null>(null);
+  const effRole = viewAs ? viewAs.role : session.role;
+  const effScope = viewAs ? viewAs.scope : session.scope;
 
   // 화면 전환 → URL 해시 반영 (공유 가능한 링크)
   const go = (key: string) => {
     setPane(key); setNavOpen(false);
     try { if (decodeURIComponent(location.hash.replace(/^#/, "")) !== key) location.hash = key; } catch { }
   };
+  // 전환 시작/종료 → 해당 역할 첫 화면으로 이동, 해시 초기화
+  function enterViewAs(v: { role: "brand" | "creator"; scope: string } | null) {
+    setViewAs(v);
+    const role = v ? v.role : session.role;
+    setPane(flatNav(role)[0][0]);
+    try { history.replaceState(null, "", location.pathname + location.search); } catch { }
+    setNavOpen(false);
+  }
   // 딥링크: URL 해시로 진입/뒤로가기 시 해당 화면 복원
   useEffect(() => {
-    const keys = flatNav(session.role).map((n) => n[0]);
+    const keys = flatNav(effRole).map((n) => n[0]);
     const apply = () => { try { const h = decodeURIComponent(location.hash.replace(/^#/, "")); if (keys.includes(h)) setPane(h); } catch { } };
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
-  }, [session.role]);
+  }, [effRole]);
   function copyLink() {
     try { navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { }
   }
@@ -76,8 +88,8 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   }, []);
 
   setCurrentLang(lang); // 렌더 시 전역 언어 반영 → 하위 트리의 T()가 현재 언어로 동작
-  const groups = NAV[session.role];
-  const currentLabel = flatNav(session.role).find((n) => n[0] === pane)?.[1] ?? "";
+  const groups = NAV[effRole];
+  const currentLabel = flatNav(effRole).find((n) => n[0] === pane)?.[1] ?? "";
 
   function toggleTheme() {
     const cur = document.documentElement.getAttribute("data-theme");
@@ -97,7 +109,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       <aside className={`sidebar ${navOpen ? "open" : ""}`}>
         <div className="brandmark"><b className="logo">81'<span>DEGREE</span></b>
           <button className="iconbtn nav-close" title="닫기" onClick={() => setNavOpen(false)}>✕</button></div>
-        <div className="navlabel">{t(ROLE_LABEL[session.role], lang)}</div>
+        <div className="navlabel">{t(ROLE_LABEL[effRole], lang)}{viewAs ? ` · ${viewAs.scope}` : ""}</div>
         {groups.map((g, gi) => (
           <div key={gi} className="navgroup">
             {g.group && <div className="navgroup-h">{t(g.group, lang)}</div>}
@@ -119,9 +131,17 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       <div className="main">
         <div className="topbar">
           <button className="iconbtn nav-open" title="메뉴" onClick={() => setNavOpen(true)}>☰</button>
-          <div style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {session.role === "admin" ? "81degree" : session.scope}</div></div>
+          <div style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{effRole === "admin" ? `${month} · 81degree` : effScope}</div></div>
           <div className="spacer" />
-          {session.role === "admin" && <select value={month} onChange={(e) => setMonth(e.target.value)}
+          {/* 관리자 전용: 다른 어드민으로 전환 / 복귀 */}
+          {session.role === "admin" && !viewAs && d && <select value="" onChange={(e) => { const v = e.target.value; if (!v) return; const i = v.indexOf(":"); enterViewAs({ role: v.slice(0, i) as "brand" | "creator", scope: v.slice(i + 1) }); }}
+            style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", maxWidth: 180 }} title={t("다른 어드민으로 보기", lang)}>
+            <option value="">🔀 {t("어드민 전환", lang)}</option>
+            <optgroup label={t("브랜드", lang)}>{d.brands.map((b) => <option key={b.id} value={"brand:" + b.name}>{b.name}</option>)}</optgroup>
+            <optgroup label={t("크리에이터", lang)}>{[...d.creators].sort((a, b) => a.name.localeCompare(b.name)).map((c) => <option key={c.id} value={"creator:" + c.name}>{c.code ? c.code + " · " : ""}{c.name}</option>)}</optgroup>
+          </select>}
+          {viewAs && <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 700, background: "var(--accent-weak)", color: "var(--accent-ink)" }} onClick={() => enterViewAs(null)}>← {t("관리자로", lang)}</button>}
+          {effRole === "admin" && <select value={month} onChange={(e) => setMonth(e.target.value)}
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
             {MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{t("월", lang)}</option>)}
           </select>}
@@ -130,10 +150,14 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
         </div>
         <div className="content">
+          {viewAs && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 14, borderRadius: 10, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", fontSize: 13 }}>
+            <span>🔎 <b>{t(ROLE_LABEL[effRole], lang)}</b> {t("어드민으로 보는 중", lang)}: <b>{viewAs.scope}</b></span>
+            <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => enterViewAs(null)}>← {t("관리자로 돌아가기", lang)}</button>
+          </div>}
           {!d ? <div className="placeholder">불러오는 중…</div>
-            : session.role === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} />
-            : session.role === "brand" ? <BrandView pane={pane} d={d} scope={session.scope} />
-            : <CreatorView pane={pane} d={d} scope={session.scope} onNav={go} />}
+            : effRole === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} />
+            : effRole === "brand" ? <BrandView pane={pane} d={d} scope={effScope} />
+            : <CreatorView pane={pane} d={d} scope={effScope} onNav={go} />}
         </div>
       </div>
     </div>
