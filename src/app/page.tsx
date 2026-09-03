@@ -14,17 +14,18 @@ export default function Page() {
   useEffect(() => {
     let unsub = () => { };
     (async () => {
-      // 1) 실제 Supabase 세션 우선
+      // 1) 실제 Supabase 세션 (프로덕션) — 데모 폴백 없음(사칭 방지)
       if (supabaseConfigured()) {
         const s = await currentSupabaseSession();
-        if (s) { setSession(s); setViaSupabase(true); setReady(true); }
+        if (s) { setSession(s); setViaSupabase(true); }
         unsub = onAuthChange(async () => {
           const ns = await currentSupabaseSession();
           if (ns) { setSession(ns); setViaSupabase(true); }
         });
-        if (s) return;
+        setReady(true);
+        return; // Supabase 설정 시 localStorage 데모 세션은 사용하지 않음
       }
-      // 2) 데모 세션 (localStorage)
+      // 2) 데모 세션 (Supabase 미설정 로컬 개발 전용)
       const d = loadSession();
       if (d && findAccount(d.email)) setSession(d);
       setReady(true);

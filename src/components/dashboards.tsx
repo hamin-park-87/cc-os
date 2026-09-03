@@ -902,7 +902,18 @@ function RevenueTable({ d, month }: { d: Bundle; month: string }) {
 }
 
 /* 배정 관리 (월 · 브랜드별 크리에이터 배분) */
-const ASSIGN_MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
+// 2026-08부터 현재+6개월까지 자동 생성 (하드코딩 없이 매달 확장)
+function genMonths(): string[] {
+  const out: string[] = [];
+  try {
+    const cur = new Date(2026, 7, 1); // 2026-08
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth() + 6, 1);
+    while (cur <= end) { out.push(cur.toLocaleDateString("sv-SE").slice(0, 7)); cur.setMonth(cur.getMonth() + 1); }
+  } catch { /* fallback below */ }
+  return out.length ? out : ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
+}
+const ASSIGN_MONTHS = genMonths();
 // 현재 월 기본값 (범위 밖이면 최근접으로 클램프) — 매달 자동으로 이번 달로 세팅
 function defaultMonth(): string {
   let m = ASSIGN_MONTHS[0];
@@ -978,6 +989,22 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
     setTick((t) => t + 1);
     setAssignment(brand, name, month, finalQ, d.brands, d.creators).catch((e) => console.warn(e.message));
   }
+  // 지난달 배정 복사 — 매월 수작업 절감
+  async function copyLastMonth() {
+    const [y, m] = month.split("-").map(Number);
+    const prev = new Date(y, m - 2, 1).toLocaleDateString("sv-SE").slice(0, 7);
+    const prevAsg = d.assignments.filter((a) => a.brandId === brand && a.yearMonth === prev);
+    if (!prevAsg.length) { alert(`${prev} ${T("배정이 없습니다.")}`); return; }
+    if (!confirm(`${prev} ${T("배정")} ${prevAsg.length}${T("건을")} ${month}${T("로 복사할까요?")}`)) return;
+    try {
+      for (const a of prevAsg) {
+        const ex = d.assignments.find((x) => x.brandId === brand && x.creatorId === a.creatorId && x.yearMonth === month);
+        if (ex) ex.quota = a.quota; else d.assignments.push({ id: `${brand}|${a.creatorId}|${month}`, brandId: brand, creatorId: a.creatorId, yearMonth: month, quota: a.quota });
+        await setAssignment(brand, a.creatorId, month, a.quota, d.brands, d.creators);
+      }
+      setTick((t) => t + 1); setSaved(true); setTimeout(() => setSaved(false), 1600);
+    } catch (e) { alert(T("복사 실패: ") + (e as Error).message); }
+  }
   // 배정 저장(전체 재적용) — 실제 반영 확인용
   async function saveAll() {
     try {
@@ -995,7 +1022,8 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
         <option value="name">{T("이름순")}</option>
         <option value="assigned">{T("배정 많은순")}</option>
       </select>
-      <button className="btn" style={{ marginLeft: "auto", minWidth: 88 }} onClick={saveAll}>{saved ? "✓ " + T("저장됨") : T("배정 저장")}</button>
+      <button className="btn" style={{ marginLeft: "auto" }} onClick={copyLastMonth} title={T("지난달 배정을 이번 달로 복사")}>{T("지난달 복사")}</button>
+      <button className="btn" style={{ minWidth: 88 }} onClick={saveAll}>{saved ? "✓ " + T("저장됨") : T("배정 저장")}</button>
       <button className="btn acc" onClick={generateSchedule}>{T("제작 일정 생성")}</button>
     </div>
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
@@ -1344,6 +1372,7 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
   const aud = audienceOf(name);
   const ups = contents.filter((x) => x.creatorName === name && x.status === "uploaded" && x.views > 0);
   const avgEng = ups.length ? ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length : 0;
+  const hasReal = ups.length > 0; // 실제 IG 지표 존재 여부 (없으면 성장/오디언스는 추정치라 숨김)
   const sel = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", fontWeight: 500 } as const;
   function runAI() {
     const cards: { t: string; s: string }[] = [];
@@ -1357,14 +1386,15 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
   return (<>
     <div className="filterbar"><select value={name} onChange={(e) => { setName(e.target.value); setAi(null); }}>{actives.map((x) => <option key={x.id} value={x.name}>{withCode(x.name)} · {x.handle}</option>)}</select></div>
     <div className="grid-kpi">
-      <Kpi lab={T("팔로워")} val={fmt(c.followers)} delta={`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% ${T("(12주)")}`} dir={pct >= 0 ? "up" : "down"} spark={series.map((v) => v / 1000)} />
-      <Kpi lab={T("순증 (12주)")} val={`+${fmt(series[series.length - 1] - series[0])}`} />
-      <Kpi lab={T("평균 참여율")} val={avgEng.toFixed(1)} unit="%" /><Kpi lab={T("업로드")} val={ups.length} unit={T("건")} />
+      <Kpi lab={T("팔로워")} val={fmt(c.followers)} delta={hasReal ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% ${T("(12주)")}` : undefined} dir={hasReal ? (pct >= 0 ? "up" : "down") : undefined} spark={hasReal ? series.map((v) => v / 1000) : undefined} />
+      <Kpi lab={T("순증 (12주)")} val={hasReal ? `+${fmt(series[series.length - 1] - series[0])}` : "—"} />
+      <Kpi lab={T("평균 참여율")} val={hasReal ? avgEng.toFixed(1) : "—"} unit={hasReal ? "%" : ""} /><Kpi lab={T("업로드")} val={ups.length} unit={T("건")} />
     </div>
     <div className="two">
-      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle} · {T("최근 12주")}</span></div><div style={{ marginTop: 8 }}><Spark data={series} /></div></div>
+      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle} · {T("최근 12주")}</span></div>
+        {hasReal ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}</div>
       <div className="card pad"><div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스")}</h2></div>
-        {aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
+        {!hasReal || aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
           <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} /><div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div><div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div></div>
           <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
           <Bars items={aud.ages} />
@@ -2297,6 +2327,69 @@ function CreatorPublicModal({ creator: c, onClose }: { creator: Creator; content
   );
 }
 
+/* 크리에이터 정산서 — PR(2차활용 포함) + 2차활용 승인분, 월 필터 + 인쇄(PDF) */
+function CreatorSettlement({ d, me, secReqs }: { d: Bundle; me: string; secReqs: SecondaryReq[] }) {
+  const [fMonth, setFMonth] = useState("");   // "" = 전체
+  const dealNet = (x: Deal) => Math.round((x.fee + (x.secondaryFee ?? 0)) * x.shareCreator / 100);
+  const dealDone = (x: Deal) => x.step >= 7 || !!x.paidDate;
+  const dealMonth = (x: Deal) => (x.uploadDate || x.dueDate || x.receivedDate || "").slice(0, 7);
+  const myDeals = d.deals.filter((x) => x.creatorName === me && (!fMonth || dealMonth(x) === fMonth));
+  const mySec = secReqs.filter((r) => r.creatorName === me && r.status === "approved" && (!fMonth || (r.periodStart ?? "").slice(0, 7) === fMonth || !r.periodStart));
+  const prTotal = myDeals.filter((x) => x.step >= 4).reduce((s, x) => s + dealNet(x), 0);
+  const secTotal = mySec.reduce((s, r) => s + r.fee, 0);
+  const confirmed = myDeals.filter(dealDone).reduce((s, x) => s + dealNet(x), 0) + secTotal;
+  const grand = prTotal + secTotal;
+  const chk = (on: boolean) => <input type="checkbox" checked={on} readOnly style={{ pointerEvents: "none" }} />;
+  return (<>
+    <div className="filterbar">
+      <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}><option value="">{T("전체 기간")}</option>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
+      <button className="btn" style={{ marginLeft: "auto" }} onClick={() => { try { window.print(); } catch { /* noop */ } }}>🖨 {T("인쇄 · PDF")}</button>
+    </div>
+    <div id="invoice">
+      <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>{withCode(me)} {T("정산서")}</div>
+      <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>{fMonth ? `${fMonth.slice(0, 4)}. ${+fMonth.slice(5)}${T("월")}` : T("전체 기간")} · 81'DEGREE</div>
+      <div className="grid-kpi" style={{ marginBottom: 16 }}>
+        <Kpi lab={T("정산 예정 합계")} val={yen(grand)} />
+        <Kpi lab={T("확정(체크) 합계")} val={yen(confirmed)} />
+        <Kpi lab={T("PR 정산")} val={yen(prTotal)} />
+        <Kpi lab={T("2차 활용")} val={yen(secTotal)} />
+      </div>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("PR 안건 정산")}</h2><span className="hint">{T("PR 비용 + 2차 활용비 × 내 쉐어")}</span></div>
+      {!myDeals.length ? <div className="placeholder">{T("PR 안건이 없어요.")}</div> :
+        <div className="tablewrap"><table><thead><tr>
+          <th>{T("안건")}</th><th>{T("PR 비용")}</th><th>{T("2차 활용비")}</th><th>{T("내 쉐어")}</th><th>{T("내 정산")}</th><th>{T("상태")}</th><th>{T("확인")}</th>
+        </tr></thead><tbody>
+          {myDeals.map((x) => (
+            <tr key={x.id}><td><b>{x.title}</b> <span className="chip">{x.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
+              <td className="num">{yen(x.fee)}</td>
+              <td className="num" style={{ color: x.secondaryFee ? "var(--ink)" : "var(--faint)" }}>{x.secondaryFee ? yen(x.secondaryFee) : "—"}</td>
+              <td className="num">{x.shareCreator}%</td>
+              <td className="num" style={{ fontWeight: 700, color: x.step >= 4 ? "var(--accent-ink)" : "var(--muted)" }}>{yen(dealNet(x))}</td>
+              <td><span className={`pill ${dealDone(x) ? "p-ok" : x.step >= 4 ? "p-warn" : "p-plan"}`}><span className="d" />{dealDone(x) ? T("입금 완료") : x.step >= 4 ? T("정산 대상") : T("진행중")}</span></td>
+              <td style={{ textAlign: "center" }}>{chk(dealDone(x))}</td></tr>
+          ))}
+        </tbody></table></div>}
+      <div className="sec-h"><h2>{T("2차 활용 정산")}</h2><span className="hint">{T("승인된 2차 활용 건")}</span></div>
+      {!mySec.length ? <div className="placeholder">{T("승인된 2차 활용이 없어요.")}</div> :
+        <div className="tablewrap"><table><thead><tr>
+          <th>{T("콘텐츠")}</th><th>{T("브랜드")}</th><th>{T("범위")}</th><th>{T("금액")}</th><th>{T("상태")}</th><th>{T("확인")}</th>
+        </tr></thead><tbody>
+          {mySec.map((r) => (
+            <tr key={r.id}><td><b>{r.product}</b></td><td>{r.brandName}</td>
+              <td>{T(SECONDARY_SCOPE_LABEL[r.scope])}</td>
+              <td className="num" style={{ fontWeight: 700, color: "var(--accent-ink)" }}>{yen(r.fee)}</td>
+              <td><span className="pill p-ok"><span className="d" />{T("승인")}</span></td>
+              <td style={{ textAlign: "center" }}>{chk(true)}</td></tr>
+          ))}
+        </tbody></table></div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, marginTop: 14, fontSize: 14 }}>
+        <span>{T("확정(체크) 합계")} <b className="num" style={{ color: "#3fb984" }}>{yen(confirmed)}</b></span>
+        <span>{T("정산 예정 합계")} <b className="num" style={{ color: "var(--accent-ink)" }}>{yen(grand)}</b></span>
+      </div>
+    </div>
+  </>);
+}
+
 /* 크리에이터 관리 + 이번 달 할일 슬랙 리마인드 (관리자) */
 function RosterView({ d, month }: { d: Bundle; month: string }) {
   const [busy, setBusy] = useState(false);
@@ -2381,22 +2474,23 @@ export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle
     const maxAge = Math.max(1, ...aud.ages.map((a) => a[1]));
     const ups2 = mine.filter((c) => c.status === "uploaded" && c.views > 0);
     const avgSave = ups2.length ? (ups2.reduce((s, c) => s + (c.saves / c.views * 100), 0) / ups2.length).toFixed(1) : "0";
+    const hasReal = ups2.length > 0;
     return (<>
       {remBanner}
       <div className="grid-kpi">
-        <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} spark={series.map((v) => v / 1000)} />
-        <Kpi lab={T("이번 달 조회")} val={fmt(monthViews)} />
-        <Kpi lab={T("평균 저장률")} val={avgSave} unit="%" />
+        <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} spark={hasReal ? series.map((v) => v / 1000) : undefined} />
+        <Kpi lab={T("이번 달 조회")} val={hasReal ? fmt(monthViews) : "—"} />
+        <Kpi lab={T("평균 저장률")} val={hasReal ? avgSave : "—"} unit={hasReal ? "%" : ""} />
         <Kpi lab={T("업로드")} val={mine.filter((c) => c.status === "uploaded").length} unit={T("건")} />
       </div>
       <div className="two">
         <div className="card pad">
           <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{cr?.handle} · {T("최근 12주")}</span></div>
-          <div style={{ marginTop: 8 }}><Spark data={series} /></div>
+          {hasReal ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}
         </div>
         <div className="card pad">
           <div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스 · 성별")}</h2></div>
-          {aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
+          {!hasReal || aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
             <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} />
               <div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div>
                 <div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div>
@@ -2411,57 +2505,7 @@ export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle
     </>);
   }
   if (pane === "c-deals") return <DealList deals={d.deals.filter((x) => x.creatorName === me)} contents={d.contents} readonly />;
-  if (pane === "c-revenue") {
-    const myDeals = d.deals.filter((x) => x.creatorName === me);
-    const dealNet = (x: Deal) => Math.round((x.fee + (x.secondaryFee ?? 0)) * x.shareCreator / 100);
-    const dealDone = (x: Deal) => x.step >= 7 || !!x.paidDate;            // 입금 확인 = 체크
-    const mySec = secReqs.filter((r) => r.creatorName === me && r.status === "approved"); // 2차 활용 승인분
-    const prTotal = myDeals.filter((x) => x.step >= 4).reduce((s, x) => s + dealNet(x), 0);
-    const secTotal = mySec.reduce((s, r) => s + r.fee, 0);
-    const confirmed = myDeals.filter(dealDone).reduce((s, x) => s + dealNet(x), 0) + secTotal; // 2차활용 승인=확정
-    const grand = prTotal + secTotal;
-    const chk = (on: boolean) => <input type="checkbox" checked={on} readOnly style={{ pointerEvents: "none" }} />;
-    return (<>
-      <div className="grid-kpi" style={{ marginBottom: 16 }}>
-        <Kpi lab={T("정산 예정 합계")} val={yen(grand)} />
-        <Kpi lab={T("확정(체크) 합계")} val={yen(confirmed)} />
-        <Kpi lab={T("PR 정산")} val={yen(prTotal)} />
-        <Kpi lab={T("2차 활용")} val={yen(secTotal)} />
-      </div>
-      <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("PR 안건 정산")}</h2><span className="hint">{T("PR 비용 + 2차 활용비 × 내 쉐어")}</span></div>
-      {!myDeals.length ? <div className="placeholder">{T("PR 안건이 없어요.")}</div> :
-        <div className="tablewrap"><table><thead><tr>
-          <th>{T("안건")}</th><th>{T("PR 비용")}</th><th>{T("2차 활용비")}</th><th>{T("내 쉐어")}</th><th>{T("내 정산")}</th><th>{T("상태")}</th><th>{T("확인")}</th>
-        </tr></thead><tbody>
-          {myDeals.map((x) => (
-            <tr key={x.id}><td><b>{x.title}</b> <span className="chip">{x.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
-              <td className="num">{yen(x.fee)}</td>
-              <td className="num" style={{ color: x.secondaryFee ? "var(--ink)" : "var(--faint)" }}>{x.secondaryFee ? yen(x.secondaryFee) : "—"}</td>
-              <td className="num">{x.shareCreator}%</td>
-              <td className="num" style={{ fontWeight: 700, color: x.step >= 4 ? "var(--accent-ink)" : "var(--muted)" }}>{yen(dealNet(x))}</td>
-              <td><span className={`pill ${dealDone(x) ? "p-ok" : x.step >= 4 ? "p-warn" : "p-plan"}`}><span className="d" />{dealDone(x) ? T("입금 완료") : x.step >= 4 ? T("정산 대상") : T("진행중")}</span></td>
-              <td style={{ textAlign: "center" }}>{chk(dealDone(x))}</td></tr>
-          ))}
-        </tbody></table></div>}
-      <div className="sec-h"><h2>{T("2차 활용 정산")}</h2><span className="hint">{T("승인된 2차 활용 건")}</span></div>
-      {!mySec.length ? <div className="placeholder">{T("승인된 2차 활용이 없어요.")}</div> :
-        <div className="tablewrap"><table><thead><tr>
-          <th>{T("콘텐츠")}</th><th>{T("브랜드")}</th><th>{T("범위")}</th><th>{T("금액")}</th><th>{T("상태")}</th><th>{T("확인")}</th>
-        </tr></thead><tbody>
-          {mySec.map((r) => (
-            <tr key={r.id}><td><b>{r.product}</b></td><td>{r.brandName}</td>
-              <td>{T(SECONDARY_SCOPE_LABEL[r.scope])}</td>
-              <td className="num" style={{ fontWeight: 700, color: "var(--accent-ink)" }}>{yen(r.fee)}</td>
-              <td><span className="pill p-ok"><span className="d" />{T("승인")}</span></td>
-              <td style={{ textAlign: "center" }}>{chk(true)}</td></tr>
-          ))}
-        </tbody></table></div>}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, marginTop: 14, fontSize: 14 }}>
-        <span>{T("확정(체크) 합계")} <b className="num" style={{ color: "#3fb984" }}>{yen(confirmed)}</b></span>
-        <span>{T("정산 예정 합계")} <b className="num" style={{ color: "var(--accent-ink)" }}>{yen(grand)}</b></span>
-      </div>
-    </>);
-  }
+  if (pane === "c-revenue") return <CreatorSettlement d={d} me={me} secReqs={secReqs} />;
   if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
   if (pane === "c-profile") return <CreatorProfile d={d} me={me} />;

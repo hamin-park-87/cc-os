@@ -5,6 +5,8 @@ import { getData } from "@/lib/data";
 import { t, setCurrentLang, type Lang } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
 import { AdminView, BrandView, CreatorView, type Bundle } from "./dashboards";
+import { Modal, Field, inp } from "./Modal";
+import { changePassword } from "@/lib/auth/supabaseAuth";
 
 type NavItem = [string, string];               // [key, 중분류 라벨]
 type NavGroup = { group: string; items: NavItem[] }; // group="" 이면 대분류 헤더 없이 단독 노출
@@ -31,7 +33,16 @@ const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
 // 코드(BR001/CC001…) 번호순 정렬 — 코드 없으면 뒤로
 const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); return m ? +m[0] : Infinity; };
 const byCode = (a: { code?: string | null; name: string }, b: { code?: string | null; name: string }) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
-const MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
+function genMonths(): string[] {
+  const out: string[] = [];
+  try {
+    const cur = new Date(2026, 7, 1); const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth() + 6, 1);
+    while (cur <= end) { out.push(cur.toLocaleDateString("sv-SE").slice(0, 7)); cur.setMonth(cur.getMonth() + 1); }
+  } catch { /* fallback */ }
+  return out.length ? out : ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
+}
+const MONTHS = genMonths();
 function defaultMonth(): string {
   let m = MONTHS[0];
   try { m = new Date().toLocaleDateString("sv-SE").slice(0, 7); } catch { }
@@ -48,6 +59,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const [month, setMonth] = useState(defaultMonth());
   const [navOpen, setNavOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   // 관리자 전용: 다른 브랜드/크리에이터 어드민으로 들어가 보기 (View as)
   const [viewAs, setViewAs] = useState<{ role: "brand" | "creator"; scope: string } | null>(null);
   const effRole = viewAs ? viewAs.role : session.role;
@@ -127,9 +139,11 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           <Avatar name={session.role === "creator" ? session.scope : session.scope[0]} size={32} radius={8} />
           <div className="who"><b>{session.role === "admin" ? "81degree" : session.scope}</b>
             <small>{t(ROLE_LABEL[session.role], lang)} · {session.email}</small></div>
-          <button className="iconbtn" title="로그아웃" style={{ marginLeft: "auto" }} onClick={onLogout}>⎋</button>
+          <button className="iconbtn" title={t("비밀번호 변경", lang)} style={{ marginLeft: "auto" }} onClick={() => setPwOpen(true)}>🔑</button>
+          <button className="iconbtn" title="로그아웃" onClick={onLogout}>⎋</button>
         </div>
       </aside>
+      {pwOpen && <PasswordModal lang={lang} onClose={() => setPwOpen(false)} />}
 
       <div className="main">
         <div className="topbar">
@@ -164,5 +178,29 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
         </div>
       </div>
     </div>
+  );
+}
+
+function PasswordModal({ lang, onClose }: { lang: Lang; onClose: () => void }) {
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  async function submit() {
+    if (pw.length < 8) { setMsg(t("8자 이상 입력하세요", lang)); return; }
+    if (pw !== pw2) { setMsg(t("비밀번호가 일치하지 않습니다", lang)); return; }
+    setBusy(true); setMsg("");
+    const { error } = await changePassword(pw);
+    setBusy(false);
+    if (error) { setMsg(t("변경 실패", lang) + ": " + error.message); return; }
+    setMsg("✓ " + t("변경되었습니다", lang)); setTimeout(onClose, 1200);
+  }
+  return (
+    <Modal title={t("비밀번호 변경", lang)} onClose={onClose} width={420}
+      footer={<><button className="btn" onClick={onClose}>{t("취소", lang)}</button><button className="btn acc" disabled={busy} onClick={submit}>{busy ? "…" : t("변경", lang)}</button></>}>
+      <Field label={t("새 비밀번호 (8자 이상)", lang)}><input style={inp} type="password" value={pw} onChange={(e) => setPw(e.target.value)} /></Field>
+      <Field label={t("새 비밀번호 확인", lang)}><input style={inp} type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} /></Field>
+      {msg && <div style={{ fontSize: 12.5, color: msg.startsWith("✓") ? "var(--accent-ink)" : "var(--critical)" }}>{msg}</div>}
+    </Modal>
   );
 }

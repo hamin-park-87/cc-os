@@ -23,6 +23,7 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
   const [status, setStatus] = useState("");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<Content | null>(null);
+  const [visN, setVisN] = useState(60); // 전체 모드 페이지네이션
 
   const creators = useMemo(() => [...new Set(contents.map((c) => c.creatorName))], [contents]);
   const brands = useMemo(() => [...new Set(contents.map((c) => c.brandName).filter(Boolean))] as string[], [contents]);
@@ -42,7 +43,7 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
     });
   }, [contents, creator, brand, kind, period, sort, status, q]);
 
-  const shown = compact && limit ? items.slice(0, limit) : items;
+  const shown = compact && limit ? items.slice(0, limit) : items.slice(0, visN);
   return (
     <>
       {!compact && <div className="filterbar">
@@ -87,6 +88,11 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
       {compact && onMore && items.length > 0 && (
         <button className="btn" style={{ width: "100%", marginTop: 12, padding: "11px", fontWeight: 700 }} onClick={onMore}>
           {T("더보기")}{items.length > shown.length ? ` (${items.length - shown.length}+)` : ""} →
+        </button>
+      )}
+      {!compact && items.length > shown.length && (
+        <button className="btn" style={{ width: "100%", marginTop: 12, padding: "11px", fontWeight: 700 }} onClick={() => setVisN((n) => n + 60)}>
+          {T("더보기")} ({items.length - shown.length})
         </button>
       )}
       {open && <VideoModal content={open} tagBrands={tagBrands} onTag={onTag} onChanged={() => setTick((t) => t + 1)} onClose={() => setOpen(null)} />}

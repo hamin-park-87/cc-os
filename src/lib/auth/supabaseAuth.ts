@@ -21,6 +21,11 @@ export async function supabaseSignOut() {
   try { await getSupabase().auth.signOut(); } catch { /* ignore */ }
 }
 
+// 본인 비밀번호 변경 (로그인 상태에서)
+export async function changePassword(newPassword: string) {
+  return getSupabase().auth.updateUser({ password: newPassword });
+}
+
 // 현재 Supabase 세션 → 앱 세션(role·scope) 매핑
 export async function currentSupabaseSession(): Promise<Session | null> {
   const sb = getSupabase();
