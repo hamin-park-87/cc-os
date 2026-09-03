@@ -28,6 +28,9 @@ const NAV: Record<string, NavGroup[]> = {
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
+// 코드(BR001/CC001…) 번호순 정렬 — 코드 없으면 뒤로
+const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); return m ? +m[0] : Infinity; };
+const byCode = (a: { code?: string | null; name: string }, b: { code?: string | null; name: string }) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
 const MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
 function defaultMonth(): string {
   let m = MONTHS[0];
@@ -137,8 +140,8 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           {session.role === "admin" && !viewAs && d && <select value="" onChange={(e) => { const v = e.target.value; if (!v) return; const i = v.indexOf(":"); enterViewAs({ role: v.slice(0, i) as "brand" | "creator", scope: v.slice(i + 1) }); }}
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", maxWidth: 180 }} title={t("다른 어드민으로 보기", lang)}>
             <option value="">🔀 {t("어드민 전환", lang)}</option>
-            <optgroup label={t("브랜드", lang)}>{d.brands.map((b) => <option key={b.id} value={"brand:" + b.name}>{b.name}</option>)}</optgroup>
-            <optgroup label={t("크리에이터", lang)}>{[...d.creators].sort((a, b) => a.name.localeCompare(b.name)).map((c) => <option key={c.id} value={"creator:" + c.name}>{c.code ? c.code + " · " : ""}{c.name}</option>)}</optgroup>
+            <optgroup label={t("브랜드", lang)}>{[...d.brands].sort(byCode).map((b) => <option key={b.id} value={"brand:" + b.name}>{b.code ? b.code + " · " : ""}{b.name}</option>)}</optgroup>
+            <optgroup label={t("크리에이터", lang)}>{[...d.creators].sort(byCode).map((c) => <option key={c.id} value={"creator:" + c.name}>{c.code ? c.code + " · " : ""}{c.name}</option>)}</optgroup>
           </select>}
           {viewAs && <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 700, background: "var(--accent-weak)", color: "var(--accent-ink)" }} onClick={() => enterViewAs(null)}>← {t("관리자로", lang)}</button>}
           {effRole === "admin" && <select value={month} onChange={(e) => setMonth(e.target.value)}
