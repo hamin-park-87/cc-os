@@ -1123,7 +1123,7 @@ function ContentActions({ c }: { c?: Content | null }) {
   const hasMetrics = (c.views ?? 0) > 0 || (c.likes ?? 0) > 0 || (c.comments ?? 0) > 0;
   if (!c.permalink && !hasMetrics) return <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>;
   const rate = engRate(c);
-  const cells: [string, number][] = [["조회", c.views], ["도달", c.reach], ["좋아요", c.likes], ["댓글", c.comments], ["저장", c.saves], ["공유", c.shares]];
+  const cells: [string, number][] = [["조회수", c.views], ["도달", c.reach], ["좋아요", c.likes], ["댓글", c.comments], ["저장", c.saves], ["공유", c.shares]];
   return (<span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
     {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noreferrer" style={{ padding: "4px 9px", fontSize: 11.5 }}>▶ {T("영상")}</a>}
     {hasMetrics ? <button className="btn sm" style={{ padding: "4px 9px", fontSize: 11.5 }} onClick={() => setOpen(true)}>📊 {rate}%</button>
@@ -1990,7 +1990,7 @@ export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: 
             {Object.entries(byCr).map(([n, v]) => (
               <div className="li" key={n}><Avatar name={n} size={34} radius={9} />
                 <div className="main"><div className="t">{n}</div><div className="s">{rows.filter((c) => c.creatorName === n).length}{T("건 게시")}</div></div>
-                <div className="r"><div className="n">{kfmt(v)}</div><div className="u">{T("조회")}</div></div></div>
+                <div className="r"><div className="n">{kfmt(v)}</div><div className="u">{T("조회수")}</div></div></div>
             ))}
           </div>
         </div>
@@ -2138,7 +2138,7 @@ function BrandCreatorTable({ rows, allContents }: { rows: Content[]; allContents
       <span className="count">{entries.length}{T("명")}</span>
     </div>
     <div className="tablewrap"><table><thead><tr>
-      <th>{T("크리에이터")}</th><th>{T("게시")}</th><th>{T("총 조회")}</th><th>{T("평균 저장률")}</th><th>평균 참여율</th>
+      <th>{T("크리에이터")}</th><th>{T("업로드")}</th><th>{T("총 조회수")}</th><th>{T("평균 저장률")}</th><th>{T("평균 참여율")}</th>
     </tr></thead><tbody>
       {entries.length ? entries.map(([n, b]) => (
         <tr key={n} style={{ cursor: "pointer" }} onClick={() => setOpen(open === n ? "" : n)} title={`${n} ${T("콘텐츠 보기")}`}>
@@ -2410,7 +2410,7 @@ function RosterView({ d, month }: { d: Bundle; month: string }) {
     <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("크리에이터 관리")}</h2>
       <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
         {msg && <span style={{ fontSize: 12, color: "var(--muted)" }}>{msg}</span>}
-        <button className="btn acc" disabled={busy} onClick={sendReminder} title={T("이번 달 할일 진행 상황을 슬랙으로 전송")}>{busy ? T("전송 중…") : `📋 ${T("이번 달 할일 슬랙 리마인드")}`}</button>
+        <button className="btn acc" disabled={busy} onClick={sendReminder} title={T("제작 일정 진행 상황을 슬랙으로 전송")}>{busy ? T("전송 중…") : `📋 ${T("제작 일정 슬랙 리마인드")}`}</button>
       </span>
     </div>
     <RosterTable creators={d.creators} contents={d.contents} full />
@@ -2463,7 +2463,7 @@ export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle
           <b style={{ color: r.du < 0 ? "var(--critical)" : "var(--warning)" }}>{r.du < 0 ? `${T("납기 경과")} ${-r.du}${T("일")}` : r.du === 0 ? T("오늘 마감") : `D-${r.du}`}</b>
         </div>)}
       </div>}
-      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘이번 달 할 일’에서 일정을 확인하고 업로드를 완료하세요.")}</div>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘제작 일정’에서 일정을 확인하고 업로드를 완료하세요.")}</div>
     </div>
   ) : null;
   if (pane === "c-growth") {

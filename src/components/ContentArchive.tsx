@@ -52,7 +52,7 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
         <select value={kind} onChange={(e) => setKind(e.target.value)}><option value="">{T("모든 유형")}</option><option value="pr">{T("전략 브랜드")}</option><option value="own">{T("개인")}</option><option value="deal">{T("외부 PR")}</option></select>
         <select value={period} onChange={(e) => setPeriod(e.target.value)}><option value="">{T("전체 기간")}</option>{months.map((m) => <option key={m} value={m}>{+m.slice(5)}{T("월")}</option>)}</select>
         <select value={sort} onChange={(e) => setSort(e.target.value)}><option value="date">{T("최신순")}</option><option value="views">{T("조회수순")}</option><option value="saves">{T("저장순")}</option><option value="eng">{T("참여율순")}</option></select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">{T("전체 상태")}</option><option value="uploaded">{T("게시완료")}</option><option value="planned">{T("예정")}</option></select>
+        <select value={status} onChange={(e) => setStatus(e.target.value)}><option value="">{T("전체 상태")}</option><option value="uploaded">{T("업로드")}</option><option value="planned">{T("예정")}</option></select>
         <input placeholder={T("상품 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
         <span className="count">{items.length}{T("개")}</span>
       </div>}
@@ -130,7 +130,7 @@ function VideoModal({ content: c, tagBrands, onTag, onChanged, onClose }: { cont
             <button className="iconbtn" style={{ marginLeft: "auto" }} onClick={onClose}>✕</button>
           </div>
           <h3>{c.product}</h3>
-          <div className="note"><span>{c.publishedAt ? `${T("게시")} ${c.publishedAt}` : `${T("업로드 예정")} ${c.plannedDate}`}</span></div>
+          <div className="note"><span>{c.publishedAt ? `${T("업로드")} ${c.publishedAt}` : `${T("업로드 예정")} ${c.plannedDate}`}</span></div>
           <div className="mgrid">
             {([[T("조회수"), c.views], [T("도달"), c.reach], [T("좋아요"), c.likes], [T("저장"), c.saves], [T("댓글"), c.comments], [T("공유"), c.shares]] as [string, number][]).map(([l, v]) => (
               <div className="m" key={l}><div className="l">{l}</div><div className="v">{v ? fmt(v) : "—"}</div></div>

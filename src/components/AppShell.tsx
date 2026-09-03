@@ -25,8 +25,8 @@ const NAV: Record<string, NavGroup[]> = {
   ],
   creator: [
     { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
-    { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 매출"]] },
-    { group: "콘텐츠", items: [["c-content", "내 콘텐츠"], ["c-secondary", "2차 활용"], ["c-todo", "이번 달 할 일"]] },
+    { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 정산"]] },
+    { group: "콘텐츠", items: [["c-todo", "제작 일정"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
