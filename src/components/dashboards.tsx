@@ -112,7 +112,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
       </>
     );
   }
-  if (pane === "a-roster") return <RosterTable creators={d.creators} contents={d.contents} full />;
+  if (pane === "a-roster") return <RosterView d={d} month={month} />;
   if (pane === "a-brands") return <BrandAdmin d={d} month={month} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
   if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals month={month} />;
@@ -913,6 +913,7 @@ function defaultMonth(): string {
 function AssignEditor({ d, month }: { d: Bundle; month: string }) {
   const [, setTick] = useState(0);
   const [brand, setBrand] = useState("abib");
+  const [saved, setSaved] = useState(false);
   const [sortBy, setSortBy] = useState<"code" | "name" | "assigned">("code");
   const [prods, setProds] = useState<BrandProduct[]>([]);
   const [pa, setPa] = useState<Record<string, number>>({}); // `${productId}|${creatorName}` → qty
@@ -977,6 +978,13 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
     setTick((t) => t + 1);
     setAssignment(brand, name, month, finalQ, d.brands, d.creators).catch((e) => console.warn(e.message));
   }
+  // 배정 저장(전체 재적용) — 실제 반영 확인용
+  async function saveAll() {
+    try {
+      for (const c of actives) await setAssignment(brand, c.name, month, qOf(c.name), d.brands, d.creators);
+      setSaved(true); setTimeout(() => setSaved(false), 1600);
+    } catch (e) { alert(T("저장 실패: ") + (e as Error).message); }
+  }
   const diff = sum - target;
   return (<>
     <div className="filterbar">
@@ -987,7 +995,8 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
         <option value="name">{T("이름순")}</option>
         <option value="assigned">{T("배정 많은순")}</option>
       </select>
-      <button className="btn acc" style={{ marginLeft: "auto" }} onClick={generateSchedule}>{T("제작 일정 생성")}</button>
+      <button className="btn" style={{ marginLeft: "auto", minWidth: 88 }} onClick={saveAll}>{saved ? "✓ " + T("저장됨") : T("배정 저장")}</button>
+      <button className="btn acc" onClick={generateSchedule}>{T("제작 일정 생성")}</button>
     </div>
     <div className={`assign-target ${diff === 0 ? "ok" : "over"}`}>
       <b>{brand}</b> · {month.slice(0, 4)}{T("년")} {+month.slice(5)}{T("월 계약")} <b>{target}</b>{T("건")} · {T("배정 합계")} <b>{sum}</b>{T("건")} — {diff === 0 ? T("계약과 일치") : diff > 0 ? `${diff}${T("건 초과")}` : `${-diff}${T("건 미배정")}`}
@@ -1280,7 +1289,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={r.creatorName} size={22} radius={11} />{withCode(r.creatorName)}</span>
           </td></tr>}
           <tr>
-            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{isDelay && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>}{noDates && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: "var(--faint)" }}>{T("일정 미정")}</span>}</td>
+            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{r.content?.sampleReceived && <span title={T("샘플 수령")} style={{ marginLeft: 6 }}>📦</span>}{isDelay && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>}{noDates && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: "var(--faint)" }}>{T("일정 미정")}</span>}</td>
             <td><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <span className="tag" style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: r.type === "brand" ? "color-mix(in srgb,var(--accent) 18%,transparent)" : "color-mix(in srgb,#c9793a 20%,transparent)", color: r.type === "brand" ? "var(--accent)" : "#d98a4a" }}>{r.type === "brand" ? T("전략") : T("PR")}</span>
               {r.type === "brand" ? <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.target] ?? "var(--surface-3)" }} />{r.target}</span> : <span style={{ fontSize: 12.5 }}>{r.target}</span>}
@@ -2288,11 +2297,40 @@ function CreatorPublicModal({ creator: c, onClose }: { creator: Creator; content
   );
 }
 
+/* 크리에이터 관리 + 이번 달 할일 슬랙 리마인드 (관리자) */
+function RosterView({ d, month }: { d: Bundle; month: string }) {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  async function sendReminder() {
+    setBusy(true); setMsg("");
+    try {
+      let token = "";
+      if (supabaseConfigured()) { const { data: { session } } = await getSupabase().auth.getSession(); token = session?.access_token ?? ""; }
+      const res = await fetch("/api/reminders/todo", { method: "POST", headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ month }) });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "실패");
+      setMsg(j.slackSent ? `${T("슬랙 전송 완료")} · ${T("대상")} ${j.creators}${T("명")}${j.behind ? ` · ${T("미완료")} ${j.behind}${T("명")}` : ""}` : (j.note || T("슬랙 미설정(전송 안 됨)")));
+    } catch (e) { setMsg(T("전송 실패: ") + (e as Error).message); }
+    setBusy(false);
+  }
+  return (<>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("크리에이터 관리")}</h2>
+      <span style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        {msg && <span style={{ fontSize: 12, color: "var(--muted)" }}>{msg}</span>}
+        <button className="btn acc" disabled={busy} onClick={sendReminder} title={T("이번 달 할일 진행 상황을 슬랙으로 전송")}>{busy ? T("전송 중…") : `📋 ${T("이번 달 할일 슬랙 리마인드")}`}</button>
+      </span>
+    </div>
+    <RosterTable creators={d.creators} contents={d.contents} full />
+  </>);
+}
+
 /* ── CREATOR ───────────────────────────── */
 export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle; scope: string; onNav?: (pane: string) => void }) {
   registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
+  const [secReqs, setSecReqs] = useState<SecondaryReq[]>([]);
+  useEffect(() => { getSecondaryRequests().then(setSecReqs).catch(() => setSecReqs([])); }, []);
   // 마감 임박/지연 리마인드 (인앱)
   const dU = (ds?: string | null) => ds ? Math.round((new Date(ds).getTime() - Date.now()) / 86400000) : null;
   const rem: { label: string; du: number }[] = [];
@@ -2374,19 +2412,55 @@ export function CreatorView({ pane, d, scope, onNav }: { pane: string; d: Bundle
   }
   if (pane === "c-deals") return <DealList deals={d.deals.filter((x) => x.creatorName === me)} contents={d.contents} readonly />;
   if (pane === "c-revenue") {
-    const my = d.deals.filter((x) => x.creatorName === me);
-    return (
-      <div className="tablewrap"><table><thead><tr>
-        <th>{T("안건")}</th><th>{T("유형")}</th><th>{T("PR 비용")}</th><th>{T("내 쉐어")}</th><th>{T("내 정산")}</th><th>{T("상태")}</th>
-      </tr></thead><tbody>
-        {my.map((x) => (
-          <tr key={x.id}><td><b>{x.title}</b></td><td><span className="chip">{x.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
-            <td className="num">{yen(x.fee)}</td><td className="num">{x.shareCreator}%</td>
-            <td className="num" style={{ fontWeight: 600, color: x.step >= 4 ? "var(--accent-ink)" : "var(--muted)" }}>{yen(x.fee * x.shareCreator / 100)}</td>
-            <td><span className={`pill ${x.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{x.step >= 4 ? T("정산 대상") : T("진행중")}</span></td></tr>
-        ))}
-      </tbody></table></div>
-    );
+    const myDeals = d.deals.filter((x) => x.creatorName === me);
+    const dealNet = (x: Deal) => Math.round((x.fee + (x.secondaryFee ?? 0)) * x.shareCreator / 100);
+    const dealDone = (x: Deal) => x.step >= 7 || !!x.paidDate;            // 입금 확인 = 체크
+    const mySec = secReqs.filter((r) => r.creatorName === me && r.status === "approved"); // 2차 활용 승인분
+    const prTotal = myDeals.filter((x) => x.step >= 4).reduce((s, x) => s + dealNet(x), 0);
+    const secTotal = mySec.reduce((s, r) => s + r.fee, 0);
+    const confirmed = myDeals.filter(dealDone).reduce((s, x) => s + dealNet(x), 0) + secTotal; // 2차활용 승인=확정
+    const grand = prTotal + secTotal;
+    const chk = (on: boolean) => <input type="checkbox" checked={on} readOnly style={{ pointerEvents: "none" }} />;
+    return (<>
+      <div className="grid-kpi" style={{ marginBottom: 16 }}>
+        <Kpi lab={T("정산 예정 합계")} val={yen(grand)} />
+        <Kpi lab={T("확정(체크) 합계")} val={yen(confirmed)} />
+        <Kpi lab={T("PR 정산")} val={yen(prTotal)} />
+        <Kpi lab={T("2차 활용")} val={yen(secTotal)} />
+      </div>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("PR 안건 정산")}</h2><span className="hint">{T("PR 비용 + 2차 활용비 × 내 쉐어")}</span></div>
+      {!myDeals.length ? <div className="placeholder">{T("PR 안건이 없어요.")}</div> :
+        <div className="tablewrap"><table><thead><tr>
+          <th>{T("안건")}</th><th>{T("PR 비용")}</th><th>{T("2차 활용비")}</th><th>{T("내 쉐어")}</th><th>{T("내 정산")}</th><th>{T("상태")}</th><th>{T("확인")}</th>
+        </tr></thead><tbody>
+          {myDeals.map((x) => (
+            <tr key={x.id}><td><b>{x.title}</b> <span className="chip">{x.type === "ahchannel" ? "ah!channel" : T("개별")}</span></td>
+              <td className="num">{yen(x.fee)}</td>
+              <td className="num" style={{ color: x.secondaryFee ? "var(--ink)" : "var(--faint)" }}>{x.secondaryFee ? yen(x.secondaryFee) : "—"}</td>
+              <td className="num">{x.shareCreator}%</td>
+              <td className="num" style={{ fontWeight: 700, color: x.step >= 4 ? "var(--accent-ink)" : "var(--muted)" }}>{yen(dealNet(x))}</td>
+              <td><span className={`pill ${dealDone(x) ? "p-ok" : x.step >= 4 ? "p-warn" : "p-plan"}`}><span className="d" />{dealDone(x) ? T("입금 완료") : x.step >= 4 ? T("정산 대상") : T("진행중")}</span></td>
+              <td style={{ textAlign: "center" }}>{chk(dealDone(x))}</td></tr>
+          ))}
+        </tbody></table></div>}
+      <div className="sec-h"><h2>{T("2차 활용 정산")}</h2><span className="hint">{T("승인된 2차 활용 건")}</span></div>
+      {!mySec.length ? <div className="placeholder">{T("승인된 2차 활용이 없어요.")}</div> :
+        <div className="tablewrap"><table><thead><tr>
+          <th>{T("콘텐츠")}</th><th>{T("브랜드")}</th><th>{T("범위")}</th><th>{T("금액")}</th><th>{T("상태")}</th><th>{T("확인")}</th>
+        </tr></thead><tbody>
+          {mySec.map((r) => (
+            <tr key={r.id}><td><b>{r.product}</b></td><td>{r.brandName}</td>
+              <td>{T(SECONDARY_SCOPE_LABEL[r.scope])}</td>
+              <td className="num" style={{ fontWeight: 700, color: "var(--accent-ink)" }}>{yen(r.fee)}</td>
+              <td><span className="pill p-ok"><span className="d" />{T("승인")}</span></td>
+              <td style={{ textAlign: "center" }}>{chk(true)}</td></tr>
+          ))}
+        </tbody></table></div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, marginTop: 14, fontSize: 14 }}>
+        <span>{T("확정(체크) 합계")} <b className="num" style={{ color: "#3fb984" }}>{yen(confirmed)}</b></span>
+        <span>{T("정산 예정 합계")} <b className="num" style={{ color: "var(--accent-ink)" }}>{yen(grand)}</b></span>
+      </div>
+    </>);
   }
   if (pane === "c-content") return <ContentArchive contents={mine} showCreator={false} />;
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
@@ -2493,6 +2567,7 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
   function setDate(c: Content, stage: string, val: string) { c.sched = { ...c.sched, [stage]: val }; if (stage === "upload") c.plannedDate = val; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, c.status).catch(() => { }); }
   function setStatus(c: Content, st: string) { c.status = st as Content["status"]; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
   function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); }
+  function setSample(c: Content, v: boolean) { c.sampleReceived = v; setTick((t) => t + 1); patchContentFields(c.id, { sample_received: v }).catch(() => { }); }
   async function saveRow(c: Content, brand: string) {
     try {
       await updateContentSchedule(c.id, c.sched as Record<string, string>, c.status);
@@ -2552,6 +2627,10 @@ function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
                         <input style={{ ...stIn, flex: 1, minWidth: 130 }} placeholder={T("업로드 URL 입력")} value={c.permalink ?? ""} onChange={(e) => setUrl(c, e.target.value)} />
                         <ContentActions c={c} />
                       </div>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 7, fontSize: 12, fontWeight: 600, color: c.sampleReceived ? "#3fb984" : "var(--muted)", cursor: "pointer" }}>
+                        <input type="checkbox" checked={!!c.sampleReceived} onChange={(e) => setSample(c, e.target.checked)} />
+                        📦 {T("샘플 수령")}{c.sampleReceived ? " ✓" : ""}
+                      </label>
                     </td>
                     {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
                     <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
