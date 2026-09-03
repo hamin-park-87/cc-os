@@ -172,7 +172,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => enterViewAs(null)}>← {t("관리자로 돌아가기", lang)}</button>
           </div>}
           {!d ? <div className="placeholder">불러오는 중…</div>
-            : effRole === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} />
+            : effRole === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} onNav={go} />
             : effRole === "brand" ? <BrandView pane={pane} d={d} scope={effScope} month={month} />
             : <CreatorView pane={pane} d={d} scope={effScope} month={month} onNav={go} />}
         </div>

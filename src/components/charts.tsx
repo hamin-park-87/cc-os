@@ -65,8 +65,10 @@ export function Bars({ items }: { items: [string, number][] }) {
 
 // 이름 기반 결정적 성장 시계열/오디언스 (프로토타입과 동일 로직)
 // 실데이터 전용: 팔로워 시계열 스냅샷이 없으므로 현재값으로 평탄 (가짜 성장 곡선 제거)
-export function growthSeries(_name: string, followers: number): number[] {
-  return Array(13).fill(Math.round(followers || 0));
+// 팔로워 추이: 과거 스냅샷을 보관하지 않으므로 빈 값 (가짜 추이 제거). 연동 후 실데이터로 대체.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function growthSeries(..._args: unknown[]): number[] {
+  return [];
 }
 // 오디언스: Instagram 인사이트 연동 전에는 빈 값 (가짜 데이터 제거). female<0 = 데이터 없음.
 export function audienceOf(_name: string) {

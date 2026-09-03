@@ -76,7 +76,7 @@ const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); retur
 const cmpCreatorByCode = (a: Creator, b: Creator) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
 const cmpNameByCode = (a: string, b: string) => codeRank(creatorCode(a)) - codeRank(creatorCode(b)) || a.localeCompare(b);
 
-export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; month: string; email?: string }) {
+export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: Bundle; month: string; email?: string; onNav?: (pane: string) => void }) {
   registerCreatorCodes(d.creators);
   if (pane === "a-matrix") {
     const active = d.creators.filter((c) => c.status === "active").length;
@@ -107,8 +107,9 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
             })}
           </tr>))}
         </tbody></table></div>
-        <div className="sec-h"><h2>{T("제작 일정 (전체)")}</h2><span className="hint"><span className="synced">🔄 {T("단일 원본 동기화")}</span></span></div>
-        <ScheduleRows items={sched} />
+        <div className="sec-h"><h2>{T("제작 일정")}</h2>{onNav && <button className="btn sm" onClick={() => onNav("a-schedule")}>{T("전체 보기")} →</button>}</div>
+        <ScheduleRows items={sched.slice(0, 6)} />
+        {sched.length > 6 && onNav && <button className="btn" style={{ width: "100%", marginTop: 10 }} onClick={() => onNav("a-schedule")}>{T("제작 일정 전체 보기")} ({sched.length}) →</button>}
       </>
     );
   }
@@ -120,7 +121,7 @@ export function AdminView({ pane, d, month, email }: { pane: string; d: Bundle; 
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
-  if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} />;
+  if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} onNav={onNav} />;
   if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} email={email} />;
   if (pane === "a-archive") return <ContentArchive contents={d.contents} tagBrands={d.brands.length ? d.brands.map((b) => b.name) : ALL_BRANDS} onTag={(c, bn) => tagContentBrand(c.id, bn, d.brands)} />;
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
@@ -264,18 +265,19 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
   const mine = contents.filter((x) => x.creatorName === c.name);
   const uploaded = mine.filter((x) => x.status === "uploaded");
   const totalViews = uploaded.reduce((s, x) => s + (x.views || 0), 0);
-  const series = growthSeries(c.name, c.followers);
-  const pct = ((series[series.length - 1] - series[0]) / series[0]) * 100;
-  const aud = audienceOf(c.name);
+  const series = growthSeries();
+  const hasTrend = series.length > 1;
+  const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0]) * 100 : 0;
   const ups = uploaded.filter((x) => x.views > 0);
   const avgEng = ups.length ? ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length : 0;
   function runAI() {
     const cards: { t: string; s: string }[] = [];
-    if (pct >= 40) cards.push({ t: T("성장 가속 중"), s: `${T("최근 12주 팔로워 +")}${pct.toFixed(0)}${T("%. 상위 성장세, 현재 포맷 유지·시리즈화 권장.")}` });
-    else if (pct >= 15) cards.push({ t: T("안정적 성장"), s: `+${pct.toFixed(0)}${T("% 성장. 업로드 빈도를 늘리면 곡선을 끌어올릴 수 있습니다.")}` });
-    else cards.push({ t: T("성장 정체"), s: `+${pct.toFixed(0)}${T("%. 새 훅·주제 실험, 트렌드 오디오 활용 권장.")}` });
-    if (ups.length) { const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0]; cards.push({ t: T("베스트 콘텐츠"), s: `'${best.product}'${T("가 참여율")} ${engRate(best)}${T("로 최고. 유사 포맷 반복 추천.")}` }); }
-    if (aud.female >= 0 && aud.regions.length) cards.push({ t: T("오디언스 제안"), s: `${T("주 시청층 여성")} ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} ${T("중심. 해당 층 주제 강화.")}` });
+    if (hasTrend) cards.push({ t: pct >= 15 ? T("성장 중") : T("성장 정체"), s: `+${pct.toFixed(0)}${T("% 성장.")}` });
+    if (ups.length) {
+      const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0];
+      cards.push({ t: T("베스트 콘텐츠"), s: `'${best.product}'${T("가 참여율")} ${engRate(best)}${T("로 최고. 유사 포맷 반복 추천.")}` });
+      cards.push({ t: T("활동 요약"), s: `${T("업로드")} ${ups.length}${T("건 · 평균 참여율")} ${avgEng.toFixed(1)}% · ${T("총 조회수")} ${fmt(totalViews)}` });
+    } else cards.push({ t: T("데이터 없음"), s: T("Instagram 연동·동기화 후 분석이 가능합니다.") });
     setAi(cards);
   }
   return (
@@ -317,15 +319,15 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
         <DRow k={T("오프라인 PR")} v={yen(c.rates.offline)} />
       </> : <>
         <div className="grid-kpi" style={{ marginBottom: 14 }}>
-          <Kpi lab={T("팔로워")} val={fmt(c.followers)} delta={`${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% ${T("(12주)")}`} dir={pct >= 0 ? "up" : "down"} spark={series.map((v) => v / 1000)} />
-          <Kpi lab={T("순증 (12주)")} val={`+${fmt(series[series.length - 1] - series[0])}`} />
-          <Kpi lab={T("평균 참여율")} val={avgEng.toFixed(1)} unit="%" />
+          <Kpi lab={T("팔로워")} val={fmt(c.followers)} delta={hasTrend ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : undefined} dir={hasTrend ? (pct >= 0 ? "up" : "down") : undefined} spark={hasTrend ? series.map((v) => v / 1000) : undefined} />
+          <Kpi lab={T("총 조회수")} val={ups.length ? fmt(totalViews) : "—"} />
+          <Kpi lab={T("평균 참여율")} val={ups.length ? avgEng.toFixed(1) : "—"} unit={ups.length ? "%" : ""} />
           <Kpi lab={T("업로드")} val={uploaded.length} unit={T("건")} />
         </div>
-        <div className="card pad" style={{ marginBottom: 14 }}>
-          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle} · {T("최근 12주")}</span></div>
+        {hasTrend && <div className="card pad" style={{ marginBottom: 14 }}>
+          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle}</span></div>
           <div style={{ marginTop: 8 }}><Spark data={series} /></div>
-        </div>
+        </div>}
         <div className="card pad" style={{ marginBottom: 14 }}>
           <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>✨ {T("AI 성장 코치")}</h2><button className="btn acc" onClick={runAI}>{T("분석 실행")}</button></div>
           {!ai ? <div className="note">{T("'분석 실행'을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.")}</div>
@@ -1359,38 +1361,41 @@ function CostTable({ creators }: { creators: Creator[] }) {
 }
 
 /* 크리에이터 인사이트 + AI 코치 */
-function Insights({ creators, contents }: { creators: Creator[]; contents: Content[] }) {
+function Insights({ creators, contents, onNav }: { creators: Creator[]; contents: Content[]; onNav?: (pane: string) => void }) {
   const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
   const actives = creators.filter((c) => c.status === "active").sort((a, b) => codeNum(a) - codeNum(b) || a.name.localeCompare(b.name));
   const [name, setName] = useState(actives[0]?.name ?? "hina");
   const [ai, setAi] = useState<{ t: string; s: string }[] | null>(null);
   const c = creators.find((x) => x.name === name)!;
-  const series = growthSeries(name, c.followers);
-  const pct = ((series[series.length - 1] - series[0]) / series[0] * 100);
+  const series = growthSeries();
+  const hasTrend = series.length > 1; // 팔로워 추이 실데이터 존재 여부
+  const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0] * 100) : 0;
   const aud = audienceOf(name);
   const ups = contents.filter((x) => x.creatorName === name && x.status === "uploaded" && x.views > 0);
+  const totalViews = ups.reduce((s, x) => s + x.views, 0);
   const avgEng = ups.length ? ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length : 0;
-  const hasReal = ups.length > 0; // 실제 IG 지표 존재 여부 (없으면 성장/오디언스는 추정치라 숨김)
+  const hasReal = ups.length > 0; // 실제 콘텐츠 지표 존재 여부
   const sel = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", fontWeight: 500 } as const;
   function runAI() {
     const cards: { t: string; s: string }[] = [];
-    if (pct >= 40) cards.push({ t: T("성장 가속 중"), s: `${T("최근 12주 팔로워 +")}${pct.toFixed(0)}${T("%. 상위 성장세, 현재 포맷 유지·시리즈화 권장.")}` });
-    else if (pct >= 15) cards.push({ t: T("안정적 성장"), s: `+${pct.toFixed(0)}${T("% 성장. 업로드 빈도를 늘리면 곡선을 끌어올릴 수 있습니다.")}` });
-    else cards.push({ t: T("성장 정체"), s: `+${pct.toFixed(0)}${T("%. 새 훅·주제 실험, 트렌드 오디오 활용 권장.")}` });
-    if (ups.length) { const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0]; cards.push({ t: T("베스트 콘텐츠"), s: `‘${best.product}’${T("가 참여율")} ${engRate(best)}${T("로 최고. 유사 포맷 반복 추천.")}` }); }
-    if (aud.female >= 0 && aud.regions.length) cards.push({ t: T("오디언스 제안"), s: `${T("주 시청층 여성")} ${aud.female}%·${aud.ages.slice().sort((a, b) => b[1] - a[1])[0][0]}, ${aud.regions[0][0]} ${T("중심. 해당 층 주제 강화.")}` });
+    if (hasTrend) cards.push({ t: pct >= 15 ? T("성장 중") : T("성장 정체"), s: `+${pct.toFixed(0)}${T("% 성장.")}` });
+    if (ups.length) {
+      const best = [...ups].sort((a, b) => parseFloat(engRate(b)) - parseFloat(engRate(a)))[0];
+      cards.push({ t: T("베스트 콘텐츠"), s: `‘${best.product}’${T("가 참여율")} ${engRate(best)}${T("로 최고. 유사 포맷 반복 추천.")}` });
+      cards.push({ t: T("활동 요약"), s: `${T("업로드")} ${ups.length}${T("건 · 평균 참여율")} ${avgEng.toFixed(1)}% · ${T("총 조회수")} ${fmt(totalViews)}` });
+    } else cards.push({ t: T("데이터 없음"), s: T("Instagram 연동·동기화 후 분석이 가능합니다.") });
     setAi(cards);
   }
   return (<>
     <div className="filterbar"><select value={name} onChange={(e) => { setName(e.target.value); setAi(null); }}>{actives.map((x) => <option key={x.id} value={x.name}>{withCode(x.name)} · {x.handle}</option>)}</select></div>
     <div className="grid-kpi">
-      <Kpi lab={T("팔로워")} val={fmt(c.followers)} delta={hasReal ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}% ${T("(12주)")}` : undefined} dir={hasReal ? (pct >= 0 ? "up" : "down") : undefined} spark={hasReal ? series.map((v) => v / 1000) : undefined} />
-      <Kpi lab={T("순증 (12주)")} val={hasReal ? `+${fmt(series[series.length - 1] - series[0])}` : "—"} />
+      <Kpi lab={T("팔로워")} val={fmt(c.followers)} delta={hasTrend ? `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%` : undefined} dir={hasTrend ? (pct >= 0 ? "up" : "down") : undefined} spark={hasTrend ? series.map((v) => v / 1000) : undefined} />
+      <Kpi lab={T("총 조회수")} val={hasReal ? fmt(totalViews) : "—"} />
       <Kpi lab={T("평균 참여율")} val={hasReal ? avgEng.toFixed(1) : "—"} unit={hasReal ? "%" : ""} /><Kpi lab={T("업로드")} val={ups.length} unit={T("건")} />
     </div>
     <div className="two">
-      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle} · {T("최근 12주")}</span></div>
-        {hasReal ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}</div>
+      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle}</span></div>
+        {hasTrend ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}</div>
       <div className="card pad"><div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스")}</h2></div>
         {!hasReal || aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
           <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} /><div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div><div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div></div>
@@ -1405,7 +1410,7 @@ function Insights({ creators, contents }: { creators: Creator[]; contents: Conte
         : ai.map((f, i) => <div key={i} className="ai-card"><span className="ic">★</span><div><div className="t">{f.t}</div><div className="s">{f.s}</div></div></div>)}
     </div>
     <div className="sec-h" style={{ marginTop: 22 }}><h2>{withCode(name)} {T("콘텐츠 아카이브")}</h2><span className="hint">{T("이 크리에이터의 SNS 콘텐츠")}</span></div>
-    <ContentArchive contents={contents.filter((x) => x.creatorName === name)} showCreator={false} />
+    <ContentArchive contents={contents.filter((x) => x.creatorName === name)} showCreator={false} compact limit={8} onMore={onNav ? () => onNav("a-archive") : undefined} />
   </>);
 }
 
@@ -2411,7 +2416,8 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   if (pane === "c-growth") {
     const cr = d.creators.find((x) => x.name === me)!;
     const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
-    const series = growthSeries(me, cr?.followers ?? 0);
+    const series = growthSeries();
+    const hasTrend = series.length > 1;
     const aud = audienceOf(me);
     const maxAge = Math.max(1, ...aud.ages.map((a) => a[1]));
     const ups2 = mine.filter((c) => c.status === "uploaded" && c.views > 0);
@@ -2420,15 +2426,15 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
     return (<>
       {remBanner}
       <div className="grid-kpi">
-        <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} spark={hasReal ? series.map((v) => v / 1000) : undefined} />
+        <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} spark={hasTrend ? series.map((v) => v / 1000) : undefined} />
         <Kpi lab={T("이번 달 조회")} val={hasReal ? fmt(monthViews) : "—"} />
         <Kpi lab={T("평균 저장률")} val={hasReal ? avgSave : "—"} unit={hasReal ? "%" : ""} />
         <Kpi lab={T("업로드")} val={mine.filter((c) => c.status === "uploaded").length} unit={T("건")} />
       </div>
       <div className="two">
         <div className="card pad">
-          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{cr?.handle} · {T("최근 12주")}</span></div>
-          {hasReal ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}
+          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{cr?.handle}</span></div>
+          {hasTrend ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}
         </div>
         <div className="card pad">
           <div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스 · 성별")}</h2></div>
