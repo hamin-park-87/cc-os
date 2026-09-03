@@ -1996,12 +1996,10 @@ export function BrandView({ pane, d, scope, month = defaultMonth() }: { pane: st
       <ScheduleRows items={sched} />
     </>);
   }
-  if (pane === "b-roster") return <CreatorDirectory creators={d.creators.filter((c) => c.status === "active")} allContents={d.contents} />;
-  if (pane === "b-creators") return <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />;
+  if (pane === "b-creators" || pane === "b-roster") return <BrandCreators d={d} scope={scope} rows={rows} />;
   if (pane === "b-archive") return <RemoteContentArchive />;
   if (pane === "b-secondary") return <SecondaryView mode="brand" d={d} scope={scope} />;
-  if (pane === "b-assign") return <BrandAssignView d={d} scope={scope} month={month} />;
-  if (pane === "b-schedule") return <ScheduleEditor d={d} brandName={scope} readonly month={month} />;
+  if (pane === "b-schedule" || pane === "b-assign") return <ScheduleEditor d={d} brandName={scope} readonly month={month} />;
   return <Placeholder name={pane} />;
 }
 
@@ -2196,70 +2194,19 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
 }
 
 // 브랜드: 콘텐츠 배정 및 관리 (월별/크리에이터별 · 배정·진행·업로드·인게이지먼트)
-function BrandAssignView({ d, scope, month = defaultMonth() }: { d: Bundle; scope: string; month?: string }) {
-  const [fCreator, setFCreator] = useState("");
-  const [detail, setDetail] = useState<Creator | null>(null);
-  const mine = d.contents.filter((c) => c.brandId === scope || c.brandName === scope);
-  const asg = d.assignments.filter((a) => a.brandId === scope && a.yearMonth === month);
-  let names = [...new Set([...asg.map((a) => a.creatorId), ...mine.filter((c) => c.status !== "canceled" && contentMonth(c) === month).map((c) => c.creatorName)])];
-  if (fCreator) names = names.filter((n) => n === fCreator);
-  names.sort(cmpNameByCode);
-  const allCreators = [...new Set([...d.assignments.filter((a) => a.brandId === scope).map((a) => a.creatorId), ...mine.map((c) => c.creatorName)])].sort(cmpNameByCode);
-  const totalQ = asg.reduce((s, a) => s + a.quota, 0);
-  const totalDone = mine.filter((c) => c.status === "uploaded" && monthOf(c) === month).length;
+// 브랜드: 크리에이터 (성과 표 ↔ 프로필 카드 토글) — 기존 2탭 통합
+function BrandCreators({ d, scope, rows }: { d: Bundle; scope: string; rows: Content[] }) {
+  const [view, setView] = useState<"table" | "card">("table");
   return (<>
     <div className="filterbar">
-      <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{allCreators.map((n) => <option key={n} value={n}>{withCode(n)}</option>)}</select>
-      <span className="count">{names.length}{T("명")}</span>
+      <div className="subtabs" style={{ margin: 0, border: 0 }}>
+        <button className={view === "table" ? "active" : ""} onClick={() => setView("table")}>{T("성과")}</button>
+        <button className={view === "card" ? "active" : ""} onClick={() => setView("card")}>{T("프로필")}</button>
+      </div>
     </div>
-    <div className="grid-kpi" style={{ marginBottom: 18 }}>
-      <Kpi lab={T("이번 달 배정")} val={totalQ} unit={T("건")} />
-      <Kpi lab={T("완료")} val={totalDone} unit={T("건")} />
-      <Kpi lab={T("진행률")} val={totalQ ? Math.round(totalDone / totalQ * 100) : 0} unit="%" />
-    </div>
-    {!names.length ? <div className="placeholder">{T("이 달 배정된 크리에이터가 없어요.")}</div> :
-      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {names.map((name) => {
-          const q = asg.find((a) => a.creatorId === name)?.quota ?? 0;
-          const items = mine.filter((c) => c.creatorName === name && c.status !== "canceled" && contentMonth(c) === month);
-          const done = items.filter((c) => c.status === "uploaded").length;
-          return (
-            <div key={name} className="card pad">
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <Avatar name={name} size={38} radius={10} />
-                <div style={{ flex: 1 }}><div style={{ fontWeight: 700 }}>{withCode(name)}</div>
-                  <div style={{ color: "var(--faint)", fontSize: 12 }}>{T("배정")} {q}{T("건")} · {T("완료")} {done}{T("건")}</div></div>
-                <button className="btn sm" onClick={() => { const cr = d.creators.find((x) => x.name === name); if (cr) setDetail(cr); }}>{T("프로필")}</button>
-                <span className={`pill ${done >= q && q > 0 ? "p-ok" : "p-plan"}`}><span className="d" />{done >= q && q > 0 ? T("완료") : T("진행중")}</span>
-              </div>
-              {!items.length ? <div className="note">{T("등록된 콘텐츠가 없어요.")}</div> :
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {items.map((c) => (
-                    <div key={c.id} style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 9 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 13 }}>{c.product}</div>
-                        <span className={`pill ${c.status === "uploaded" ? "p-ok" : "p-plan"}`} style={{ flexShrink: 0 }}><span className="d" />{c.status === "uploaded" ? T("업로드") : T("예정")}</span>
-                        <span style={{ flexShrink: 0 }}><ContentActions c={c} /></span>
-                      </div>
-                      {/* 제작 단계 타임라인 */}
-                      <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-                        {SCHED_STAGES.map((s) => {
-                          const dt = c.sched?.[s.k as keyof typeof c.sched];
-                          const isUp = s.k === "upload" && c.status === "uploaded";
-                          return <div key={s.k} style={{ flex: "1 1 90px", minWidth: 84, padding: "5px 8px", borderRadius: 7, background: dt ? "var(--accent-weak)" : "var(--surface-3)", border: "1px solid var(--border)" }}>
-                            <div style={{ fontSize: 10, color: "var(--faint)", fontWeight: 600 }}>{isUp ? "✓ " : ""}{T(s.label)}</div>
-                            <div className="num" style={{ fontSize: 11.5, color: dt ? "var(--accent-ink)" : "var(--faint)" }}>{dt || "—"}</div>
-                          </div>;
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>}
-            </div>
-          );
-        })}
-      </div>}
-    {detail && <CreatorPublicModal creator={detail} contents={d.contents.filter((c) => c.creatorName === detail.name)} onClose={() => setDetail(null)} />}
+    {view === "table"
+      ? <BrandCreatorTable rows={rows} allContents={d.contents.filter((c) => c.brandId === scope)} />
+      : <CreatorDirectory creators={d.creators.filter((c) => c.status === "active")} allContents={d.contents} />}
   </>);
 }
 

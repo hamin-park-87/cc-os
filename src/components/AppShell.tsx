@@ -20,8 +20,8 @@ const NAV: Record<string, NavGroup[]> = {
   ],
   brand: [
     { group: "", items: [["b-dash", "대시보드"]] },
-    { group: "크리에이터", items: [["b-creators", "크리에이터별"], ["b-roster", "소속 크리에이터"]] },
-    { group: "콘텐츠", items: [["b-assign", "콘텐츠 현황"], ["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
+    { group: "크리에이터", items: [["b-creators", "크리에이터"]] },
+    { group: "콘텐츠", items: [["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
   ],
   creator: [
     { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
