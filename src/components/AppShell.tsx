@@ -38,6 +38,24 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const [theme, setTheme] = useState<string>("");
   const [month, setMonth] = useState("2026-08");
   const [navOpen, setNavOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // 화면 전환 → URL 해시 반영 (공유 가능한 링크)
+  const go = (key: string) => {
+    setPane(key); setNavOpen(false);
+    try { if (decodeURIComponent(location.hash.replace(/^#/, "")) !== key) location.hash = key; } catch { }
+  };
+  // 딥링크: URL 해시로 진입/뒤로가기 시 해당 화면 복원
+  useEffect(() => {
+    const keys = flatNav(session.role).map((n) => n[0]);
+    const apply = () => { try { const h = decodeURIComponent(location.hash.replace(/^#/, "")); if (keys.includes(h)) setPane(h); } catch { } };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, [session.role]);
+  function copyLink() {
+    try { navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { }
+  }
 
   useEffect(() => {
     const api = getData();
@@ -78,7 +96,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           <div key={gi} className="navgroup">
             {g.group && <div className="navgroup-h">{t(g.group, lang)}</div>}
             {g.items.map(([key, label]) => (
-              <button key={key} className={`navitem ${g.group ? "sub" : ""} ${pane === key ? "active" : ""}`} onClick={() => { setPane(key); setNavOpen(false); }}>
+              <button key={key} className={`navitem ${g.group ? "sub" : ""} ${pane === key ? "active" : ""}`} onClick={() => go(key)}>
                 {t(label, lang)}
               </button>
             ))}
@@ -101,6 +119,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
             {MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{t("월", lang)}</option>)}
           </select>}
+          <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} title={t("이 화면 링크 복사", lang)} onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크", lang)}</button>
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
           <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
         </div>
@@ -108,7 +127,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           {!d ? <div className="placeholder">불러오는 중…</div>
             : session.role === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} />
             : session.role === "brand" ? <BrandView pane={pane} d={d} scope={session.scope} />
-            : <CreatorView pane={pane} d={d} scope={session.scope} onNav={setPane} />}
+            : <CreatorView pane={pane} d={d} scope={session.scope} onNav={go} />}
         </div>
       </div>
     </div>
