@@ -29,6 +29,12 @@ const NAV: Record<string, NavGroup[]> = {
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
 const MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
+function defaultMonth(): string {
+  let m = MONTHS[0];
+  try { m = new Date().toLocaleDateString("sv-SE").slice(0, 7); } catch { }
+  if (MONTHS.includes(m)) return m;
+  return m < MONTHS[0] ? MONTHS[0] : MONTHS[MONTHS.length - 1];
+}
 const ROLE_LABEL: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터" };
 
 export function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
@@ -36,7 +42,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const [pane, setPane] = useState(flatNav(session.role)[0][0]);
   const [lang, setLang] = useState<Lang>("ko");
   const [theme, setTheme] = useState<string>("");
-  const [month, setMonth] = useState("2026-08");
+  const [month, setMonth] = useState(defaultMonth());
   const [navOpen, setNavOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 

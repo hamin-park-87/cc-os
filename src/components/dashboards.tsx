@@ -590,7 +590,7 @@ function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null;
 }
 
 function BrandProductsModal({ brand, brands, onClose }: { brand: Brand; brands: Brand[]; onClose: () => void }) {
-  const [month, setMonth] = useState("2026-08");
+  const [month, setMonth] = useState(defaultMonth());
   const [items, setItems] = useState<BrandProduct[]>([]);
   const [name, setName] = useState(""); const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
@@ -903,6 +903,13 @@ function RevenueTable({ d, month }: { d: Bundle; month: string }) {
 
 /* 배정 관리 (월 · 브랜드별 크리에이터 배분) */
 const ASSIGN_MONTHS = ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12", "2027-01"];
+// 현재 월 기본값 (범위 밖이면 최근접으로 클램프) — 매달 자동으로 이번 달로 세팅
+function defaultMonth(): string {
+  let m = ASSIGN_MONTHS[0];
+  try { m = new Date().toLocaleDateString("sv-SE").slice(0, 7); } catch { }
+  if (ASSIGN_MONTHS.includes(m)) return m;
+  return m < ASSIGN_MONTHS[0] ? ASSIGN_MONTHS[0] : ASSIGN_MONTHS[ASSIGN_MONTHS.length - 1];
+}
 function AssignEditor({ d, month }: { d: Bundle; month: string }) {
   const [, setTick] = useState(0);
   const [brand, setBrand] = useState("abib");
@@ -1899,7 +1906,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
 /* ── BRAND ─────────────────────────────── */
 export function BrandView({ pane, d, scope }: { pane: string; d: Bundle; scope: string }) {
   registerCreatorCodes(d.creators);
-  const month = "2026-08";
+  const month = defaultMonth();
   const rows = d.contents.filter((c) => c.brandId === scope && c.status === "uploaded" && c.views > 0);
   if (pane === "b-dash") {
     const tv = rows.reduce((s, c) => s + c.views, 0), tr = rows.reduce((s, c) => s + c.reach, 0), ts = rows.reduce((s, c) => s + c.saves, 0);
@@ -2154,7 +2161,7 @@ function CreatorDirectory({ creators, allContents }: { creators: Creator[]; allC
 
 // 브랜드: 콘텐츠 배정 및 관리 (월별/크리에이터별 · 배정·진행·업로드·인게이지먼트)
 function BrandAssignView({ d, scope }: { d: Bundle; scope: string }) {
-  const [month, setMonth] = useState("2026-08");
+  const [month, setMonth] = useState(defaultMonth());
   const [fCreator, setFCreator] = useState("");
   const [detail, setDetail] = useState<Creator | null>(null);
   const mine = d.contents.filter((c) => c.brandId === scope || c.brandName === scope);
@@ -2471,7 +2478,7 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
 }
 
 function CreatorTodo({ d, me }: { d: Bundle; me: string }) {
-  const [month, setMonth] = useState("2026-08");
+  const [month, setMonth] = useState(defaultMonth());
   const [, setTick] = useState(0);
   const brandsAsg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month);
   const myContentsFor = (brand: string) => d.contents.filter((c) => c.creatorName === me && c.status !== "canceled" && (c.brandName === brand || c.brandId === brand) && contentMonth(c) === month);
