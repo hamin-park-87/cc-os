@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 
 // 공개(로그인 불필요) 크리에이터 리스트 — PII 완전 제외, 공개용 프로필 + 성과 요약만.
-export const revalidate = 300; // 5분 캐시
+// 런타임에 서비스롤로 조회 (빌드 프리렌더 방지). 응답은 CDN에서 5분 캐시.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   let admin;
@@ -46,5 +47,5 @@ export async function GET() {
     const nx = x.code?.match(/\d+/), ny = y.code?.match(/\d+/);
     return (nx ? +nx[0] : 9999) - (ny ? +ny[0] : 9999) || x.name.localeCompare(y.name);
   });
-  return NextResponse.json({ creators: rows });
+  return NextResponse.json({ creators: rows }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } });
 }
