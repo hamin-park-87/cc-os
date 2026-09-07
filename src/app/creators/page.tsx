@@ -15,6 +15,22 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 const kfmt = (n: number) => (n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "") + "K" : "" + n);
 const initials = (s: string) => s.trim().slice(0, 2).toUpperCase();
 
+// SNS 바로가기 링크 구성 (handle=Instagram, sns={youtube,tiktok,x,line})
+function snsLinks(c: { handle: string | null; sns: Record<string, string> }): { key: string; label: string; url: string }[] {
+  const out: { key: string; label: string; url: string }[] = [];
+  const clean = (v: string) => v.trim().replace(/^@/, "");
+  const url = (v: string, base: string) => /^https?:\/\//i.test(v.trim()) ? v.trim() : base + clean(v);
+  if (c.handle) out.push({ key: "ig", label: "Instagram", url: url(c.handle, "https://www.instagram.com/") });
+  const s = c.sns || {};
+  if (s.youtube) out.push({ key: "yt", label: "YouTube", url: url(s.youtube, "https://www.youtube.com/@") });
+  if (s.tiktok) out.push({ key: "tt", label: "TikTok", url: url(s.tiktok, "https://www.tiktok.com/@") });
+  if (s.x) out.push({ key: "x", label: "X", url: url(s.x, "https://x.com/") });
+  if (s.line) out.push({ key: "line", label: "LINE", url: /^https?:/i.test(s.line) ? s.line : "https://line.me/R/ti/p/@" + clean(s.line) });
+  return out;
+}
+const SNS_ICON: Record<string, string> = { ig: "📷", yt: "▶", tt: "🎵", x: "𝕏", line: "💬" };
+function openLink(e: React.MouseEvent, u: string) { e.stopPropagation(); e.preventDefault(); window.open(u, "_blank", "noopener"); }
+
 type Lang = "ko" | "ja";
 const DICT: Record<Lang, Record<string, string>> = {
   ko: {
@@ -104,9 +120,13 @@ export default function PublicCreators() {
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}><b className="num" style={{ display: "block", fontSize: 16 }}>{kfmt(c.followers)}</b><small style={{ color: "var(--faint)" }}>{tr("followers")}</small></div>
                 </div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10, alignItems: "center" }}>
                   {c.category && <span className="chip"><span className="sw" style={{ background: "var(--accent)" }} />{c.category}</span>}
                   {c.tone && <span className="chip">{c.tone}</span>}
+                  {snsLinks(c).map((s) => (
+                    <span key={s.key} role="link" tabIndex={0} title={s.label} onClick={(e) => openLink(e, s.url)}
+                      style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontSize: 13, cursor: "pointer" }}>{SNS_ICON[s.key] ?? "🔗"}</span>
+                  ))}
                 </div>
                 {c.intro && <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 10, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.intro}</div>}
                 <div style={{ display: "flex", gap: 14, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 12 }}>
@@ -146,8 +166,16 @@ function PortfolioModal({ creator: c, lang, onClose }: { creator: PubCreator; la
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 17 }}>{c.code ? <span style={{ color: "var(--faint)", fontWeight: 600, marginRight: 6, fontSize: 13 }}>{c.code}</span> : null}{c.name}</div>
             <div style={{ color: "var(--faint)", fontSize: 12.5 }}>{c.handle} · {tr("followers")} {fmt(c.followers)} · {c.category ?? "—"}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {snsLinks(c).map((s) => (
+                <a key={s.key} href={s.url} target="_blank" rel="noreferrer" title={s.label}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontSize: 12, color: "var(--ink)", textDecoration: "none" }}>
+                  <span>{SNS_ICON[s.key] ?? "🔗"}</span>{s.label}
+                </a>
+              ))}
+            </div>
           </div>
-          <button className="iconbtn" onClick={onClose}>✕</button>
+          <button className="iconbtn" onClick={onClose} style={{ alignSelf: "flex-start" }}>✕</button>
         </div>
         {c.intro && <div className="note" style={{ marginBottom: 14 }}>{c.intro}</div>}
         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginBottom: 10 }}>{tr("topContent")} {items ? `(${items.length})` : ""}</div>
