@@ -15,14 +15,40 @@ const fmt = (n: number) => n.toLocaleString("en-US");
 const kfmt = (n: number) => (n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "") + "K" : "" + n);
 const initials = (s: string) => s.trim().slice(0, 2).toUpperCase();
 
+type Lang = "ko" | "ja";
+const DICT: Record<Lang, Record<string, string>> = {
+  ko: {
+    creator: "크리에이터", title: "81'DEGREE 크리에이터",
+    subtitle: "일본 시장 크리에이터 라인업 · 프로필과 대표 콘텐츠 성과를 확인하세요.",
+    search: "이름·핸들 검색", allCat: "모든 카테고리", byCode: "번호순", byFol: "팔로워순", byName: "이름순",
+    people: "명", loading: "불러오는 중…", noCreator: "조건에 맞는 크리에이터가 없어요.",
+    followers: "팔로워", uploads: "업로드", avgEng: "평균 참여율", viewContent: "콘텐츠 보기 →",
+    topContent: "대표 콘텐츠", noContent: "공개된 콘텐츠가 없어요.", view: "보기", theme: "테마",
+  },
+  ja: {
+    creator: "クリエイター", title: "81'DEGREE クリエイター",
+    subtitle: "日本市場のクリエイターラインナップ · プロフィールと代表コンテンツの実績をご覧ください。",
+    search: "名前・ハンドル検索", allCat: "全カテゴリ", byCode: "番号順", byFol: "フォロワー順", byName: "名前順",
+    people: "名", loading: "読み込み中…", noCreator: "条件に合うクリエイターがいません。",
+    followers: "フォロワー", uploads: "投稿", avgEng: "平均エンゲージ率", viewContent: "コンテンツを見る →",
+    topContent: "代表コンテンツ", noContent: "公開コンテンツがありません。", view: "見る", theme: "テーマ",
+  },
+};
+
 export default function PublicCreators() {
   const [rows, setRows] = useState<PubCreator[] | null>(null);
   const [q, setQ] = useState(""); const [cat, setCat] = useState(""); const [sort, setSort] = useState<"code" | "followers" | "name">("code");
   const [open, setOpen] = useState<PubCreator | null>(null);
   const [theme, setTheme] = useState<string>("");
+  const [lang, setLang] = useState<Lang>("ko");
+  const tr = (k: string) => DICT[lang][k] ?? k;
 
   useEffect(() => { fetch("/api/public/creators").then((r) => r.json()).then((j) => setRows(j.creators ?? [])).catch(() => setRows([])); }, []);
-  useEffect(() => { try { const t = localStorage.getItem("creatoros.theme"); if (t) { setTheme(t); document.documentElement.setAttribute("data-theme", t); } } catch { } }, []);
+  useEffect(() => {
+    try { const t = localStorage.getItem("creatoros.theme"); if (t) { setTheme(t); document.documentElement.setAttribute("data-theme", t); } } catch { }
+    try { const l = localStorage.getItem("creatoros.lang"); if (l === "ja" || l === "ko") setLang(l); } catch { }
+  }, []);
+  function toggleLang() { const next: Lang = lang === "ko" ? "ja" : "ko"; setLang(next); try { localStorage.setItem("creatoros.lang", next); } catch { } }
   function toggleTheme() {
     const cur = document.documentElement.getAttribute("data-theme");
     const sysDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -45,26 +71,27 @@ export default function PublicCreators() {
     <div style={{ minHeight: "100vh", background: "var(--ground)", color: "var(--ink)" }}>
       <header style={{ position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", gap: 14, padding: "16px 24px", borderBottom: "1px solid var(--border)", background: "color-mix(in srgb,var(--surface) 82%,transparent)", backdropFilter: "blur(8px)" }}>
         <b style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 20, letterSpacing: "-.03em", color: "var(--accent)" }}>81'<span style={{ color: "var(--muted)", fontWeight: 600, fontSize: 10.5, letterSpacing: ".22em", marginLeft: 6 }}>DEGREE</span></b>
-        <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>크리에이터</span>
+        <span style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>{tr("creator")}</span>
         <span style={{ marginLeft: "auto" }} />
-        <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
+        <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "한국어"}</button>
+        <button className="iconbtn" title={tr("theme")} onClick={toggleTheme}>◐</button>
       </header>
 
       <main style={{ maxWidth: 1180, margin: "0 auto", padding: "26px 24px 60px" }}>
         <div style={{ marginBottom: 18 }}>
-          <h1 style={{ fontFamily: "var(--display)", fontSize: 26, margin: 0, letterSpacing: "-.02em" }}>81&apos;DEGREE 크리에이터</h1>
-          <p style={{ color: "var(--muted)", fontSize: 13.5, marginTop: 6 }}>일본 시장 크리에이터 라인업 · 프로필과 대표 콘텐츠 성과를 확인하세요.</p>
+          <h1 style={{ fontFamily: "var(--display)", fontSize: 26, margin: 0, letterSpacing: "-.02em" }}>{tr("title")}</h1>
+          <p style={{ color: "var(--muted)", fontSize: 13.5, marginTop: 6 }}>{tr("subtitle")}</p>
         </div>
 
         <div className="filterbar" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-          <input placeholder="이름·핸들 검색" value={q} onChange={(e) => setQ(e.target.value)}
+          <input placeholder={tr("search")} value={q} onChange={(e) => setQ(e.target.value)}
             style={inp} />
-          <select value={cat} onChange={(e) => setCat(e.target.value)} style={inp}><option value="">모든 카테고리</option>{cats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
-          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} style={inp}><option value="code">번호순</option><option value="followers">팔로워순</option><option value="name">이름순</option></select>
-          <span style={{ alignSelf: "center", color: "var(--faint)", fontSize: 12.5, marginLeft: "auto" }}>{list.length}명</span>
+          <select value={cat} onChange={(e) => setCat(e.target.value)} style={inp}><option value="">{tr("allCat")}</option>{cats.map((c) => <option key={c} value={c}>{c}</option>)}</select>
+          <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} style={inp}><option value="code">{tr("byCode")}</option><option value="followers">{tr("byFol")}</option><option value="name">{tr("byName")}</option></select>
+          <span style={{ alignSelf: "center", color: "var(--faint)", fontSize: 12.5, marginLeft: "auto" }}>{list.length}{tr("people")}</span>
         </div>
 
-        {rows === null ? <div style={ph}>불러오는 중…</div> : !list.length ? <div style={ph}>조건에 맞는 크리에이터가 없어요.</div> : (
+        {rows === null ? <div style={ph}>{tr("loading")}</div> : !list.length ? <div style={ph}>{tr("noCreator")}</div> : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 14 }}>
             {list.map((c) => (
               <button key={c.name} onClick={() => setOpen(c)} style={card}>
@@ -75,7 +102,7 @@ export default function PublicCreators() {
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{c.code ? <span style={{ color: "var(--faint)", fontWeight: 600, marginRight: 5, fontSize: 12 }}>{c.code}</span> : null}{c.name}</div>
                     <div style={{ color: "var(--faint)", fontSize: 12.5 }}>{c.handle}</div>
                   </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}><b className="num" style={{ display: "block", fontSize: 16 }}>{kfmt(c.followers)}</b><small style={{ color: "var(--faint)" }}>팔로워</small></div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}><b className="num" style={{ display: "block", fontSize: 16 }}>{kfmt(c.followers)}</b><small style={{ color: "var(--faint)" }}>{tr("followers")}</small></div>
                 </div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
                   {c.category && <span className="chip"><span className="sw" style={{ background: "var(--accent)" }} />{c.category}</span>}
@@ -83,9 +110,9 @@ export default function PublicCreators() {
                 </div>
                 {c.intro && <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 10, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.intro}</div>}
                 <div style={{ display: "flex", gap: 14, marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)", fontSize: 12 }}>
-                  <span>업로드 <b className="num">{c.uploads}</b></span>
-                  <span>평균 참여율 <b className="num">{c.avgEng != null ? c.avgEng + "%" : "—"}</b></span>
-                  <span style={{ marginLeft: "auto", color: "var(--accent-ink)", fontWeight: 600 }}>콘텐츠 보기 →</span>
+                  <span>{tr("uploads")} <b className="num">{c.uploads}</b></span>
+                  <span>{tr("avgEng")} <b className="num">{c.avgEng != null ? c.avgEng + "%" : "—"}</b></span>
+                  <span style={{ marginLeft: "auto", color: "var(--accent-ink)", fontWeight: 600 }}>{tr("viewContent")}</span>
                 </div>
               </button>
             ))}
@@ -94,12 +121,13 @@ export default function PublicCreators() {
         <div style={{ textAlign: "center", color: "var(--faint)", fontSize: 12, marginTop: 40 }}>© 81&apos;DEGREE · cc-os.81degree.com</div>
       </main>
 
-      {open && <PortfolioModal creator={open} onClose={() => setOpen(null)} />}
+      {open && <PortfolioModal creator={open} lang={lang} onClose={() => setOpen(null)} />}
     </div>
   );
 }
 
-function PortfolioModal({ creator: c, onClose }: { creator: PubCreator; onClose: () => void }) {
+function PortfolioModal({ creator: c, lang, onClose }: { creator: PubCreator; lang: Lang; onClose: () => void }) {
+  const tr = (k: string) => DICT[lang][k] ?? k;
   const [items, setItems] = useState<PubContent[] | null>(null);
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -117,19 +145,19 @@ function PortfolioModal({ creator: c, onClose }: { creator: PubCreator; onClose:
             : <div style={{ width: 52, height: 52, borderRadius: 14, background: "var(--accent-weak)", color: "var(--accent-ink)", display: "grid", placeItems: "center", fontWeight: 700 }}>{initials(c.nameEn || c.name)}</div>}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 17 }}>{c.code ? <span style={{ color: "var(--faint)", fontWeight: 600, marginRight: 6, fontSize: 13 }}>{c.code}</span> : null}{c.name}</div>
-            <div style={{ color: "var(--faint)", fontSize: 12.5 }}>{c.handle} · 팔로워 {fmt(c.followers)} · {c.category ?? "—"}</div>
+            <div style={{ color: "var(--faint)", fontSize: 12.5 }}>{c.handle} · {tr("followers")} {fmt(c.followers)} · {c.category ?? "—"}</div>
           </div>
           <button className="iconbtn" onClick={onClose}>✕</button>
         </div>
         {c.intro && <div className="note" style={{ marginBottom: 14 }}>{c.intro}</div>}
-        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginBottom: 10 }}>대표 콘텐츠 {items ? `(${items.length})` : ""}</div>
-        {items === null ? <div style={ph}>불러오는 중…</div> : !items.length ? <div style={ph}>공개된 콘텐츠가 없어요.</div> : (
+        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--muted)", marginBottom: 10 }}>{tr("topContent")} {items ? `(${items.length})` : ""}</div>
+        {items === null ? <div style={ph}>{tr("loading")}</div> : !items.length ? <div style={ph}>{tr("noContent")}</div> : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))", gap: 12 }}>
             {items.map((x, i) => (
               <a key={i} href={x.permalink ?? undefined} target="_blank" rel="noreferrer"
                 style={{ textDecoration: "none", color: "inherit", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface)", pointerEvents: x.permalink ? "auto" : "none" }}>
                 <div style={{ aspectRatio: "3/4", background: x.thumbnailUrl ? `center/cover no-repeat url(${x.thumbnailUrl})` : "linear-gradient(150deg,var(--surface-3),var(--surface-2))", position: "relative" }}>
-                  {x.permalink && <span style={{ position: "absolute", right: 8, bottom: 8, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 11, padding: "2px 7px", borderRadius: 999 }}>▶ 보기</span>}
+                  {x.permalink && <span style={{ position: "absolute", right: 8, bottom: 8, background: "rgba(0,0,0,.5)", color: "#fff", fontSize: 11, padding: "2px 7px", borderRadius: 999 }}>▶ {tr("view")}</span>}
                 </div>
                 <div style={{ padding: "9px 10px" }}>
                   <div style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{x.product}</div>
