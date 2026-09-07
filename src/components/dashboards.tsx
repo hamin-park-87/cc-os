@@ -1583,6 +1583,7 @@ function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onC
   const finalScope = role === "admin" ? "81degree" : scope;
   async function save() {
     if (!email.trim()) { setErr(T("이메일을 입력해주세요")); return; }
+    if (role !== "admin" && !scope.trim()) { setErr(T("소속을 입력해주세요")); return; }
     if (password.length < 6) { setErr(T("비밀번호는 6자 이상")); return; }
     if (supabaseConfigured()) {
       setBusy(true); setErr("");
@@ -1617,8 +1618,13 @@ function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onC
       </div> : <>
         <Field label={T("아이디 또는 이메일")}><input style={inp} type="text" placeholder={T("아이디 (예: abib_kim)")} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-          <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { setRole(e.target.value as "admin" | "brand" | "creator"); }}>{canMakeAdmin && <option value="admin">{T("관리자")}</option>}<option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option></select></Field>
-          <Field label={T("소속")}><select style={inp} value={scope} onChange={(e) => setScope(e.target.value)} disabled={role === "admin"}>{scopes.map((s) => <option key={s} value={s}>{s}</option>)}</select></Field>
+          <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { const r = e.target.value as "admin" | "brand" | "creator"; setRole(r); setScope(r === "brand" ? (brandNames[0] ?? "") : ""); }}>{canMakeAdmin && <option value="admin">{T("관리자")}</option>}<option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option></select></Field>
+          <Field label={T("소속")}>
+            {role === "admin"
+              ? <input style={inp} value="81degree" disabled />
+              : <><input style={inp} list="scopeOptions" value={scope} onChange={(e) => setScope(e.target.value)} placeholder={role === "creator" ? T("크리에이터명 (신규 입력 가능)") : T("브랜드명 (신규 입력 가능)")} />
+                <datalist id="scopeOptions">{scopes.map((s) => <option key={s} value={s} />)}</datalist></>}
+          </Field>
         </div>
         <Field label={T("비밀번호 (담당자에게 전달)")}>
           <div style={{ display: "flex", gap: 8 }}>
