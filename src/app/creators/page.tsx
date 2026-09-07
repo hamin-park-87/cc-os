@@ -125,7 +125,7 @@ export default function PublicCreators() {
                   {c.tone && <span className="chip">{c.tone}</span>}
                   {snsLinks(c).map((s) => (
                     <span key={s.key} role="link" tabIndex={0} title={s.label} onClick={(e) => openLink(e, s.url)}
-                      style={{ display: "inline-grid", placeItems: "center", width: 26, height: 26, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontSize: 13, cursor: "pointer" }}>{SNS_ICON[s.key] ?? "🔗"}</span>
+                      style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 9px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface-2)", fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>{SNS_ICON[s.key] ?? "🔗"} {s.label}</span>
                   ))}
                 </div>
                 {c.intro && <div style={{ color: "var(--muted)", fontSize: 12.5, marginTop: 10, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.intro}</div>}
