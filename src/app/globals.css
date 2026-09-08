@@ -347,9 +347,14 @@
     .iconbtn.nav-close{display:grid; margin-left:auto}
     .brandmark{justify-content:space-between}
 
-    .topbar{padding:11px 14px; gap:10px}
+    .topbar{padding:10px 12px; gap:8px; flex-wrap:wrap}
     .topbar h1{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .topbar .sub{font-size:11px}
+    .topbar .spacer{display:none}
+    /* 상단바 컨트롤: 제목 다음 줄로 자연스럽게 감싸기 */
+    .topbar > .iconbtn, .topbar > select, .topbar > button{flex:0 0 auto}
+    .topbar select{font-size:12px !important; height:32px !important; max-width:128px !important}
+    .topbar .iconbtn{width:32px; height:32px}
     .content{padding:14px}
     .grid-kpi{grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px}
     .kpi .val{font-size:22px}
@@ -369,12 +374,18 @@
     .modal-backdrop{padding:10px}
     .modal-card{padding:18px !important}
     .backdrop{padding:0}
-    /* 표는 tablewrap이 가로 스크롤 처리 */
+    /* 표는 tablewrap이 가로 스크롤 처리 + 셀 여백 축소로 더 많이 보이게 */
     .tablewrap{ -webkit-overflow-scrolling:touch }
+    th,td{padding:9px 10px; font-size:12.5px}
+    table{min-width:0}
+    input[type="date"]{font-size:12px}
   }
   @media (max-width:440px){
-    .grid-kpi{grid-template-columns:1fr}
+    .grid-kpi{grid-template-columns:1fr 1fr; gap:8px}
+    .kpi{padding:13px 13px 12px}
+    .kpi .val{font-size:19px}
     .archive{grid-template-columns:1fr 1fr; gap:8px}
+    .content{padding:12px}
   }
 
   /* login */
