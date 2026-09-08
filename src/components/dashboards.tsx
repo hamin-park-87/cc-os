@@ -8,8 +8,8 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields } from "@/lib/data/writes";
-import type { SecondaryReq, SecondaryScope } from "@/lib/types";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet } from "@/lib/data/writes";
+import type { SecondaryReq, SecondaryScope, OrientSheet } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
 import { T } from "@/lib/i18n";
@@ -117,6 +117,7 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-brands") return <BrandAdmin d={d} month={month} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
   if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals month={month} />;
+  if (pane === "a-orient") return <OrientSheets d={d} mode="admin" month={month} />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
@@ -2052,7 +2053,81 @@ export function BrandView({ pane, d, scope, month = defaultMonth() }: { pane: st
   if (pane === "b-archive") return <RemoteContentArchive />;
   if (pane === "b-secondary") return <SecondaryView mode="brand" d={d} scope={scope} />;
   if (pane === "b-schedule" || pane === "b-assign") return <ScheduleEditor d={d} brandName={scope} readonly month={month} />;
+  if (pane === "b-orient") return <OrientSheets d={d} mode="brand" scope={scope} month={month} />;
   return <Placeholder name={pane} />;
+}
+
+/* 오리엔시트(브리프) — 브랜드 업로드 · 관리자/크리에이터 열람 (공용) */
+function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "brand" | "creator"; scope?: string; month: string }) {
+  const [rows, setRows] = useState<OrientSheet[] | null>(null);
+  const [fMonth, setFMonth] = useState(month);
+  const [fBrand, setFBrand] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ brand: scope ?? d.brands[0]?.name ?? "", ym: month, title: "", desc: "" });
+  const [file, setFile] = useState<File | null>(null);
+  const canUpload = mode === "admin" || mode === "brand";
+  const load = useCallback(() => { getOrientSheets().then(setRows).catch(() => setRows([])); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const list = (rows ?? []).filter((r) =>
+    (mode !== "brand" || r.brandName === scope)
+    && (!fMonth || r.yearMonth === fMonth)
+    && (!fBrand || r.brandName === fBrand));
+
+  async function upload() {
+    if (!form.title.trim()) { alert(T("제목을 입력해주세요")); return; }
+    setBusy(true);
+    try {
+      let url = "", fname = "";
+      if (file) { url = await uploadAttachment(file, "orient"); fname = file.name; }
+      await addOrientSheet(mode === "brand" ? (scope ?? form.brand) : form.brand, form.ym, form.title.trim(), form.desc.trim(), url, fname, d.brands);
+      setForm((f) => ({ ...f, title: "", desc: "" })); setFile(null); load();
+    } catch (e) { alert(T("업로드 실패: ") + (e as Error).message); }
+    setBusy(false);
+  }
+  async function del(id: string) { if (!confirm(T("이 오리엔시트를 삭제할까요?"))) return; try { await deleteOrientSheet(id); load(); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); } }
+
+  const stIn = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" } as const;
+  return (<>
+    {canUpload && <div className="card pad" style={{ marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, marginBottom: 10 }}>+ {T("오리엔시트 업로드")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+        {mode === "admin" && <select style={stIn} value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
+        <select style={stIn} value={form.ym} onChange={(e) => setForm((f) => ({ ...f, ym: e.target.value }))}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
+        <input style={{ ...stIn, flex: 1, minWidth: 200 }} placeholder={T("제목 (예: 9월 신제품 릴스 오리엔)")} value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+      </div>
+      <textarea style={{ ...stIn, width: "100%", minHeight: 64, resize: "vertical", marginBottom: 8 }} placeholder={T("표현 가이드·요청사항 (제품을 어떻게 표현했으면 하는지)")} value={form.desc} onChange={(e) => setForm((f) => ({ ...f, desc: e.target.value }))} />
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input type="file" accept=".xlsx,.xls,.csv,.pdf,.ppt,.pptx,.doc,.docx,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} style={{ fontSize: 12 }} />
+        <button className="btn acc" disabled={busy} onClick={upload} style={{ marginLeft: "auto" }}>{busy ? T("업로드 중…") : T("업로드")}</button>
+      </div>
+    </div>}
+
+    <div className="filterbar">
+      <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}><option value="">{T("전체 기간")}</option>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
+      {mode !== "brand" && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 브랜드")}</option>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
+      <span className="count">{list.length}{T("건")}</span>
+    </div>
+
+    {rows === null ? <div className="placeholder">{T("불러오는 중…")}</div> : !list.length ? <div className="placeholder">{T("등록된 오리엔시트가 없어요.")}</div> :
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {list.map((r) => (
+          <div key={r.id} className="card pad">
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.brandName] ?? "var(--surface-3)" }} />{r.brandName}</span>
+              <span style={{ color: "var(--faint)", fontSize: 12 }}>{r.yearMonth}</span>
+              <b style={{ fontSize: 14 }}>{r.title}</b>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                {r.fileUrl && <a className="btn sm" href={r.fileUrl} target="_blank" rel="noreferrer">⬇ {r.fileName || T("파일")}</a>}
+                {(mode === "admin" || mode === "brand") && <button className="btn sm" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(r.id)}>{T("삭제")}</button>}
+              </span>
+            </div>
+            {r.description && <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--muted)", background: "var(--surface-2)", borderRadius: 9, padding: "10px 12px" }}>{r.description}</div>}
+          </div>
+        ))}
+      </div>}
+    <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 10 }}>{T("브랜드가 업로드하면 관리자·크리에이터가 즉시 확인합니다. 제작 일정과 함께 활용하세요.")}</div>
+  </>);
 }
 
 /* 2차 활용 워크플로우 (관리자/브랜드/크리에이터 공용) */
@@ -2505,6 +2580,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
   if (pane === "c-profile") return <CreatorProfile d={d} me={me} />;
   if (pane === "c-todo") return (<>{remBanner}<CreatorTodo d={d} me={me} month={month} /></>);
+  if (pane === "c-orient") return <OrientSheets d={d} mode="creator" month={month} />;
   return <Placeholder name={pane} />;
 }
 

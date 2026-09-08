@@ -15,18 +15,18 @@ const NAV: Record<string, NavGroup[]> = {
     { group: "", items: [["a-matrix", "대시보드"]] },
     { group: "크리에이터", items: [["a-roster", "크리에이터 관리"], ["a-insights", "크리에이터 인사이트"], ["a-cost", "비용 관리"], ["a-conn", "연동 상태"]] },
     { group: "브랜드", items: [["a-brands", "브랜드 관리"]] },
-    { group: "PR · 콘텐츠", items: [["a-deals", "PR 안건"], ["a-assign", "배정 관리"], ["a-schedule", "제작 일정"], ["a-archive", "콘텐츠 아카이브"], ["a-secondary", "2차 활용"], ["a-risk", "계약 리스크"]] },
+    { group: "PR · 콘텐츠", items: [["a-deals", "PR 안건"], ["a-assign", "배정 관리"], ["a-orient", "오리엔시트"], ["a-schedule", "제작 일정"], ["a-archive", "콘텐츠 아카이브"], ["a-secondary", "2차 활용"], ["a-risk", "계약 리스크"]] },
     { group: "매출 · 운영", items: [["a-revenue", "매출 대시보드"], ["a-accounts", "계정·권한"]] },
   ],
   brand: [
     { group: "", items: [["b-dash", "대시보드"]] },
     { group: "크리에이터", items: [["b-creators", "크리에이터"]] },
-    { group: "콘텐츠", items: [["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
+    { group: "콘텐츠", items: [["b-orient", "오리엔시트"], ["b-schedule", "제작 일정"], ["b-archive", "콘텐츠 아카이브"], ["b-secondary", "2차 활용"]] },
   ],
   creator: [
     { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
     { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 정산"]] },
-    { group: "콘텐츠", items: [["c-todo", "제작 일정"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
+    { group: "콘텐츠", items: [["c-orient", "오리엔시트"], ["c-todo", "제작 일정"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);

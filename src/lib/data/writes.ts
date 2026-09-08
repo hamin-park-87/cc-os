@@ -287,6 +287,34 @@ export async function getSecondaryRequests(): Promise<SecondaryReq[]> {
     permalink: r.contents?.permalink, thumbnailUrl: r.contents?.thumbnail_url, adCode: r.ad_code ?? null,
   }));
 }
+// 오리엔시트(브리프)
+import type { OrientSheet } from "@/lib/types";
+export async function getOrientSheets(): Promise<OrientSheet[]> {
+  if (!isDb()) return [];
+  const { data, error } = await getSupabase().from("orient_sheets")
+    .select("id, year_month, title, description, file_url, file_name, created_at, brands(name)")
+    .order("created_at", { ascending: false });
+  if (error) { console.warn("[orient]", error.message); return []; }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any): OrientSheet => ({
+    id: r.id, brandName: r.brands?.name ?? "—", yearMonth: r.year_month ?? "", title: r.title,
+    description: r.description, fileUrl: r.file_url, fileName: r.file_name, createdAt: r.created_at,
+  }));
+}
+export async function addOrientSheet(brandName: string, yearMonth: string, title: string, description: string, fileUrl: string, fileName: string, brands: { id: string; name: string }[]): Promise<void> {
+  if (!isDb()) return;
+  const brand_id = brands.find((b) => b.name === brandName)?.id ?? null;
+  const { error } = await getSupabase().from("orient_sheets").insert({
+    brand_id, year_month: yearMonth, title, description: description || null, file_url: fileUrl || null, file_name: fileName || null,
+  });
+  if (error) throw error;
+}
+export async function deleteOrientSheet(id: string): Promise<void> {
+  if (!isDb()) return;
+  const { error } = await getSupabase().from("orient_sheets").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // 협력광고 코드 저장 (2차 활용)
 export async function setSecondaryAdCode(id: string, code: string): Promise<void> {
   if (!isDb()) { const r = mockSecondary.find((x) => x.id === id); if (r) r.adCode = code; return; }

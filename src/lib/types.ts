@@ -181,6 +181,18 @@ export const SECONDARY_SCOPE_LABEL: Record<SecondaryScope, string> = {
   ad_creative: "광고 소재", sns_regram: "자사 SNS 리그램", offline: "오프라인 매장", web: "웹사이트", other: "기타",
 };
 
+// 오리엔시트(브리프)
+export interface OrientSheet {
+  id: string;
+  brandName: string;            // 표시용
+  yearMonth: string;            // YYYY-MM
+  title: string;
+  description?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  createdAt?: string | null;
+}
+
 export interface Account {
   email: string;
   role: Role;
