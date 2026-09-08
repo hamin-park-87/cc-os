@@ -2737,7 +2737,8 @@ function ProductionCalendar({ events }: { events: CalEvent[] }) {
       </div>
 
       {mode === "month" ? (
-        <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface)" }}>
+        <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", background: "var(--surface)", WebkitOverflowScrolling: "touch" }}>
+         <div style={{ minWidth: 500 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
             {wd.map((w, i) => <div key={w} style={{ padding: "8px 6px", textAlign: "center", fontSize: 11, fontWeight: 700, color: i === 0 ? "var(--critical)" : i === 6 ? "#6aa9ff" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{w}</div>)}
           </div>
@@ -2757,6 +2758,7 @@ function ProductionCalendar({ events }: { events: CalEvent[] }) {
               );
             })}
           </div>
+         </div>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
