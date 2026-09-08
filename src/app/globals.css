@@ -369,7 +369,8 @@
     .botnav-item .bi{font-size:19px; line-height:1}
     .botnav-item .bl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
     .botnav-item.active{color:var(--accent-ink)}
-    .content{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+    /* 하단 고정바 높이 + 안전영역만큼 모든 화면 하단 여백 확보 (콘텐츠 가림 방지) */
+    .content{padding-bottom:calc(104px + env(safe-area-inset-bottom)) !important}
     .content{padding:14px}
     .grid-kpi{grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px}
     .kpi .val{font-size:22px}
