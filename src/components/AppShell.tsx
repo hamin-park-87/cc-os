@@ -115,6 +115,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   }
 
   const [reloading, setReloading] = useState(false);
+  const [reloadN, setReloadN] = useState(0); // 증가 시 현재 화면 리마운트 → 탭 자체 로드(오리엔/2차활용/계정)도 재조회
   const reload = useCallback(async () => {
     setReloading(true);
     try {
@@ -122,6 +123,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       const [brands, creators, contents, deals, contracts, assignments] = await Promise.all(
         [api.brands(), api.creators(), api.contents(), api.deals(), api.contracts(), api.assignments()]);
       setD({ brands, creators, contents, deals, contracts, assignments });
+      setReloadN((n) => n + 1);
     } finally { setReloading(false); }
   }, []);
   useEffect(() => { reload(); }, [reload]);
@@ -204,9 +206,9 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => enterViewAs(null)}>← {t("관리자로 돌아가기", lang)}</button>
           </div>}
           {!d ? <div className="placeholder">불러오는 중…</div>
-            : effRole === "admin" ? <AdminView pane={pane} d={d} month={month} email={session.email} onNav={go} />
-            : effRole === "brand" ? <BrandView pane={pane} d={d} scope={effScope} month={month} />
-            : <CreatorView pane={pane} d={d} scope={effScope} month={month} onNav={go} />}
+            : effRole === "admin" ? <AdminView key={reloadN} pane={pane} d={d} month={month} email={session.email} onNav={go} />
+            : effRole === "brand" ? <BrandView key={reloadN} pane={pane} d={d} scope={effScope} month={month} />
+            : <CreatorView key={reloadN} pane={pane} d={d} scope={effScope} month={month} onNav={go} />}
         </div>
         <nav className="botnav">
           {(BOT_NAV[effRole] ?? []).map((it) => (
