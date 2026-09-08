@@ -369,7 +369,7 @@
     .botnav-item .bi{font-size:19px; line-height:1}
     .botnav-item .bl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
     .botnav-item.active{color:var(--accent-ink)}
-    .content{padding-bottom:78px}
+    .content{padding-bottom:calc(86px + env(safe-area-inset-bottom))}
     .content{padding:14px}
     .grid-kpi{grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px}
     .kpi .val{font-size:22px}

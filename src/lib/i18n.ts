@@ -354,6 +354,10 @@ export const TX: Record<string, string> = {
   "데이터 새로고침": "データ更新",
   "성장": "成長",
   "오리엔": "オリエン",
+  "월간": "月間",
+  "주간": "週間",
+  "리스트": "リスト",
+  "캘린더": "カレンダー",
   "% 성장.": "% 成長。",
   "2차 활용 정산": "二次利用の精算",
   "2차 활용비": "二次利用費",
@@ -604,6 +608,7 @@ export function t(ko: string, lang: Lang): string {
 // AppShell이 렌더 시 setCurrentLang(lang)을 호출하고, lang 변경 시 전체 트리가 재렌더되어 갱신됨.
 let _lang: Lang = "ko";
 export function setCurrentLang(l: Lang) { _lang = l; }
+export const getLang = (): Lang => _lang;
 export function T(ko: string): string {
   if (_lang === "ko") return ko;
   return TX[ko] ?? ko;

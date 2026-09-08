@@ -12,7 +12,7 @@ import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDeal
 import type { SecondaryReq, SecondaryScope, OrientSheet } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
-import { T } from "@/lib/i18n";
+import { T, getLang } from "@/lib/i18n";
 
 export interface Bundle {
   brands: Brand[]; creators: Creator[]; contents: Content[];
@@ -2692,8 +2692,113 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
   </div>);
 }
 
+// 제작 일정 캘린더 (월/주) — 크리에이터 콘텐츠 단계 일정을 달력으로
+interface CalEvent { date: string; label: string; kind: string }
+const CAL_WD = ["일", "월", "화", "수", "목", "금", "토"];
+const CAL_WD_JA = ["日", "月", "火", "水", "木", "金", "土"];
+const KIND_COLOR: Record<string, string> = { plan: "#6aa9ff", shoot: "#c9793a", edit: "#a97ade", upload: "#3fb984", deal: "#e0a13a" };
+const calYmd = (d: Date) => { try { return d.toLocaleDateString("sv-SE").slice(0, 10); } catch { return ""; } };
+function ProductionCalendar({ events }: { events: CalEvent[] }) {
+  const [mode, setMode] = useState<"month" | "week">("month");
+  const [cur, setCur] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); });
+  const today = calYmd(new Date());
+  const byDate: Record<string, CalEvent[]> = {};
+  for (const e of events) (byDate[e.date] = byDate[e.date] || []).push(e);
+  const wd = getLang() === "ja" ? CAL_WD_JA : CAL_WD;
+  function move(dir: number) { const d = new Date(cur); if (mode === "month") d.setMonth(d.getMonth() + dir); else d.setDate(d.getDate() + dir * 7); setCur(d); }
+  function goToday() { const n = new Date(); setCur(new Date(n.getFullYear(), n.getMonth(), n.getDate())); }
+
+  // 월: 일요일 시작 6주 42칸 / 주: 해당 주 일~토
+  let cells: Date[] = [];
+  if (mode === "month") {
+    const first = new Date(cur.getFullYear(), cur.getMonth(), 1);
+    const start = new Date(first); start.setDate(1 - first.getDay());
+    for (let i = 0; i < 42; i++) { const dd = new Date(start); dd.setDate(start.getDate() + i); cells.push(dd); }
+  } else {
+    const ws = new Date(cur); ws.setDate(cur.getDate() - cur.getDay());
+    for (let i = 0; i < 7; i++) { const dd = new Date(ws); dd.setDate(ws.getDate() + i); cells.push(dd); }
+  }
+  const title = mode === "month" ? `${cur.getFullYear()}. ${cur.getMonth() + 1}${T("월")}`
+    : `${calYmd(cells[0]).slice(5).replace("-", "/")} ~ ${calYmd(cells[6]).slice(5).replace("-", "/")}`;
+  const btn = { fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "6px 10px", borderRadius: 8, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", cursor: "pointer" } as const;
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <button style={btn} onClick={goToday}>{T("오늘")}</button>
+        <button style={{ ...btn, padding: "6px 9px" }} onClick={() => move(-1)}>‹</button>
+        <button style={{ ...btn, padding: "6px 9px" }} onClick={() => move(1)}>›</button>
+        <b style={{ fontSize: 15, marginLeft: 4 }}>{title}</b>
+        <span style={{ marginLeft: "auto", display: "inline-flex", border: "1px solid var(--border-strong)", borderRadius: 8, overflow: "hidden" }}>
+          <button style={{ ...btn, border: 0, borderRadius: 0, background: mode === "month" ? "var(--accent-weak)" : "var(--surface)", color: mode === "month" ? "var(--accent-ink)" : "var(--muted)" }} onClick={() => setMode("month")}>{T("월간")}</button>
+          <button style={{ ...btn, border: 0, borderRadius: 0, background: mode === "week" ? "var(--accent-weak)" : "var(--surface)", color: mode === "week" ? "var(--accent-ink)" : "var(--muted)" }} onClick={() => setMode("week")}>{T("주간")}</button>
+        </span>
+      </div>
+
+      {mode === "month" ? (
+        <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+            {wd.map((w, i) => <div key={w} style={{ padding: "8px 6px", textAlign: "center", fontSize: 11, fontWeight: 700, color: i === 0 ? "var(--critical)" : i === 6 ? "#6aa9ff" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{w}</div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+            {cells.map((dd, i) => {
+              const ds = calYmd(dd); const evs = byDate[ds] || []; const inMonth = dd.getMonth() === cur.getMonth(); const isToday = ds === today;
+              return (
+                <div key={i} style={{ minHeight: 84, padding: 4, borderRight: (i % 7 !== 6) ? "1px solid var(--border)" : 0, borderBottom: i < 35 ? "1px solid var(--border)" : 0, background: inMonth ? "transparent" : "var(--surface-2)", opacity: inMonth ? 1 : 0.55 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, textAlign: "right", color: isToday ? "#fff" : dd.getDay() === 0 ? "var(--critical)" : "var(--muted)", background: isToday ? "var(--accent)" : "transparent", borderRadius: 999, width: 18, height: 18, lineHeight: "18px", marginLeft: "auto" }}>{dd.getDate()}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
+                    {evs.slice(0, 3).map((e, j) => (
+                      <div key={j} title={e.label} style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 4px", borderRadius: 4, background: (KIND_COLOR[e.kind] ?? "#888") + "26", color: KIND_COLOR[e.kind] ?? "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.label}</div>
+                    ))}
+                    {evs.length > 3 && <div style={{ fontSize: 9.5, color: "var(--faint)", paddingLeft: 4 }}>+{evs.length - 3}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {cells.map((dd, i) => {
+            const ds = calYmd(dd); const evs = byDate[ds] || []; const isToday = ds === today;
+            return (
+              <div key={i} style={{ display: "flex", gap: 12, padding: "10px 12px", borderRadius: 10, background: "var(--surface)", border: `1px solid ${isToday ? "var(--accent)" : "var(--border)"}` }}>
+                <div style={{ width: 44, flexShrink: 0, textAlign: "center" }}>
+                  <div style={{ fontSize: 10.5, color: dd.getDay() === 0 ? "var(--critical)" : dd.getDay() === 6 ? "#6aa9ff" : "var(--faint)", fontWeight: 700 }}>{wd[dd.getDay()]}</div>
+                  <div className="num" style={{ fontSize: 18, fontWeight: 700 }}>{dd.getDate()}</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4, justifyContent: "center" }}>
+                  {!evs.length ? <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span> :
+                    evs.map((e, j) => <div key={j} style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: KIND_COLOR[e.kind] ?? "#888", flexShrink: 0 }} />{e.label}</div>)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10, fontSize: 11, color: "var(--muted)" }}>
+        {SCHED_STAGES.map((s) => <span key={s.k} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: KIND_COLOR[s.k] }} />{T(s.label)}</span>)}
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: KIND_COLOR.deal }} />PR</span>
+      </div>
+    </div>
+  );
+}
+
 function CreatorTodo({ d, me, month = defaultMonth() }: { d: Bundle; me: string; month?: string }) {
   const [, setTick] = useState(0);
+  const [view, setView] = useState<"list" | "calendar">("list");
+  // 캘린더 이벤트: 내 콘텐츠 단계 일정 + PR 안건 일정 (전 기간, 캘린더가 월 이동)
+  const calEvents: CalEvent[] = [];
+  for (const c of d.contents) {
+    if (c.creatorName !== me || c.status === "canceled" || c.kind === "own") continue;
+    const b = c.brandName || c.client || "";
+    for (const s of SCHED_STAGES) { const dt = c.sched?.[s.k as keyof ContentSched]; if (dt) calEvents.push({ date: String(dt).slice(0, 10), label: `${b} ${T(s.label)}`, kind: s.k }); }
+  }
+  for (const dl of d.deals) {
+    if (dl.creatorName !== me) continue;
+    const sc = (dl.sched ?? {}) as Record<string, string>;
+    for (const s of SCHED_STAGES) { const dt = sc[s.k] || (s.k === "upload" ? dl.uploadDate : null); if (dt) calEvents.push({ date: String(dt).slice(0, 10), label: `PR ${dl.title}`, kind: s.k === "upload" ? "deal" : s.k }); }
+  }
   const brandsAsg = d.assignments.filter((a) => a.creatorId === me && a.yearMonth === month);
   const myContentsFor = (brand: string) => d.contents.filter((c) => c.creatorName === me && c.status !== "canceled" && (c.brandName === brand || c.brandId === brand) && contentMonth(c) === month);
   const totalQ = brandsAsg.reduce((s, a) => s + a.quota, 0);
@@ -2724,8 +2829,16 @@ function CreatorTodo({ d, me, month = defaultMonth() }: { d: Bundle; me: string;
   }
   async function addOne(brand: string) { try { const items = myContentsFor(brand); const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${items.length + 1}`, d.brands, d.creators, month); d.contents.push(nc); setTick((t) => t + 1); } catch (e) { alert(T("생성 실패: ") + (e as Error).message); } }
   async function del(c: Content) { if (!confirm(`'${c.product}' ${T("삭제할까요?")}`)) return; try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); } }
+  const segBtn = (on: boolean) => ({ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 700, padding: "7px 14px", borderRadius: 8, border: 0, cursor: "pointer", background: on ? "var(--accent-weak)" : "transparent", color: on ? "var(--accent-ink)" : "var(--muted)" } as const);
   return (<>
     <OrientBanner month={month} />
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+      <span style={{ display: "inline-flex", border: "1px solid var(--border-strong)", borderRadius: 9, overflow: "hidden" }}>
+        <button style={segBtn(view === "list")} onClick={() => setView("list")}>{T("리스트")}</button>
+        <button style={segBtn(view === "calendar")} onClick={() => setView("calendar")}>📅 {T("캘린더")}</button>
+      </span>
+    </div>
+    {view === "calendar" ? <ProductionCalendar events={calEvents} /> : <>
     <div className="card pad" style={{ marginBottom: 18 }}>
       <div className="ring-wrap" style={{ marginBottom: 6 }}>
         <Ring p={totalQ ? Math.round(totalDone / totalQ * 100) : 0} label={`${totalDone}/${totalQ}`} />
@@ -2782,7 +2895,8 @@ function CreatorTodo({ d, me, month = defaultMonth() }: { d: Bundle; me: string;
           </div>
         );
       })}
-    {toast && <div style={{ position: "fixed", left: "50%", bottom: 26, transform: "translateX(-50%)", zIndex: 90, background: "var(--accent)", color: "#0b0f0d", fontWeight: 800, fontSize: 13.5, padding: "11px 20px", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 8 }}>✓ {toast}</div>}
+    </>}
+    {toast && <div style={{ position: "fixed", left: "50%", bottom: 90, transform: "translateX(-50%)", zIndex: 90, background: "var(--accent)", color: "#0b0f0d", fontWeight: 800, fontSize: 13.5, padding: "11px 20px", borderRadius: 11, boxShadow: "0 8px 28px rgba(0,0,0,.35)", display: "flex", alignItems: "center", gap: 8 }}>✓ {toast}</div>}
   </>);
 }
 
