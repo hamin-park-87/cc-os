@@ -1426,6 +1426,9 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
   const [fRole, setFRole] = useState("");
   const [pwTarget, setPwTarget] = useState<AccountRow | null>(null);
   const [idTarget, setIdTarget] = useState<AccountRow | null>(null);
+  // 계정 소속 → 고유번호(CC/BR) 매핑
+  const codeOf = (a: AccountRow) => a.role === "creator" ? (creators.find((c) => c.name === a.scope)?.code ?? null)
+    : a.role === "brand" ? (brands?.find((b) => b.name === a.scope)?.code ?? null) : null;
   const load = useCallback(async () => {
     if (!supabaseConfigured()) { setRows(ACCOUNTS.map((a, i) => ({ id: String(i), email: a.email, role: a.role, scope: a.scope, status: a.status, lastLogin: a.lastLogin }))); return; }
     try {
@@ -1473,12 +1476,13 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
     </div>
     <div className="tablewrap"><table><thead><tr>
       {master && <th style={{ width: 34 }}><input type="checkbox" checked={filtered.length > 0 && filtered.every((a) => sel.has(a.id))} onChange={() => { const all = filtered.every((a) => sel.has(a.id)); setSel(all ? new Set() : new Set(filtered.map((a) => a.id))); }} aria-label={T("전체 선택")} /></th>}
-      <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th><th></th>
+      <th>{T("이메일")}</th><th>{T("역할")}</th><th>{T("고유번호")}</th><th>{T("소속")}</th><th>{T("상태")}</th><th>{T("마지막 로그인")}</th><th></th>
     </tr></thead><tbody>
       {filtered.map((a) => (
         <tr key={a.id} style={master && sel.has(a.id) ? { background: "var(--accent-weak)" } : undefined}>
           {master && <td><input type="checkbox" checked={sel.has(a.id)} onChange={() => toggle(a.id)} aria-label={a.email} /></td>}
           <td><b>{displayId(a.email)}</b></td><td><span className={`pill ${a.role === "admin" ? "p-ok" : "p-plan"}`}><span className="d" />{ROLE[a.role]}</span></td>
+          <td className="num" style={{ color: codeOf(a) ? "var(--ink)" : "var(--faint)", fontWeight: 600 }}>{codeOf(a) ?? "—"}</td>
           <td>{a.role === "admin" ? "81degree" : <span className="chip">{a.scope}</span>}</td>
           <td><span className={`pill ${(ST[a.status] ?? ST.active)[0]}`}><span className="d" />{(ST[a.status] ?? ST.active)[1]}</span></td>
           <td className="num" style={{ color: "var(--muted)" }}>{localDT(a.lastLogin) ?? T("로그인 기록 없음")}</td>
