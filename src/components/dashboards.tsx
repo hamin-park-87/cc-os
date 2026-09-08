@@ -2702,6 +2702,12 @@ const calYmd = (d: Date) => { try { return d.toLocaleDateString("sv-SE").slice(0
 function ProductionCalendar({ events }: { events: CalEvent[] }) {
   const [mode, setMode] = useState<"month" | "week">("month");
   const [cur, setCur] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); });
+  const [narrow, setNarrow] = useState(false);
+  const [sel, setSel] = useState<string>(() => calYmd(new Date()));
+  useEffect(() => {
+    const h = () => setNarrow(window.innerWidth < 560);
+    h(); window.addEventListener("resize", h); return () => window.removeEventListener("resize", h);
+  }, []);
   const today = calYmd(new Date());
   const byDate: Record<string, CalEvent[]> = {};
   for (const e of events) (byDate[e.date] = byDate[e.date] || []).push(e);
@@ -2737,29 +2743,41 @@ function ProductionCalendar({ events }: { events: CalEvent[] }) {
       </div>
 
       {mode === "month" ? (
-        <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", background: "var(--surface)", WebkitOverflowScrolling: "touch" }}>
-         <div style={{ minWidth: 500 }}>
+       <>
+        <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", background: "var(--surface)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
-            {wd.map((w, i) => <div key={w} style={{ padding: "8px 6px", textAlign: "center", fontSize: 11, fontWeight: 700, color: i === 0 ? "var(--critical)" : i === 6 ? "#6aa9ff" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{w}</div>)}
+            {wd.map((w, i) => <div key={w} style={{ padding: "7px 2px", textAlign: "center", fontSize: 10.5, fontWeight: 700, color: i === 0 ? "var(--critical)" : i === 6 ? "#6aa9ff" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{w}</div>)}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
             {cells.map((dd, i) => {
-              const ds = calYmd(dd); const evs = byDate[ds] || []; const inMonth = dd.getMonth() === cur.getMonth(); const isToday = ds === today;
+              const ds = calYmd(dd); const evs = byDate[ds] || []; const inMonth = dd.getMonth() === cur.getMonth(); const isToday = ds === today; const isSel = ds === sel;
               return (
-                <div key={i} style={{ minHeight: 84, padding: 4, borderRight: (i % 7 !== 6) ? "1px solid var(--border)" : 0, borderBottom: i < 35 ? "1px solid var(--border)" : 0, background: inMonth ? "transparent" : "var(--surface-2)", opacity: inMonth ? 1 : 0.55 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, textAlign: "right", color: isToday ? "#fff" : dd.getDay() === 0 ? "var(--critical)" : "var(--muted)", background: isToday ? "var(--accent)" : "transparent", borderRadius: 999, width: 18, height: 18, lineHeight: "18px", marginLeft: "auto" }}>{dd.getDate()}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 2 }}>
-                    {evs.slice(0, 3).map((e, j) => (
-                      <div key={j} title={e.label} style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 4px", borderRadius: 4, background: (KIND_COLOR[e.kind] ?? "#888") + "26", color: KIND_COLOR[e.kind] ?? "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.label}</div>
-                    ))}
-                    {evs.length > 3 && <div style={{ fontSize: 9.5, color: "var(--faint)", paddingLeft: 4 }}>+{evs.length - 3}</div>}
-                  </div>
-                </div>
+                <button key={i} onClick={() => setSel(ds)} style={{ textAlign: "left", font: "inherit", cursor: "pointer", minHeight: narrow ? 46 : 82, padding: narrow ? "3px 2px" : 4, borderRight: (i % 7 !== 6) ? "1px solid var(--border)" : 0, borderBottom: i < 35 ? "1px solid var(--border)" : 0, borderTop: 0, borderLeft: 0, background: isSel ? "var(--accent-weak)" : inMonth ? "transparent" : "var(--surface-2)", opacity: inMonth ? 1 : 0.5, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isToday ? "#fff" : dd.getDay() === 0 ? "var(--critical)" : dd.getDay() === 6 ? "#6aa9ff" : "var(--muted)", background: isToday ? "var(--accent)" : "transparent", borderRadius: 999, minWidth: 18, height: 18, lineHeight: "18px", textAlign: "center", padding: "0 2px" }}>{dd.getDate()}</span>
+                  {narrow ? (
+                    <span style={{ display: "flex", flexWrap: "wrap", gap: 2, justifyContent: "center", maxWidth: "100%" }}>
+                      {evs.slice(0, 4).map((e, j) => <span key={j} style={{ width: 5, height: 5, borderRadius: 999, background: KIND_COLOR[e.kind] ?? "#888" }} />)}
+                    </span>
+                  ) : (
+                    <span style={{ display: "flex", flexDirection: "column", gap: 2, width: "100%" }}>
+                      {evs.slice(0, 3).map((e, j) => <span key={j} title={e.label} style={{ fontSize: 9.5, fontWeight: 600, padding: "1px 4px", borderRadius: 4, background: (KIND_COLOR[e.kind] ?? "#888") + "26", color: KIND_COLOR[e.kind] ?? "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.label}</span>)}
+                      {evs.length > 3 && <span style={{ fontSize: 9.5, color: "var(--faint)", paddingLeft: 4 }}>+{evs.length - 3}</span>}
+                    </span>
+                  )}
+                </button>
               );
             })}
           </div>
-         </div>
         </div>
+        {/* 선택한 날짜 상세 */}
+        <div className="card pad" style={{ marginTop: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{sel.replace(/-/g, ". ")} · {(byDate[sel] || []).length}{T("건")}</div>
+          {!(byDate[sel] || []).length ? <div style={{ color: "var(--faint)", fontSize: 12.5 }}>{T("일정 없음")}</div> :
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {(byDate[sel] || []).map((e, j) => <div key={j} style={{ fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 8 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: KIND_COLOR[e.kind] ?? "#888", flexShrink: 0 }} />{e.label}</div>)}
+            </div>}
+        </div>
+       </>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {cells.map((dd, i) => {
