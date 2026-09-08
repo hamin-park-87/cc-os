@@ -1261,6 +1261,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   }
   const stIn = { fontFamily: "var(--body)", fontSize: 12.5, padding: "5px 7px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--ink)" } as const;
   return (<>
+    <OrientBanner month={fMonth || curMonth} brandName={brandName} />
     {/* 요약 */}
     <div className="grid-kpi" style={{ marginBottom: 14 }}>
       <Kpi lab={T("총 제작")} val={total} unit={T("건")} />
@@ -2057,6 +2058,30 @@ export function BrandView({ pane, d, scope, month = defaultMonth() }: { pane: st
   return <Placeholder name={pane} />;
 }
 
+/* 제작 일정 상단 '이번 달 오리엔시트' 배너 */
+function OrientBanner({ month, brandName }: { month: string; brandName?: string }) {
+  const [rows, setRows] = useState<OrientSheet[] | null>(null);
+  useEffect(() => { getOrientSheets().then(setRows).catch(() => setRows([])); }, []);
+  const list = (rows ?? []).filter((r) => r.yearMonth === month && (!brandName || r.brandName === brandName));
+  if (!list.length) return null;
+  return (
+    <div style={{ padding: "12px 14px", borderRadius: 11, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-ink)", marginBottom: 8 }}>📋 {month.slice(0, 4)}. {+month.slice(5)}{T("월 오리엔시트")} ({list.length})</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {list.slice(0, 5).map((r) => (
+          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, flexWrap: "wrap" }}>
+            <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.brandName] ?? "var(--surface-3)" }} />{r.brandName}</span>
+            <b>{r.title}</b>
+            {r.description && <span style={{ color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>· {r.description}</span>}
+            {r.fileUrl && <a className="btn sm" href={r.fileUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", padding: "3px 9px", fontSize: 11.5 }}>⬇ {T("파일")}</a>}
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘오리엔시트’ 탭에서 전체 내용을 확인하세요.")}</div>
+    </div>
+  );
+}
+
 /* 오리엔시트(브리프) — 브랜드 업로드 · 관리자/크리에이터 열람 (공용) */
 function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "brand" | "creator"; scope?: string; month: string }) {
   const [rows, setRows] = useState<OrientSheet[] | null>(null);
@@ -2090,7 +2115,8 @@ function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "b
   const stIn = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" } as const;
   return (<>
     {canUpload && <div className="card pad" style={{ marginBottom: 16 }}>
-      <div style={{ fontWeight: 700, marginBottom: 10 }}>+ {T("오리엔시트 업로드")}</div>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>+ {T("오리엔시트 업로드")}</div>
+      {mode === "admin" && <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 10 }}>{T("브랜드에게 받은 파일을 관리자가 대신 업로드할 수 있어요. 브랜드를 선택하세요.")}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
         {mode === "admin" && <select style={stIn} value={form.brand} onChange={(e) => setForm((f) => ({ ...f, brand: e.target.value }))}>{d.brands.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select>}
         <select style={stIn} value={form.ym} onChange={(e) => setForm((f) => ({ ...f, ym: e.target.value }))}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
@@ -2699,6 +2725,7 @@ function CreatorTodo({ d, me, month = defaultMonth() }: { d: Bundle; me: string;
   async function addOne(brand: string) { try { const items = myContentsFor(brand); const nc = await createPlannedContent(brand, me, `${brand} ${T("콘텐츠")} ${items.length + 1}`, d.brands, d.creators, month); d.contents.push(nc); setTick((t) => t + 1); } catch (e) { alert(T("생성 실패: ") + (e as Error).message); } }
   async function del(c: Content) { if (!confirm(`'${c.product}' ${T("삭제할까요?")}`)) return; try { await deleteContent(c.id); const i = d.contents.indexOf(c); if (i >= 0) d.contents.splice(i, 1); setTick((t) => t + 1); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); } }
   return (<>
+    <OrientBanner month={month} />
     <div className="card pad" style={{ marginBottom: 18 }}>
       <div className="ring-wrap" style={{ marginBottom: 6 }}>
         <Ring p={totalQ ? Math.round(totalDone / totalQ * 100) : 0} label={`${totalDone}/${totalQ}`} />
