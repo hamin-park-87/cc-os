@@ -26,7 +26,7 @@ const NAV: Record<string, NavGroup[]> = {
   creator: [
     { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
     { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 정산"]] },
-    { group: "콘텐츠", items: [["c-orient", "오리엔시트"], ["c-todo", "제작 일정"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
+    { group: "콘텐츠", items: [["c-orient", "오리엔시트"], ["c-todo", "제작 일정"], ["c-calendar", "캘린더"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
@@ -49,9 +49,9 @@ const BOT_NAV: Record<string, { key: string; label: string; icon: string }[]> = 
   creator: [
     { key: "c-growth", label: "성장", icon: "📈" },
     { key: "c-todo", label: "제작 일정", icon: "🗓" },
+    { key: "c-calendar", label: "캘린더", icon: "📅" },
     { key: "c-orient", label: "오리엔", icon: "📋" },
     { key: "c-content", label: "콘텐츠", icon: "🎬" },
-    { key: "c-profile", label: "프로필", icon: "👤" },
   ],
 };
 // 코드(BR001/CC001…) 번호순 정렬 — 코드 없으면 뒤로

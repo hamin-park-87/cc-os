@@ -2606,6 +2606,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   if (pane === "c-secondary") return <SecondaryView mode="creator" d={d} scope={me} />;
   if (pane === "c-profile") return <CreatorProfile d={d} me={me} />;
   if (pane === "c-todo") return (<>{remBanner}<CreatorTodo d={d} me={me} month={month} /></>);
+  if (pane === "c-calendar") return (<>{remBanner}<CreatorTodo d={d} me={me} month={month} initialView="calendar" /></>);
   if (pane === "c-orient") return <OrientSheets d={d} mode="creator" month={month} />;
   return <Placeholder name={pane} />;
 }
@@ -2784,9 +2785,9 @@ function ProductionCalendar({ events }: { events: CalEvent[] }) {
   );
 }
 
-function CreatorTodo({ d, me, month = defaultMonth() }: { d: Bundle; me: string; month?: string }) {
+function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { d: Bundle; me: string; month?: string; initialView?: "list" | "calendar" }) {
   const [, setTick] = useState(0);
-  const [view, setView] = useState<"list" | "calendar">("list");
+  const [view, setView] = useState<"list" | "calendar">(initialView);
   // 캘린더 이벤트: 내 콘텐츠 단계 일정 + PR 안건 일정 (전 기간, 캘린더가 월 이동)
   const calEvents: CalEvent[] = [];
   for (const c of d.contents) {
