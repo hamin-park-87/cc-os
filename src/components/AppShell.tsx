@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Session } from "@/lib/auth/session";
 import { getData } from "@/lib/data";
 import { t, setCurrentLang, type Lang } from "@/lib/i18n";
@@ -90,12 +90,17 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
     try { navigator.clipboard.writeText(location.href); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { }
   }
 
-  useEffect(() => {
-    const api = getData();
-    Promise.all([api.brands(), api.creators(), api.contents(), api.deals(), api.contracts(), api.assignments()])
-      .then(([brands, creators, contents, deals, contracts, assignments]) =>
-        setD({ brands, creators, contents, deals, contracts, assignments }));
+  const [reloading, setReloading] = useState(false);
+  const reload = useCallback(async () => {
+    setReloading(true);
+    try {
+      const api = getData();
+      const [brands, creators, contents, deals, contracts, assignments] = await Promise.all(
+        [api.brands(), api.creators(), api.contents(), api.deals(), api.contracts(), api.assignments()]);
+      setD({ brands, creators, contents, deals, contracts, assignments });
+    } finally { setReloading(false); }
   }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
     try { const l = localStorage.getItem("creatoros.lang"); if (l === "ja" || l === "ko") setLang(l); } catch { }
@@ -162,6 +167,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
             {MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{t("월", lang)}</option>)}
           </select>
+          <button className="iconbtn" title={t("데이터 새로고침", lang)} onClick={reload} disabled={reloading}>{reloading ? "⏳" : "🔄"}</button>
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} title={t("이 화면 링크 복사", lang)} onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크", lang)}</button>
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
           <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
