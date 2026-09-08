@@ -95,6 +95,8 @@
   .topbar h1{font-size:19px; font-weight:600}
   .topbar .sub{color:var(--faint); font-size:12.5px; margin-top:2px}
   .spacer{flex:1}
+  .tb-controls{display:flex; align-items:center; gap:10px}
+  .botnav{display:none}
 
   .iconbtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--surface);display:grid;place-items:center;color:var(--muted)}
   .iconbtn:hover{color:var(--ink);border-color:var(--border-strong)}
@@ -351,10 +353,23 @@
     .topbar h1{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .topbar .sub{font-size:11px}
     .topbar .spacer{display:none}
-    /* 상단바 컨트롤: 제목 다음 줄로 자연스럽게 감싸기 */
-    .topbar > .iconbtn, .topbar > select, .topbar > button{flex:0 0 auto}
-    .topbar select{font-size:12px !important; height:32px !important; max-width:128px !important}
+    /* 상단바: 제목은 첫 줄, 컨트롤은 다음 줄 전체폭 우측 정렬 → 제목 잘림 방지 */
+    .tb-title{flex:1 1 auto}
+    .tb-controls{flex:1 1 100%; justify-content:flex-end; gap:8px; flex-wrap:wrap}
+    .topbar select{font-size:12px !important; height:32px !important; max-width:120px !important}
     .topbar .iconbtn{width:32px; height:32px}
+    /* 하단 고정 네비바 */
+    .botnav{
+      display:flex; position:fixed; left:0; right:0; bottom:0; z-index:50;
+      background:color-mix(in srgb,var(--surface) 96%,transparent); border-top:1px solid var(--border);
+      padding:6px 4px calc(6px + env(safe-area-inset-bottom)); backdrop-filter:blur(8px);
+      box-shadow:0 -4px 16px -10px rgba(0,0,0,.35);
+    }
+    .botnav-item{flex:1; min-width:0; border:0; background:none; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 2px; color:var(--muted); font-size:10px; font-weight:600}
+    .botnav-item .bi{font-size:19px; line-height:1}
+    .botnav-item .bl{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+    .botnav-item.active{color:var(--accent-ink)}
+    .content{padding-bottom:78px}
     .content{padding:14px}
     .grid-kpi{grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px}
     .kpi .val{font-size:22px}

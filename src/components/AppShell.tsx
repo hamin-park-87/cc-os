@@ -30,6 +30,30 @@ const NAV: Record<string, NavGroup[]> = {
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
+// 모바일 하단 고정 네비 — 역할별 자주 쓰는 탭
+const BOT_NAV: Record<string, { key: string; label: string; icon: string }[]> = {
+  admin: [
+    { key: "a-matrix", label: "대시보드", icon: "🏠" },
+    { key: "a-schedule", label: "제작 일정", icon: "🗓" },
+    { key: "a-deals", label: "PR 안건", icon: "📥" },
+    { key: "a-roster", label: "크리에이터", icon: "👥" },
+    { key: "a-brands", label: "브랜드", icon: "🏢" },
+  ],
+  brand: [
+    { key: "b-dash", label: "대시보드", icon: "🏠" },
+    { key: "b-schedule", label: "제작 일정", icon: "🗓" },
+    { key: "b-orient", label: "오리엔", icon: "📋" },
+    { key: "b-creators", label: "크리에이터", icon: "👥" },
+    { key: "b-secondary", label: "2차 활용", icon: "♻️" },
+  ],
+  creator: [
+    { key: "c-growth", label: "성장", icon: "📈" },
+    { key: "c-todo", label: "제작 일정", icon: "🗓" },
+    { key: "c-orient", label: "오리엔", icon: "📋" },
+    { key: "c-content", label: "콘텐츠", icon: "🎬" },
+    { key: "c-profile", label: "프로필", icon: "👤" },
+  ],
+};
 // 코드(BR001/CC001…) 번호순 정렬 — 코드 없으면 뒤로
 const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); return m ? +m[0] : Infinity; };
 const byCode = (a: { code?: string | null; name: string }, b: { code?: string | null; name: string }) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
@@ -153,8 +177,9 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       <div className="main">
         <div className="topbar">
           <button className="iconbtn nav-open" title="메뉴" onClick={() => setNavOpen(true)}>☰</button>
-          <div style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {effRole === "admin" ? "81degree" : effScope}</div></div>
+          <div className="tb-title" style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {effRole === "admin" ? "81degree" : effScope}</div></div>
           <div className="spacer" />
+          <div className="tb-controls">
           {/* 관리자 전용: 다른 어드민으로 전환 / 복귀 */}
           {session.role === "admin" && !viewAs && d && <select value="" onChange={(e) => { const v = e.target.value; if (!v) return; const i = v.indexOf(":"); enterViewAs({ role: v.slice(0, i) as "brand" | "creator", scope: v.slice(i + 1) }); }}
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", maxWidth: 180 }} title={t("다른 어드민으로 보기", lang)}>
@@ -171,6 +196,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} title={t("이 화면 링크 복사", lang)} onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크", lang)}</button>
           <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
           <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
+          </div>
         </div>
         <div className="content">
           {viewAs && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 14, borderRadius: 10, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", fontSize: 13 }}>
@@ -182,6 +208,13 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             : effRole === "brand" ? <BrandView pane={pane} d={d} scope={effScope} month={month} />
             : <CreatorView pane={pane} d={d} scope={effScope} month={month} onNav={go} />}
         </div>
+        <nav className="botnav">
+          {(BOT_NAV[effRole] ?? []).map((it) => (
+            <button key={it.key} className={`botnav-item ${pane === it.key ? "active" : ""}`} onClick={() => go(it.key)}>
+              <span className="bi">{it.icon}</span><span className="bl">{t(it.label, lang)}</span>
+            </button>
+          ))}
+        </nav>
       </div>
     </div>
   );
