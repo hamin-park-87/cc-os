@@ -7,6 +7,8 @@ export async function GET() {
     slack: !!process.env.SLACK_WEBHOOK_URL,
     email: !!process.env.RESEND_API_KEY,
     ingestSecret: !!process.env.DEALS_INGEST_SECRET,
+    slackBot: !!process.env.SLACK_BOT_TOKEN,
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
     cronSecret: !!process.env.CRON_SECRET,
     ig: !!(process.env.META_APP_ID || process.env.IG_APP_ID),
   });

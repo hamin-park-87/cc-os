@@ -25,4 +25,21 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   } catch { return false; }
 }
 
-export const notifyConfigured = () => ({ slack: !!process.env.SLACK_WEBHOOK_URL, email: !!process.env.RESEND_API_KEY });
+// Slack Bot 토큰(chat.postMessage) — 스레드 답글 가능. SLACK_BOT_TOKEN(xoxb-) 필요.
+// 성공 시 메시지 ts 반환(스레드 부모로 사용), 실패 시 null.
+export async function slackPost(channel: string, text: string, threadTs?: string): Promise<string | null> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (!token || !channel) return null;
+  try {
+    const res = await fetch("https://slack.com/api/chat.postMessage", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ channel, text, ...(threadTs ? { thread_ts: threadTs } : {}) }),
+    });
+    const j = await res.json();
+    if (!j.ok) console.warn("[slackPost]", j.error);
+    return j.ok ? (j.ts as string) : null;
+  } catch (e) { console.warn("[slackPost]", (e as Error).message); return null; }
+}
+
+export const notifyConfigured = () => ({ slack: !!process.env.SLACK_WEBHOOK_URL, slackBot: !!process.env.SLACK_BOT_TOKEN, email: !!process.env.RESEND_API_KEY });
