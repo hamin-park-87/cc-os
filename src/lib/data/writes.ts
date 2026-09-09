@@ -315,6 +315,20 @@ export async function deleteOrientSheet(id: string): Promise<void> {
   if (error) throw error;
 }
 
+// CC 피드백 (creator_feedback) — 크리에이터×월별
+export async function getFeedback(creatorName: string, yearMonth: string, creators: Creator[]): Promise<string> {
+  if (!isDb()) return "";
+  const cid = creators.find((c) => c.name === creatorName)?.id; if (!cid) return "";
+  const { data } = await getSupabase().from("creator_feedback").select("body").eq("creator_id", cid).eq("year_month", yearMonth).maybeSingle();
+  return data?.body ?? "";
+}
+export async function saveFeedback(creatorName: string, yearMonth: string, body: string, creators: Creator[]): Promise<void> {
+  if (!isDb()) return;
+  const cid = creators.find((c) => c.name === creatorName)?.id; if (!cid) throw new Error("creator not found");
+  const { error } = await getSupabase().from("creator_feedback").upsert({ creator_id: cid, year_month: yearMonth, body, updated_at: new Date().toISOString() }, { onConflict: "creator_id,year_month" });
+  if (error) throw error;
+}
+
 // 협력광고 코드 저장 (2차 활용)
 export async function setSecondaryAdCode(id: string, code: string): Promise<void> {
   if (!isDb()) { const r = mockSecondary.find((x) => x.id === id); if (r) r.adCode = code; return; }

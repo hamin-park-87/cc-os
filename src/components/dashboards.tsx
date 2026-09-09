@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, getFeedback, saveFeedback } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet } from "@/lib/types";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
@@ -123,6 +123,7 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} onNav={onNav} />;
+  if (pane === "a-feedback") return <FeedbackView d={d} month={month} />;
   if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} email={email} />;
   if (pane === "a-archive") return <ContentArchive contents={d.contents} tagBrands={d.brands.length ? d.brands.map((b) => b.name) : ALL_BRANDS} onTag={(c, bn) => tagContentBrand(c.id, bn, d.brands)} />;
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
@@ -2489,6 +2490,64 @@ function CreatorSettlement({ d, me, secReqs }: { d: Bundle; me: string; secReqs:
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, marginTop: 14, fontSize: 14 }}>
         <span>{T("확정(체크) 합계")} <b className="num" style={{ color: "#3fb984" }}>{yen(confirmed)}</b></span>
         <span>{T("정산 예정 합계")} <b className="num" style={{ color: "var(--accent-ink)" }}>{yen(grand)}</b></span>
+      </div>
+    </div>
+  </>);
+}
+
+/* CC 피드백 — 인사이트 + 참조자료(오리엔) 대조하며 피드백 작성 (REQ-005) */
+function FeedbackView({ d, month }: { d: Bundle; month: string }) {
+  const actives = [...d.creators].filter((c) => c.status === "active").sort(cmpCreatorByCode);
+  const [name, setName] = useState(actives[0]?.name ?? "");
+  const [body, setBody] = useState("");
+  const [orient, setOrient] = useState<OrientSheet[]>([]);
+  const [busy, setBusy] = useState(false); const [saved, setSaved] = useState(false);
+  useEffect(() => { getFeedback(name, month, d.creators).then(setBody).catch(() => setBody("")); setSaved(false); }, [name, month, d.creators]);
+  useEffect(() => { getOrientSheets().then(setOrient).catch(() => setOrient([])); }, []);
+  const cr = d.creators.find((c) => c.name === name);
+  const mine = d.contents.filter((c) => c.creatorName === name);
+  const ups = mine.filter((c) => c.status === "uploaded" && c.views > 0);
+  const avgEng = ups.length ? (ups.reduce((s, c) => s + parseFloat(engRate(c)), 0) / ups.length).toFixed(1) : "—";
+  const totViews = ups.reduce((s, c) => s + c.views, 0);
+  const orientM = orient.filter((o) => o.yearMonth === month);
+  async function save() { setBusy(true); try { await saveFeedback(name, month, body, d.creators); setSaved(true); setTimeout(() => setSaved(false), 1600); } catch (e) { alert(T("저장 실패: ") + (e as Error).message); } setBusy(false); }
+  const stIn = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" } as const;
+  return (<>
+    <div className="filterbar">
+      <select value={name} onChange={(e) => setName(e.target.value)}>{actives.map((c) => <option key={c.id} value={c.name}>{withCode(c.name)} · {c.handle}</option>)}</select>
+      <span className="count">{month.slice(0, 4)}. {+month.slice(5)}{T("월")}</span>
+    </div>
+    <div className="grid-kpi" style={{ marginBottom: 16 }}>
+      <Kpi lab={T("팔로워")} val={fmt(cr?.followers ?? 0)} />
+      <Kpi lab={T("평균 참여율")} val={avgEng} unit={avgEng === "—" ? "" : "%"} />
+      <Kpi lab={T("총 조회수")} val={ups.length ? fmt(totViews) : "—"} />
+      <Kpi lab={T("업로드")} val={mine.filter((c) => c.status === "uploaded").length} unit={T("건")} />
+    </div>
+    <div className="two">
+      <div>
+        <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("인사이트 · 작업물")}</h2><span className="hint">{withCode(name)}</span></div>
+        <ContentArchive contents={mine} showCreator={false} showBrand={false} compact limit={6} />
+      </div>
+      <div>
+        <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("참조자료")}</h2><span className="hint">{T("이번 달 오리엔시트")}</span></div>
+        {!orientM.length ? <div className="placeholder" style={{ padding: 20 }}>{T("등록된 오리엔시트가 없어요.")}</div> :
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+            {orientM.map((o) => (
+              <div key={o.id} className="card pad" style={{ padding: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[o.brandName] ?? "var(--surface-3)" }} />{o.brandName}</span>
+                  <b style={{ fontSize: 13 }}>{o.title}</b>
+                  {o.fileUrl && <a className="btn sm" href={o.fileUrl} target="_blank" rel="noreferrer" style={{ marginLeft: "auto" }}>⬇ {T("파일")}</a>}
+                </div>
+                {o.description && <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)", whiteSpace: "pre-wrap" }}>{o.description}</div>}
+              </div>
+            ))}
+          </div>}
+        <div className="sec-h" style={{ marginTop: 0 }}><h2>✍ {T("피드백")}</h2></div>
+        <textarea style={{ ...stIn, width: "100%", minHeight: 160, resize: "vertical" }} placeholder={T("인사이트·참조자료를 보고 크리에이터에게 전달할 피드백을 작성하세요.")} value={body} onChange={(e) => { setBody(e.target.value); setSaved(false); }} />
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+          <button className="btn acc" disabled={busy} onClick={save}>{saved ? "✓ " + T("저장됨") : busy ? T("저장 중…") : T("피드백 저장")}</button>
+        </div>
       </div>
     </div>
   </>);

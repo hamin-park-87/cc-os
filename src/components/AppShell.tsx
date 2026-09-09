@@ -13,7 +13,7 @@ type NavGroup = { group: string; items: NavItem[] }; // group="" 이면 대분�
 const NAV: Record<string, NavGroup[]> = {
   admin: [
     { group: "", items: [["a-matrix", "대시보드"]] },
-    { group: "크리에이터", items: [["a-roster", "크리에이터 관리"], ["a-insights", "크리에이터 인사이트"], ["a-cost", "비용 관리"], ["a-conn", "연동 상태"]] },
+    { group: "크리에이터", items: [["a-roster", "크리에이터 관리"], ["a-insights", "크리에이터 인사이트"], ["a-feedback", "CC 피드백"], ["a-cost", "비용 관리"], ["a-conn", "연동 상태"]] },
     { group: "브랜드", items: [["a-brands", "브랜드 관리"]] },
     { group: "PR · 콘텐츠", items: [["a-deals", "PR 안건"], ["a-assign", "배정 관리"], ["a-orient", "오리엔시트"], ["a-schedule", "제작 일정"], ["a-archive", "콘텐츠 아카이브"], ["a-secondary", "2차 활용"], ["a-risk", "계약 리스크"]] },
     { group: "매출 · 운영", items: [["a-revenue", "매출 대시보드"], ["a-accounts", "계정·권한"]] },
