@@ -9,7 +9,8 @@ import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, r
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, getFeedback, saveFeedback } from "@/lib/data/writes";
-import type { SecondaryReq, SecondaryScope, OrientSheet } from "@/lib/types";
+import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
+import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
 import { T, getLang } from "@/lib/i18n";
@@ -120,6 +121,7 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-orient") return <OrientSheets d={d} mode="admin" month={month} />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
+  if (pane === "a-clients") return <ClientsTable d={d} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} onNav={onNav} />;
@@ -1743,6 +1745,14 @@ function RiskList({ d }: { d: Bundle }) {
 
 /* ── DEAL LIST (admin & creator 공용) ───── */
 const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드"), T("청구서 발행"), T("입금 확인"), T("CC 입금 완료")];
+// PR 안건 등록자 배지 — AI/메일 자동등록은 🤖, 사람은 👤+이름
+function RegBadge({ by }: { by?: string | null }) {
+  if (!by) return <span style={{ color: "var(--faint)" }}>—</span>;
+  const isAI = /자동|ai|메일|自動/i.test(by);
+  const name = by.includes("@") ? by.split("@")[0] : by;
+  return <span className={`chip ${isAI ? "p-acc" : ""}`} title={by} style={{ gap: 4 }}>{isAI ? "🤖" : "👤"} {isAI ? T("AI") : name}</span>;
+}
+
 export function DealList({ deals, contents, readonly, creators }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[] }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
@@ -1768,6 +1778,14 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
     if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; // 날짜 없으면 뒤로
     return sortBy === "date_asc" ? da.localeCompare(db) : db.localeCompare(da);
   });
+  // 안건 번호 — 인입일(없으면 납기) 오름차순 고정 배정, 오래된 순 = PR-001
+  const chrono = [...deals].sort((a, b) => {
+    const da = a.receivedDate || a.dueDate || "", db2 = b.receivedDate || b.dueDate || "";
+    if (!da && !db2) return 0; if (!da) return 1; if (!db2) return -1;
+    return da.localeCompare(db2);
+  });
+  const seqOf = new Map<string, number>(); chrono.forEach((dl, i) => seqOf.set(dl.id, i + 1));
+  const prNo = (dl: Deal) => "PR-" + String(seqOf.get(dl.id) ?? 0).padStart(3, "0");
   // 단계별 요약
   const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
   // 납기 지연/임박 감지 (업로드 전 step<5 & 납기일 기준)
@@ -1825,16 +1843,19 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
        view === "list" ? (
         <div className="tablewrap"><table><thead><tr>
           {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label={T("전체 선택")} /></th>}
-          <th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th>{!readonly && <th></th>}
+          <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("등록자")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th>{!readonly && <th></th>}
         </tr></thead><tbody>
           {list.map((dl) => (
             <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
               {!readonly && <td><input type="checkbox" checked={sel.has(dl.id)} onChange={() => toggle(dl.id)} aria-label={`${dl.title} ${T("선택")}`} /></td>}
+              <td className="num" style={{ color: "var(--faint)", whiteSpace: "nowrap", fontWeight: 600 }}>{prNo(dl)}</td>
+              <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.receivedDate)}</td>
               <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.dueDate)}</td>
               <td>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}<b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span>{dl.source === "company_email" && <span className="chip" title={T("메일에서 자동 등록")} style={{ marginLeft: 4 }}>✉️ {T("메일")}</span>}</td>
               <td style={{ color: "var(--muted)" }}>{dl.client}</td>
               <td>{withCode(dl.creatorName)}</td>
               <td style={{ color: "var(--muted)" }}>{dl.manager}</td>
+              <td><RegBadge by={dl.registeredBy} /></td>
               <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
               <td className="num">{yen(dl.fee)}</td>
               {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
@@ -1856,7 +1877,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <Avatar name={dl.client} size={36} radius={9} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}{dl.title} <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ marginLeft: 4 }}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span></div>
-                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2 }}>{T("납기")} {ymd(dl.dueDate)} · {dl.client} · {withCode(dl.creatorName)} · {T("담당")} {dl.manager}</div>
+                <div style={{ color: "var(--faint)", fontSize: 12, marginTop: 2, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}><b style={{ color: "var(--muted)" }}>{prNo(dl)}</b> · {T("인입")} {ymd(dl.receivedDate)} · {T("납기")} {ymd(dl.dueDate)} · {dl.client} · {withCode(dl.creatorName)} · {T("담당")} {dl.manager} · <RegBadge by={dl.registeredBy} /></div>
               </div>
               <span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span>
             </div>
@@ -2089,6 +2110,86 @@ function OrientBanner({ month, brandName }: { month: string; brandName?: string 
       </div>
       <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘오리엔시트’ 탭에서 전체 내용을 확인하세요.")}</div>
     </div>
+  );
+}
+
+/* 의뢰사 관리 — PR 안건 의뢰사(대행사/브랜드사) 정보 마스터 (관리자 전용) */
+function ClientsTable({ d }: { d: Bundle }) {
+  const [rows, setRows] = useState<Client[] | null>(null);
+  const [q, setQ] = useState("");
+  const [edit, setEdit] = useState<Client | null | undefined>(undefined); // undefined=닫힘, null=추가
+  const load = useCallback(() => { getClients().then(setRows).catch(() => setRows([])); }, []);
+  useEffect(() => { load(); }, [load]);
+
+  // 의뢰사별 PR 안건 수 (client 텍스트 부분일치)
+  const dealCount = (name: string) => {
+    const n = name.trim().toLowerCase(); if (!n) return 0;
+    return d.deals.filter((dl) => { const c = (dl.client || "").toLowerCase(); return c === n || c.includes(n) || n.includes(c); }).length;
+  };
+  const list = (rows ?? []).filter((c) => !q ||
+    [c.name, c.contactPerson, c.email, c.domain].some((v) => (v || "").toLowerCase().includes(q.toLowerCase())));
+
+  async function del(c: Client) {
+    if (!confirm(`${T("의뢰사")} "${c.name}" ${T("를 삭제할까요? 되돌릴 수 없습니다.")}`)) return;
+    try { await deleteClient(c.id); load(); } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); }
+  }
+
+  return (<>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("의뢰사 관리")}</h2>
+      <button className="btn acc" onClick={() => setEdit(null)}>+ {T("의뢰사 추가")}</button>
+    </div>
+    <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 14 }}>{T("PR 안건을 의뢰하는 대행사·브랜드사 정보를 등록해 두세요. PR 안건의 '의뢰사'와 이름으로 연결됩니다.")}</div>
+    <div className="filterbar">
+      <input placeholder={T("의뢰사·담당자·이메일 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+      <span className="count">{list.length}{T("사")}</span>
+    </div>
+    {rows === null ? <div className="placeholder">{T("불러오는 중…")}</div> :
+     !list.length ? <div className="placeholder">{T("등록된 의뢰사가 없어요. '의뢰사 추가'로 시작하세요.")}</div> :
+      <div className="tablewrap"><table><thead><tr>
+        <th>{T("의뢰사명")}</th><th>{T("담당자")}</th><th>{T("이메일")}</th><th>{T("연락처")}</th><th>{T("도메인")}</th><th>{T("안건 수")}</th><th></th>
+      </tr></thead><tbody>
+        {list.map((c) => (
+          <tr key={c.id}>
+            <td><b style={{ cursor: "pointer" }} onClick={() => setEdit(c)}>{c.name}</b>{c.memo && <div style={{ fontSize: 11.5, color: "var(--faint)", marginTop: 2 }}>{c.memo}</div>}</td>
+            <td style={{ color: "var(--muted)" }}>{c.contactPerson || "—"}</td>
+            <td style={{ color: "var(--muted)" }}>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : "—"}</td>
+            <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{c.phone || "—"}</td>
+            <td style={{ color: "var(--faint)" }}>{c.domain || "—"}</td>
+            <td className="num">{dealCount(c.name) || "—"}</td>
+            <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <button className="btn sm" style={{ marginRight: 6 }} onClick={() => setEdit(c)}>{T("수정")}</button>
+              <button className="btn sm" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button>
+            </td>
+          </tr>
+        ))}
+      </tbody></table></div>}
+    {edit !== undefined && <ClientEditModal client={edit} onClose={() => setEdit(undefined)} onSaved={load} />}
+  </>);
+}
+
+function ClientEditModal({ client, onClose, onSaved }: { client: Client | null; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<Partial<Client>>(client ? { ...client } : { name: "" });
+  const [busy, setBusy] = useState(false);
+  const up = (k: keyof Client, v: string) => setF((s) => ({ ...s, [k]: v }));
+  async function save() {
+    if (!f.name?.trim()) { alert(T("의뢰사명을 입력해주세요")); return; }
+    setBusy(true);
+    try { await saveClient({ ...f, name: f.name.trim() }); onSaved(); onClose(); }
+    catch (e) { alert(T("저장 실패: ") + (e as Error).message); setBusy(false); }
+  }
+  return (
+    <Modal title={client ? T("의뢰사 수정") : T("의뢰사 추가")} onClose={onClose}
+      footer={<><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" disabled={busy} onClick={save}>{busy ? T("저장 중…") : T("저장")}</button></>}>
+      <Field label={T("의뢰사명")}><input style={inp} placeholder={T("예: 株式会社トライアウト")} value={f.name ?? ""} onChange={(e) => up("name", e.target.value)} /></Field>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label={T("담당자명")}><input style={inp} placeholder="田邊 太助" value={f.contactPerson ?? ""} onChange={(e) => up("contactPerson", e.target.value)} /></Field>
+        <Field label={T("연락처")}><input style={inp} placeholder="080-0000-0000" value={f.phone ?? ""} onChange={(e) => up("phone", e.target.value)} /></Field>
+        <Field label={T("이메일")}><input style={inp} placeholder="tanabe@tryout.co.jp" value={f.email ?? ""} onChange={(e) => up("email", e.target.value)} /></Field>
+        <Field label={T("이메일 도메인")}><input style={inp} placeholder="tryout.co.jp" value={f.domain ?? ""} onChange={(e) => up("domain", e.target.value)} /></Field>
+      </div>
+      <Field label={T("주소")}><input style={inp} value={f.address ?? ""} onChange={(e) => up("address", e.target.value)} /></Field>
+      <Field label={T("메모")}><textarea style={{ ...inp, minHeight: 64, resize: "vertical" }} placeholder={T("거래 이력·특이사항 등")} value={f.memo ?? ""} onChange={(e) => up("memo", e.target.value)} /></Field>
+    </Modal>
   );
 }
 

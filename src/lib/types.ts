@@ -141,11 +141,25 @@ export interface Deal {
   step: number;                 // 0~7
   contentId?: string | null;
   // 외부 PR 정산
+  registeredBy?: string | null; // 안건을 등록한 사람(관리자 이메일) 또는 "메일 자동등록"
   receivedDate?: string | null; // 수주(최초 메일 수신)일
   paymentDue?: string | null;   // 입금 예정일
   paidDate?: string | null;     // 입금일
   invoiceFile?: string | null;  // 청구서 첨부 URL
   sched?: ContentSched;         // 제작 일정 (기획/촬영/편집/업로드)
+}
+
+// 의뢰사(클라이언트) 마스터 — clients 테이블
+export interface Client {
+  id: string;
+  name: string;                 // 의뢰사명
+  contactPerson?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  domain?: string | null;       // 이메일 도메인
+  address?: string | null;
+  memo?: string | null;
+  createdAt?: string;
 }
 
 export interface SecondaryRequest {

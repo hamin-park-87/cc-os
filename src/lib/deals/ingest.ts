@@ -71,6 +71,7 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
 
   const { data, error } = await admin.from("deals").insert({
     code, title, client, creator_id, manager, source: "company_email", type: "creator", step: 0,
+    registered_by: "메일 자동등록",
     fee, share_company: 0, share_creator: 0, due_date: dueDate, received_date: receivedAt, brief,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };

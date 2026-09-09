@@ -170,9 +170,11 @@ export async function saveDeal(d: Deal, isNew: boolean, creators: Creator[]): Pr
   const sb = getSupabase();
   const creatorId = creators.find((c) => c.name === d.creatorName)?.id ?? null;
   if (isNew) {
-    const { data, error } = await sb.from("deals").insert(dealRow(d, creatorId)).select("id").single();
+    const { data: u } = await sb.auth.getUser();
+    const registeredBy = d.registeredBy || u?.user?.email || "직접 등록";
+    const { data, error } = await sb.from("deals").insert({ ...dealRow(d, creatorId), registered_by: registeredBy }).select("id").single();
     if (error) throw error;
-    return { ...d, id: data.id };
+    return { ...d, id: data.id, registeredBy };
   }
   const { error } = await sb.from("deals").update(dealRow(d, creatorId)).eq("id", d.id);
   if (error) throw error;
@@ -326,6 +328,42 @@ export async function saveFeedback(creatorName: string, yearMonth: string, body:
   if (!isDb()) return;
   const cid = creators.find((c) => c.name === creatorName)?.id; if (!cid) throw new Error("creator not found");
   const { error } = await getSupabase().from("creator_feedback").upsert({ creator_id: cid, year_month: yearMonth, body, updated_at: new Date().toISOString() }, { onConflict: "creator_id,year_month" });
+  if (error) throw error;
+}
+
+// 의뢰사(클라이언트) 관리 — clients 테이블 (관리자 전용)
+import type { Client } from "@/lib/types";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapClient = (r: any): Client => ({
+  id: r.id, name: r.name, contactPerson: r.contact_person, email: r.email, phone: r.phone,
+  domain: r.domain, address: r.address, memo: r.memo, createdAt: r.created_at,
+});
+export async function getClients(): Promise<Client[]> {
+  if (!isDb()) return [];
+  const { data, error } = await getSupabase().from("clients")
+    .select("id,name,contact_person,email,phone,domain,address,memo,created_at")
+    .order("name", { ascending: true });
+  if (error) { console.warn("[clients]", error.message); return []; }
+  return (data ?? []).map(mapClient);
+}
+export async function saveClient(c: Partial<Client> & { name: string }): Promise<Client> {
+  if (!isDb()) throw new Error("db off");
+  const row = {
+    name: c.name.trim(), contact_person: c.contactPerson || null, email: c.email || null,
+    phone: c.phone || null, domain: c.domain || null, address: c.address || null, memo: c.memo || null,
+    updated_at: new Date().toISOString(),
+  };
+  const sb = getSupabase();
+  if (c.id) {
+    const { data, error } = await sb.from("clients").update(row).eq("id", c.id).select().single();
+    if (error) throw error; return mapClient(data);
+  }
+  const { data, error } = await sb.from("clients").insert(row).select().single();
+  if (error) throw error; return mapClient(data);
+}
+export async function deleteClient(id: string): Promise<void> {
+  if (!isDb()) return;
+  const { error } = await getSupabase().from("clients").delete().eq("id", id);
   if (error) throw error;
 }
 
