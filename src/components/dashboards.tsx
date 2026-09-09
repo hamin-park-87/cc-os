@@ -1742,7 +1742,7 @@ function RiskList({ d }: { d: Bundle }) {
 }
 
 /* ── DEAL LIST (admin & creator 공용) ───── */
-const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드"), T("청구서 발행"), T("입금 확인")];
+const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드"), T("청구서 발행"), T("입금 확인"), T("CC 입금 완료")];
 export function DealList({ deals, contents, readonly, creators }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[] }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
@@ -1838,7 +1838,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
               <td className="num">{yen(dl.fee)}</td>
               {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                {dl.step < 7 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
+                {dl.step < 8 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
                 <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
               </td>}
             </tr>
@@ -1874,7 +1874,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
             {ct && <div className="note" style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{T("업로드 콘텐츠")}</span><ContentActions c={ct} /></div>}
             {!readonly && <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end" }}>
               {dl.step >= 4 && <button className="btn sm" onClick={() => setInvoice(dl)}>{T("청구서")}</button>}
-              {dl.step < 7 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
+              {dl.step < 8 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
               <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
             </div>}
           </div>
@@ -2436,7 +2436,7 @@ function CreatorPublicModal({ creator: c, onClose }: { creator: Creator; content
 function CreatorSettlement({ d, me, secReqs }: { d: Bundle; me: string; secReqs: SecondaryReq[] }) {
   const [fMonth, setFMonth] = useState("");   // "" = 전체
   const dealNet = (x: Deal) => Math.round((x.fee + (x.secondaryFee ?? 0)) * x.shareCreator / 100);
-  const dealDone = (x: Deal) => x.step >= 7 || !!x.paidDate;
+  const dealDone = (x: Deal) => x.step >= 8; // CC 입금 완료 = 크리에이터에게 실제 지급 완료
   const dealMonth = (x: Deal) => (x.uploadDate || x.dueDate || x.receivedDate || "").slice(0, 7);
   const myDeals = d.deals.filter((x) => x.creatorName === me && (!fMonth || dealMonth(x) === fMonth));
   const mySec = secReqs.filter((r) => r.creatorName === me && r.status === "approved" && (!fMonth || (r.periodStart ?? "").slice(0, 7) === fMonth || !r.periodStart));
