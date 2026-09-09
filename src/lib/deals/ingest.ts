@@ -23,7 +23,7 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
   const confidence = typeof p.confidence === "number" ? p.confidence : null;
   const isDeal = p.isDeal;
   if (isDeal === false && (confidence ?? 1) >= 0.6) return { ok: true, skipped: true };
-  const needsReview = isDeal === false || (confidence != null && confidence < 0.65);
+  let needsReview = isDeal === false || (confidence != null && confidence < 0.65);
 
   const fee = Number.isFinite(+p.fee) ? Math.round(+p.fee) : 0;
   const currency = str(p.currency, 8).trim();
@@ -51,9 +51,12 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
     const n = (c.name || "").toLowerCase(), h = (c.handle || "").replace(/^@/, "").toLowerCase();
     if ((n && n.length >= 2 && hay.includes(n)) || (h && h.length >= 2 && hay.includes(h))) { creator_id = c.id; break; }
   }
+  // 크리에이터 미매칭 시에도 등록되도록(확인필요) — creator_id NULL 허용 필요(deals_creator_nullable.sql)
+  if (!creator_id) needsReview = true;
 
   const meta: string[] = [];
   if (needsReview) meta.push("⚠️ 확인 필요 — PR 안건 여부 불확실");
+  if (!creator_id) meta.push("⚠️ 크리에이터 미매칭 — 수동 지정 필요");
   if (deliverables) meta.push("요청 산출물: " + deliverables);
   if (fee) meta.push("제안 금액: " + fee.toLocaleString() + (currency ? " " + currency : ""));
   if (dueDate) meta.push("납기/희망일: " + dueDate);
