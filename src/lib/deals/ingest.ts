@@ -98,7 +98,8 @@ export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsRe
 export async function parseEmailWithClaude(m: { subject: string; from: string; body: string }): Promise<ParsedDeal | null> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
-  const prompt = `아래는 회사 공용 메일함으로 들어온 이메일입니다. 크리에이터 PR/협업 의뢰인지 판단하고 핵심 정보를 추출해 JSON만 출력하세요.\n\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${(m.body || "").slice(0, 6000)}\n\n출력 JSON 스키마(이 외 텍스트 금지):\n{"isDeal":boolean,"confidence":number,"client":string|null,"brand":string|null,"creator":string|null,"fee":number|null,"currency":string|null,"dueDate":"YYYY-MM-DD"|null,"deliverables":string|null,"secondaryUsage":boolean,"summary":string}`;
+  const today = new Date().toISOString().slice(0, 10);
+  const prompt = `아래는 회사 공용 메일함으로 들어온 이메일입니다. 크리에이터 PR/협업 의뢰인지 판단하고 핵심 정보를 추출해 JSON만 출력하세요.\n오늘 날짜: ${today}. 메일에 연도가 없는 날짜는 오늘 기준 가장 가까운 미래로 해석하세요(과거 연도로 넣지 마세요).\n\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${(m.body || "").slice(0, 6000)}\n\n출력 JSON 스키마(이 외 텍스트 금지):\n{"isDeal":boolean,"confidence":number,"client":string|null,"brand":string|null,"creator":string|null,"fee":number|null,"currency":string|null,"dueDate":"YYYY-MM-DD"|null,"deliverables":string|null,"secondaryUsage":boolean,"summary":string}`;
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
