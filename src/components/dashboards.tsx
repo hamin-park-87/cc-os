@@ -1758,10 +1758,12 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
   const [invoice, setInvoice] = useState<Deal | null>(null);
   const [fStep, setFStep] = useState(""); const [fManager, setFManager] = useState(""); const [fCreator, setFCreator] = useState(""); const [q, setQ] = useState("");
-  const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"date_desc" | "date_asc" | "step">("date_desc");
+  const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"recv_asc" | "recv_desc" | "due_desc" | "due_asc" | "step">("recv_asc");
   const [view, setView] = useState<"list" | "card">("list");
   const [sel, setSel] = useState<Set<string>>(new Set());
   const STEPS = DEAL_STEPS;
+  const recvDate = (d: Deal) => d.receivedDate || d.dueDate || d.uploadDate || "";
+  const dueDateOf = (d: Deal) => d.dueDate || d.uploadDate || "";
   const dealDate = (d: Deal) => d.uploadDate || d.dueDate || "";
   const dealMonth = (d: Deal) => dealDate(d).slice(0, 7);
   const isDone = (d: Deal) => !!d.contentId || (d.step >= 5 && !!d.uploadDate); // 콘텐츠 업로드 완료
@@ -1774,9 +1776,10 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
     (!q || d.title.toLowerCase().includes(q.toLowerCase()) || d.client.toLowerCase().includes(q.toLowerCase())));
   list = [...list].sort((a, b) => {
     if (sortBy === "step") return b.step - a.step;
-    const da = dealDate(a), db = dealDate(b);
+    const useRecv = sortBy.startsWith("recv");
+    const da = useRecv ? recvDate(a) : dueDateOf(a), db = useRecv ? recvDate(b) : dueDateOf(b);
     if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; // 날짜 없으면 뒤로
-    return sortBy === "date_asc" ? da.localeCompare(db) : db.localeCompare(da);
+    return sortBy.endsWith("asc") ? da.localeCompare(db) : db.localeCompare(da);
   });
   // 안건 번호 — 인입일(없으면 납기) 오름차순 고정 배정, 오래된 순 = PR-001
   const chrono = [...deals].sort((a, b) => {
@@ -1831,8 +1834,10 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
           <select value={fManager} onChange={(e) => setFManager(e.target.value)}><option value="">{T("전체 매니저")}</option>{managers.map((m) => <option key={m} value={m}>{m}</option>)}</select>
           <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{dealCreators.map((c) => <option key={c} value={c}>{c}</option>)}</select>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="date_desc">{T("최신 날짜순")}</option>
-            <option value="date_asc">{T("오래된 날짜순")}</option>
+            <option value="recv_asc">{T("인입일 오래된순")}</option>
+            <option value="recv_desc">{T("인입일 최신순")}</option>
+            <option value="due_desc">{T("납기 최신순")}</option>
+            <option value="due_asc">{T("납기 오래된순")}</option>
             <option value="step">{T("진행 단계순")}</option>
           </select>
           <input placeholder={T("안건·의뢰사 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
