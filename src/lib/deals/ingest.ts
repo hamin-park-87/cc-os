@@ -34,6 +34,7 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
   const creatorName = str(p.creator, 120).trim();
   const secondaryUsage = p.secondaryUsage === true || p.secondaryUsage === "true";
   const messageId = str(p.messageId, 120).trim();
+  const manager = str(p.manager, 60).trim() || null;
 
   const admin = getAdminClient();
   const code = messageId ? "MAIL-" + messageId.replace(/[^A-Za-z0-9._-]/g, "").slice(0, 60) : null;
@@ -59,13 +60,14 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
   if (secondaryUsage) meta.push("2차 활용: 요청됨");
   if (brand) meta.push("대상 브랜드: " + brand);
   if (creatorName) meta.push("지목 크리에이터: " + creatorName + (creator_id ? " (매칭됨)" : " (미매칭)"));
+  if (manager) meta.push("담당자: " + manager);
   if (confidence != null) meta.push("판단 신뢰도: " + Math.round(confidence * 100) + "%");
   if (from) meta.push("출처: " + from);
   const brief = [summary || body, meta.join("\n")].filter(Boolean).join("\n\n") || null;
   const title = (needsReview ? "🔎 " : "") + title0.slice(0, 190);
 
   const { data, error } = await admin.from("deals").insert({
-    code, title, client, creator_id, source: "company_email", type: "creator", step: 0,
+    code, title, client, creator_id, manager, source: "company_email", type: "creator", step: 0,
     fee, share_company: 0, share_creator: 0, due_date: dueDate, received_date: receivedAt, brief,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };
@@ -84,6 +86,7 @@ export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsRe
   if (client) L.push(`• 의뢰사 / 依頼社: ${client}`);
   if (str(p.brand, 120).trim()) L.push(`• 브랜드 / ブランド: ${str(p.brand, 120).trim()}`);
   if (str(p.creator, 120).trim()) L.push(`• 크리에이터 / クリエイター: ${str(p.creator, 120).trim()}`);
+  if (str(p.manager, 60).trim()) L.push(`• 담당자 / 担当者: ${str(p.manager, 60).trim()}`);
   if (Number.isFinite(+p.fee) && +p.fee > 0) L.push(`• 제안 금액 / 提案金額: ${(+p.fee).toLocaleString()} ${str(p.currency, 8) || "JPY"}`);
   if (str(p.dueDate, 10).trim()) L.push(`• 납기·희망일 / 納期・希望日: ${str(p.dueDate, 10).trim()}`);
   if (str(p.deliverables, 300).trim()) L.push(`• 요청 산출물 / 依頼成果物: ${str(p.deliverables, 300).trim()}`);
@@ -103,7 +106,7 @@ export async function parseEmailWithClaude(m: { subject: string; from: string; b
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const today = new Date().toISOString().slice(0, 10);
-  const prompt = `아래는 회사 공용 메일함으로 들어온 이메일입니다. 크리에이터 PR/협업 의뢰인지 판단하고 핵심 정보를 추출해 JSON만 출력하세요.\n오늘 날짜: ${today}. 메일에 연도가 없는 날짜는 오늘 기준 가장 가까운 미래로 해석하세요(과거 연도로 넣지 마세요).\n\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${(m.body || "").slice(0, 6000)}\n\n출력 JSON 스키마(이 외 텍스트 금지). titleKo/titleJa는 20자 내외의 짧은 안건 제목(한국어/일본어), summary/summaryJa는 같은 내용의 1~2문장(한국어/일본어):\n{"isDeal":boolean,"confidence":number,"client":string|null,"brand":string|null,"creator":string|null,"fee":number|null,"currency":string|null,"dueDate":"YYYY-MM-DD"|null,"deliverables":string|null,"secondaryUsage":boolean,"titleKo":string,"titleJa":string,"summary":string,"summaryJa":string}`;
+  const prompt = `아래는 회사 공용 메일함으로 들어온 이메일입니다. 크리에이터 PR/협업 의뢰인지 판단하고 핵심 정보를 추출해 JSON만 출력하세요.\n오늘 날짜: ${today}. 메일에 연도가 없는 날짜는 오늘 기준 가장 가까운 미래로 해석하세요(과거 연도로 넣지 마세요).\n\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${(m.body || "").slice(0, 6000)}\n\nmanager는 이 메일을 응대 중인 81degree(우리 회사) 담당자 이름입니다. 서명(예: "81degree 岩上", "81degree 藤沢")이나 본문에서 우리 측 담당자를 찾아 넣으세요. 없으면 null.\n출력 JSON 스키마(이 외 텍스트 금지). titleKo/titleJa는 20자 내외의 짧은 안건 제목(한국어/일본어), summary/summaryJa는 같은 내용의 1~2문장(한국어/일본어):\n{"isDeal":boolean,"confidence":number,"client":string|null,"brand":string|null,"creator":string|null,"manager":string|null,"fee":number|null,"currency":string|null,"dueDate":"YYYY-MM-DD"|null,"deliverables":string|null,"secondaryUsage":boolean,"titleKo":string,"titleJa":string,"summary":string,"summaryJa":string}`;
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

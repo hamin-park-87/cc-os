@@ -26,6 +26,9 @@ export async function POST(req: NextRequest) {
   const parsed = await parseEmailWithClaude({ subject, from, body });
   const p = { ...(parsed || {}), subject, from, body, messageId, receivedAt,
     fromName: (from.match(/^(.*?)</) || [, ""])[1].trim() };
+  // 명시적 manager가 오면 파싱값보다 우선
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (b.manager) (p as any).manager = String(b.manager).slice(0, 60);
 
   const res = await ingestDeal(p);
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: 500 });
