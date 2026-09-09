@@ -109,6 +109,8 @@ export interface Content {
   kind: ContentKind;
   yearMonth?: string | null;    // 귀속 월 (YYYY-MM) — 계획 콘텐츠가 어느 달 물량인지
   sampleReceived?: boolean;     // 샘플(제품) 수령 여부
+  sampleCourier?: string | null;   // 택배사
+  sampleTracking?: string | null;  // 송장번호
   plannedDate?: string;         // M/D 또는 date
   publishedAt?: string | null;  // ISO date
   status: ContentStatus;

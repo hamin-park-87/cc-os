@@ -341,6 +341,12 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
   );
 }
 
+/* 브랜드 로고 아이콘 (색상 + 이니셜) — REQ-001 */
+function BrandBadge({ b, size = 26 }: { b: Brand; size?: number }) {
+  const color = b.color ?? BRAND_COLOR[b.name] ?? "#3B7DD8";
+  return <span style={{ width: size, height: size, borderRadius: Math.round(size * 0.28), background: color, color: "#fff", display: "inline-grid", placeItems: "center", fontWeight: 800, fontSize: Math.round(size * 0.42), flexShrink: 0, letterSpacing: "-.02em" }}>{b.name.slice(0, 2).toUpperCase()}</span>;
+}
+
 /* ── 브랜드 관리 ───── */
 function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
   const [, setTick] = useState(0);
@@ -348,6 +354,7 @@ function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
   const [products, setProducts] = useState<Brand | null>(null);
   const [monthly, setMonthly] = useState<Brand | null>(null);
   const [invoice, setInvoice] = useState<Brand | null>(null);
+  const [orient, setOrient] = useState<Brand | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<"code" | "name" | "period" | "amount">("code");
   const codeNum = (b: Brand) => { const m = b.code?.match(/\d+/); return m ? +m[0] : Infinity; };
@@ -395,7 +402,7 @@ function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
           <tr key={b.id} style={sel.has(b.id) ? { background: "var(--accent-weak)" } : undefined}>
             <td><input type="checkbox" checked={sel.has(b.id)} onChange={() => toggle(b.id)} aria-label={`${b.name} ${T("선택")}`} /></td>
             <td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{b.code ?? "—"}</td>
-            <td><span className="chip"><span className="sw" style={{ background: b.color ?? BRAND_COLOR[b.name] ?? "var(--surface-3)" }} /><b>{b.name}</b></span></td>
+            <td><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><BrandBadge b={b} /><b>{b.name}</b></span></td>
             <td className="num">{mQuota != null ? `${mQuota}${T("건")}` : "—"}{mc && <span style={{ color: "var(--accent-ink)", fontSize: 10, marginLeft: 4 }}>●</span>}</td>
             <td className="num">{mAmount != null ? yen(mAmount) : "—"}</td>
             <td className="num" style={{ color: "var(--muted)" }}>{period(b)}</td>
@@ -404,6 +411,7 @@ function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setInvoice(b)}>{T("인보이스")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setMonthly(b)}>{T("월별")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setProducts(b)}>{T("상품")}</button>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setOrient(b)}>📋 {T("오리엔시트")}</button>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(b)}>{T("수정")}</button></td>
           </tr>
         ); })}
@@ -413,6 +421,7 @@ function BrandAdmin({ d, month }: { d: Bundle; month: string }) {
     {products && <BrandProductsModal brand={products} brands={d.brands} onClose={() => setProducts(null)} />}
     {monthly && <BrandMonthlyModal brand={monthly} d={d} onClose={() => setMonthly(null)} onSaved={() => setTick((t) => t + 1)} />}
     {invoice && <BrandInvoiceModal brand={invoice} d={d} initialMonth={month} onClose={() => setInvoice(null)} />}
+    {orient && <Modal title={`${orient.name} · ${T("오리엔시트")}`} width={640} onClose={() => setOrient(null)}><OrientSheets d={d} mode="brand" scope={orient.name} month={month} /></Modal>}
   </>);
 }
 
@@ -2571,6 +2580,15 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
     const ups2 = mine.filter((c) => c.status === "uploaded" && c.views > 0);
     const avgSave = ups2.length ? (ups2.reduce((s, c) => s + (c.saves / c.views * 100), 0) / ups2.length).toFixed(1) : "0";
     const hasReal = ups2.length > 0;
+    // REQ-006: 브랜드별 영상 건수·월 투고 (이번 달, 전략 브랜드=pr)
+    const byBrand: Record<string, { videos: number; posts: number }> = {};
+    for (const c of mine) {
+      if (c.kind !== "pr" || c.status === "canceled" || contentMonth(c) !== month) continue;
+      const bn = c.brandName || c.brandId || "—";
+      const e = (byBrand[bn] ??= { videos: 0, posts: 0 });
+      e.videos++; if (c.status === "uploaded") e.posts++;
+    }
+    const brandRows = Object.entries(byBrand).sort((a, b) => a[0].localeCompare(b[0]));
     return (<>
       {remBanner}
       <div className="grid-kpi">
@@ -2596,6 +2614,15 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
           </>}
         </div>
       </div>
+      <div className="sec-h"><h2>{T("브랜드별 제작·투고 현황")}</h2><span className="hint">{month.slice(0, 4)}. {+month.slice(5)}{T("월")}</span></div>
+      {!brandRows.length ? <div className="placeholder">{T("이 달 배정된 전략 브랜드 콘텐츠가 없어요.")}</div> :
+        <div className="tablewrap"><table><thead><tr><th>{T("브랜드")}</th><th>{T("영상 건수")}</th><th>{T("월 투고")}</th></tr></thead><tbody>
+          {brandRows.map(([bn, e]) => (
+            <tr key={bn}><td><span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: BRAND_COLOR[bn] ?? "var(--surface-3)" }} />{bn}</span></td>
+              <td className="num">{e.videos}</td>
+              <td className="num" style={{ fontWeight: 700, color: e.posts ? "var(--accent-ink)" : "var(--muted)" }}>{e.posts}</td></tr>
+          ))}
+        </tbody></table></div>}
       <div className="sec-h"><h2>{T("내 콘텐츠 아카이브")}</h2><span className="hint">{T("최근 게시물 · 클릭하면 재생")}</span></div>
       <ContentArchive contents={mine} showCreator={false} showBrand={false} compact limit={10} onMore={() => onNav?.("c-content")} />
     </>);
@@ -2834,6 +2861,11 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
   function setStatus(c: Content, st: string) { c.status = st as Content["status"]; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
   function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); }
   function setSample(c: Content, v: boolean) { c.sampleReceived = v; setTick((t) => t + 1); patchContentFields(c.id, { sample_received: v }).catch(() => { }); }
+  function setSampleShip(c: Content, field: "courier" | "tracking", val: string) {
+    if (field === "courier") c.sampleCourier = val; else c.sampleTracking = val;
+    setTick((t) => t + 1);
+    patchContentFields(c.id, field === "courier" ? { sample_courier: val || null } : { sample_tracking: val || null }).catch(() => { });
+  }
   async function saveRow(c: Content, brand: string) {
     try {
       await updateContentSchedule(c.id, c.sched as Record<string, string>, c.status);
@@ -2903,6 +2935,10 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
                         <input type="checkbox" checked={!!c.sampleReceived} onChange={(e) => setSample(c, e.target.checked)} />
                         📦 {T("샘플 수령")}{c.sampleReceived ? " ✓" : ""}
                       </label>
+                      {c.sampleReceived && <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                        <input style={{ ...stIn, flex: "1 1 100px", minWidth: 90 }} placeholder={T("택배사")} value={c.sampleCourier ?? ""} onChange={(e) => setSampleShip(c, "courier", e.target.value)} />
+                        <input style={{ ...stIn, flex: "1 1 130px", minWidth: 110 }} placeholder={T("송장번호")} value={c.sampleTracking ?? ""} onChange={(e) => setSampleShip(c, "tracking", e.target.value)} />
+                      </div>}
                     </td>
                     {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
                     <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
