@@ -75,21 +75,24 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
 // 슬랙 알림: [제목] 메인 + 스레드에 세부 내용
 export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsReview?: boolean; title?: string }): Promise<boolean> {
   const title = str(p.subject, 200).trim() || res.title || str(p.summary, 120).trim() || "PR 안건";
-  const head = `${res.needsReview ? "🔎 [확인필요] " : ""}[${title}]`;
+  const head = `${res.needsReview ? "🔎 [확인필요 / 要確認] " : ""}[${title}]`;
   const ts = await slackPost(PR_CHANNEL, head);
   if (!ts) return false;
   const L: string[] = [];
   const client = str(p.client, 120).trim() || str(p.fromName, 120).trim();
-  if (client) L.push(`• 의뢰사: ${client}`);
-  if (str(p.brand, 120).trim()) L.push(`• 브랜드: ${str(p.brand, 120).trim()}`);
-  if (str(p.creator, 120).trim()) L.push(`• 크리에이터: ${str(p.creator, 120).trim()}`);
-  if (Number.isFinite(+p.fee) && +p.fee > 0) L.push(`• 제안 금액: ${(+p.fee).toLocaleString()} ${str(p.currency, 8) || "JPY"}`);
-  if (str(p.dueDate, 10).trim()) L.push(`• 납기/희망일: ${str(p.dueDate, 10).trim()}`);
-  if (str(p.deliverables, 300).trim()) L.push(`• 요청 산출물: ${str(p.deliverables, 300).trim()}`);
-  if (p.secondaryUsage === true) L.push("• 2차 활용: 요청됨");
-  if (typeof p.confidence === "number") L.push(`• 판단 신뢰도: ${Math.round(p.confidence * 100)}%`);
+  if (client) L.push(`• 의뢰사 / 依頼社: ${client}`);
+  if (str(p.brand, 120).trim()) L.push(`• 브랜드 / ブランド: ${str(p.brand, 120).trim()}`);
+  if (str(p.creator, 120).trim()) L.push(`• 크리에이터 / クリエイター: ${str(p.creator, 120).trim()}`);
+  if (Number.isFinite(+p.fee) && +p.fee > 0) L.push(`• 제안 금액 / 提案金額: ${(+p.fee).toLocaleString()} ${str(p.currency, 8) || "JPY"}`);
+  if (str(p.dueDate, 10).trim()) L.push(`• 납기·희망일 / 納期・希望日: ${str(p.dueDate, 10).trim()}`);
+  if (str(p.deliverables, 300).trim()) L.push(`• 요청 산출물 / 依頼成果物: ${str(p.deliverables, 300).trim()}`);
+  if (p.secondaryUsage === true) L.push("• 2차 활용 / 二次利用: 요청됨 あり");
+  if (typeof p.confidence === "number") L.push(`• 판단 신뢰도 / 判定信頼度: ${Math.round(p.confidence * 100)}%`);
   const summary = str(p.summary).trim();
-  const detail = (summary ? `📝 ${summary}\n\n` : "") + L.join("\n") + `\n\n🔗 OS에서 확인: ${OS_URL}${str(p.from, 250) ? `\n✉️ 출처: ${str(p.from, 250)}` : ""}`;
+  const summaryJa = str(p.summaryJa).trim();
+  const sumBlock = [summary && `📝 ${summary}`, summaryJa && `📝 ${summaryJa}`].filter(Boolean).join("\n");
+  const detail = (sumBlock ? sumBlock + "\n\n" : "") + L.join("\n")
+    + `\n\n🔗 OS에서 확인 / OSで確認: ${OS_URL}${str(p.from, 250) ? `\n✉️ 출처 / 送信元: ${str(p.from, 250)}` : ""}`;
   await slackPost(PR_CHANNEL, detail, ts);
   return true;
 }
@@ -99,7 +102,7 @@ export async function parseEmailWithClaude(m: { subject: string; from: string; b
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return null;
   const today = new Date().toISOString().slice(0, 10);
-  const prompt = `아래는 회사 공용 메일함으로 들어온 이메일입니다. 크리에이터 PR/협업 의뢰인지 판단하고 핵심 정보를 추출해 JSON만 출력하세요.\n오늘 날짜: ${today}. 메일에 연도가 없는 날짜는 오늘 기준 가장 가까운 미래로 해석하세요(과거 연도로 넣지 마세요).\n\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${(m.body || "").slice(0, 6000)}\n\n출력 JSON 스키마(이 외 텍스트 금지):\n{"isDeal":boolean,"confidence":number,"client":string|null,"brand":string|null,"creator":string|null,"fee":number|null,"currency":string|null,"dueDate":"YYYY-MM-DD"|null,"deliverables":string|null,"secondaryUsage":boolean,"summary":string}`;
+  const prompt = `아래는 회사 공용 메일함으로 들어온 이메일입니다. 크리에이터 PR/협업 의뢰인지 판단하고 핵심 정보를 추출해 JSON만 출력하세요.\n오늘 날짜: ${today}. 메일에 연도가 없는 날짜는 오늘 기준 가장 가까운 미래로 해석하세요(과거 연도로 넣지 마세요).\n\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${(m.body || "").slice(0, 6000)}\n\n출력 JSON 스키마(이 외 텍스트 금지). summary는 한국어, summaryJa는 같은 내용의 일본어로 각각 1~2문장:\n{"isDeal":boolean,"confidence":number,"client":string|null,"brand":string|null,"creator":string|null,"fee":number|null,"currency":string|null,"dueDate":"YYYY-MM-DD"|null,"deliverables":string|null,"secondaryUsage":boolean,"summary":string,"summaryJa":string}`;
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
