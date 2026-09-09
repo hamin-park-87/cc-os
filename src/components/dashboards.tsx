@@ -1758,7 +1758,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
   const [invoice, setInvoice] = useState<Deal | null>(null);
   const [fStep, setFStep] = useState(""); const [fManager, setFManager] = useState(""); const [fCreator, setFCreator] = useState(""); const [q, setQ] = useState("");
-  const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"recv_asc" | "recv_desc" | "due_desc" | "due_asc" | "step">("recv_asc");
+  const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"recv_asc" | "recv_desc" | "due_desc" | "due_asc" | "step">("recv_desc");
   const [view, setView] = useState<"list" | "card">("list");
   const [sel, setSel] = useState<Set<string>>(new Set());
   const STEPS = DEAL_STEPS;
@@ -1834,8 +1834,8 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
           <select value={fManager} onChange={(e) => setFManager(e.target.value)}><option value="">{T("전체 매니저")}</option>{managers.map((m) => <option key={m} value={m}>{m}</option>)}</select>
           <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{dealCreators.map((c) => <option key={c} value={c}>{c}</option>)}</select>
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
-            <option value="recv_asc">{T("인입일 오래된순")}</option>
             <option value="recv_desc">{T("인입일 최신순")}</option>
+            <option value="recv_asc">{T("인입일 오래된순")}</option>
             <option value="due_desc">{T("납기 최신순")}</option>
             <option value="due_asc">{T("납기 오래된순")}</option>
             <option value="step">{T("진행 단계순")}</option>
