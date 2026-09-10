@@ -1762,7 +1762,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   const [view, setView] = useState<"list" | "card">("list");
   const [sel, setSel] = useState<Set<string>>(new Set());
   const STEPS = DEAL_STEPS;
-  const recvDate = (d: Deal) => d.receivedDate || d.dueDate || d.uploadDate || "";
+  const recvDate = (d: Deal) => d.receivedDate || d.createdAt || "";
   const dueDateOf = (d: Deal) => d.dueDate || d.uploadDate || "";
   const dealDate = (d: Deal) => d.uploadDate || d.dueDate || "";
   const dealMonth = (d: Deal) => dealDate(d).slice(0, 7);
@@ -1781,9 +1781,9 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
     if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; // 날짜 없으면 뒤로
     return sortBy.endsWith("asc") ? da.localeCompare(db) : db.localeCompare(da);
   });
-  // 안건 번호 — 인입일(없으면 납기) 오름차순 고정 배정, 오래된 순 = PR-001
+  // 안건 번호 — 인입일(없으면 등록시각) 오름차순 고정 배정, 오래된 순 = PR-001
   const chrono = [...deals].sort((a, b) => {
-    const da = a.receivedDate || a.dueDate || "", db2 = b.receivedDate || b.dueDate || "";
+    const da = a.receivedDate || a.createdAt || "", db2 = b.receivedDate || b.createdAt || "";
     if (!da && !db2) return 0; if (!da) return 1; if (!db2) return -1;
     return da.localeCompare(db2);
   });

@@ -70,7 +70,7 @@ export const supabaseProvider: DataProvider = {
       shareCompany: r.share_company, shareCreator: r.share_creator, dueDate: r.due_date, uploadDate: r.upload_date,
       step: r.step, contentId: r.content_id, sched: r.sched ?? {},
       receivedDate: r.received_date, paymentDue: r.payment_due, paidDate: r.paid_date, invoiceFile: r.invoice_file,
-      registeredBy: r.registered_by,
+      registeredBy: r.registered_by, createdAt: r.created_at,
     }));
   },
   async contracts() {
