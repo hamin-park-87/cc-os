@@ -294,22 +294,36 @@ import type { OrientSheet } from "@/lib/types";
 export async function getOrientSheets(): Promise<OrientSheet[]> {
   if (!isDb()) return [];
   const { data, error } = await getSupabase().from("orient_sheets")
-    .select("id, year_month, title, description, file_url, file_name, created_at, brands(name)")
+    .select("id, year_month, title, description, file_url, file_name, created_at, ai_summary, ai_summary_ja, ai_data, ai_status, ai_at, brands(name)")
     .order("created_at", { ascending: false });
   if (error) { console.warn("[orient]", error.message); return []; }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data ?? []).map((r: any): OrientSheet => ({
     id: r.id, brandName: r.brands?.name ?? "—", yearMonth: r.year_month ?? "", title: r.title,
     description: r.description, fileUrl: r.file_url, fileName: r.file_name, createdAt: r.created_at,
+    aiSummary: r.ai_summary, aiSummaryJa: r.ai_summary_ja, aiData: r.ai_data, aiStatus: r.ai_status, aiAt: r.ai_at,
   }));
 }
-export async function addOrientSheet(brandName: string, yearMonth: string, title: string, description: string, fileUrl: string, fileName: string, brands: { id: string; name: string }[]): Promise<void> {
-  if (!isDb()) return;
+// 반환: 생성된 오리엔시트 id (AI 정리 트리거용)
+export async function addOrientSheet(brandName: string, yearMonth: string, title: string, description: string, fileUrl: string, fileName: string, brands: { id: string; name: string }[]): Promise<string | null> {
+  if (!isDb()) return null;
   const brand_id = brands.find((b) => b.name === brandName)?.id ?? null;
-  const { error } = await getSupabase().from("orient_sheets").insert({
+  const { data, error } = await getSupabase().from("orient_sheets").insert({
     brand_id, year_month: yearMonth, title, description: description || null, file_url: fileUrl || null, file_name: fileName || null,
-  });
+  }).select("id").single();
   if (error) throw error;
+  return data?.id ?? null;
+}
+// AI 정리 실행(관리자 세션 토큰으로 호출). 성공 시 true.
+export async function summarizeOrient(id: string): Promise<boolean> {
+  if (!isDb()) return false;
+  const { data: { session } } = await getSupabase().auth.getSession();
+  if (!session) return false;
+  const res = await fetch("/api/orient/summarize", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ id }),
+  });
+  return res.ok;
 }
 export async function deleteOrientSheet(id: string): Promise<void> {
   if (!isDb()) return;

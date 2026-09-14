@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, getFeedback, saveFeedback } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, saveFeedback } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -2206,6 +2206,48 @@ function ClientEditModal({ client, onClose, onSaved }: { client: Client | null; 
   );
 }
 
+/* 오리엔시트 AI 정리 결과 카드 — 파일을 AI가 읽어 구조화(KO/JA) */
+function OrientAiBlock({ r, busy }: { r: OrientSheet; busy: boolean }) {
+  const ja = getLang() === "ja";
+  if (busy || r.aiStatus === "processing")
+    return <div className="note" style={{ marginTop: 10, background: "var(--accent-weak)", borderRadius: 9, padding: "10px 12px", fontSize: 12.5 }}>✨ {T("AI가 오리엔시트를 읽고 정리하는 중이에요…")}</div>;
+  if (r.aiStatus === "failed") return <div style={{ marginTop: 8, fontSize: 12, color: "var(--faint)" }}>⚠️ {T("AI 정리에 실패했어요. ‘AI 정리’로 다시 시도해주세요.")}</div>;
+  if (r.aiStatus === "unsupported") return <div style={{ marginTop: 8, fontSize: 12, color: "var(--faint)" }}>{T("이 파일 형식은 AI 자동 정리를 지원하지 않아요. 원본을 확인해주세요.")}</div>;
+  const a = r.aiData;
+  const summary = ja ? (r.aiSummaryJa || r.aiSummary) : (r.aiSummary || r.aiSummaryJa);
+  if (r.aiStatus !== "done" || (!summary && !a)) return null;
+  const pick = (ko?: string[], j?: string[]) => (ja ? (j?.length ? j : ko) : (ko?.length ? ko : j)) ?? [];
+  const kp = pick(a?.keyPoints, a?.keyPointsJa);
+  const mi = pick(a?.mustInclude, a?.mustIncludeJa);
+  const dn = pick(a?.dont, a?.dontJa);
+  const tone = ja ? (a?.toneJa || a?.tone) : (a?.tone || a?.toneJa);
+  const Sec = ({ icon, label, items }: { icon: string; label: string; items: string[] }) => items.length ? (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", marginBottom: 3 }}>{icon} {label}</div>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, lineHeight: 1.6, color: "var(--ink)" }}>{items.map((x, i) => <li key={i}>{x}</li>)}</ul>
+    </div>
+  ) : null;
+  return (
+    <div style={{ marginTop: 10, background: "var(--surface-2)", border: "1px solid var(--border)", borderRadius: 11, padding: "12px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <span className="chip p-acc" style={{ fontSize: 10.5 }}>✨ {T("AI 정리")}</span>
+        {a?.deadline && <span style={{ fontSize: 11.5, color: "var(--faint)" }}>🗓 {a.deadline}</span>}
+      </div>
+      {summary && <div style={{ fontSize: 13, lineHeight: 1.65, color: "var(--ink)", marginBottom: 2 }}>{summary}</div>}
+      <Sec icon="🎯" label={T("핵심 요청")} items={kp} />
+      <Sec icon="✅" label={T("필수 포함요소")} items={mi} />
+      {tone && <div style={{ marginTop: 8 }}><span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)" }}>🎨 {T("톤&매너")}</span> <span style={{ fontSize: 12.5 }}>{tone}</span></div>}
+      {(a?.hashtags?.length || a?.mentions?.length) ? (
+        <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {(a?.mentions ?? []).map((m, i) => <span key={"m" + i} className="chip" style={{ fontSize: 11 }}>{m.startsWith("@") ? m : "@" + m}</span>)}
+          {(a?.hashtags ?? []).map((h, i) => <span key={"h" + i} className="chip" style={{ fontSize: 11 }}>{h.startsWith("#") ? h : "#" + h}</span>)}
+        </div>
+      ) : null}
+      <Sec icon="🚫" label={T("금지·주의")} items={dn} />
+    </div>
+  );
+}
+
 /* 오리엔시트(브리프) — 브랜드 업로드 · 관리자/크리에이터 열람 (공용) */
 function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "brand" | "creator"; scope?: string; month: string }) {
   const [rows, setRows] = useState<OrientSheet[] | null>(null);
@@ -2214,9 +2256,17 @@ function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "b
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ brand: scope ?? d.brands[0]?.name ?? "", ym: month, title: "", desc: "" });
   const [file, setFile] = useState<File | null>(null);
+  const [aiBusy, setAiBusy] = useState<string>(""); // AI 정리 중인 시트 id
   const canUpload = mode === "admin" || mode === "brand";
   const load = useCallback(() => { getOrientSheets().then(setRows).catch(() => setRows([])); }, []);
   useEffect(() => { load(); }, [load]);
+
+  async function runAi(id: string) {
+    setAiBusy(id);
+    try { const ok = await summarizeOrient(id); if (!ok) alert(T("AI 정리에 실패했어요. 잠시 후 다시 시도해주세요.")); }
+    catch (e) { alert(T("AI 정리 실패: ") + (e as Error).message); }
+    finally { setAiBusy(""); load(); }
+  }
 
   const list = (rows ?? []).filter((r) =>
     (mode !== "brand" || r.brandName === scope)
@@ -2229,8 +2279,11 @@ function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "b
     try {
       let url = "", fname = "";
       if (file) { url = await uploadAttachment(file, "orient"); fname = file.name; }
-      await addOrientSheet(mode === "brand" ? (scope ?? form.brand) : form.brand, form.ym, form.title.trim(), form.desc.trim(), url, fname, d.brands);
+      const hadFile = !!file;
+      const newId = await addOrientSheet(mode === "brand" ? (scope ?? form.brand) : form.brand, form.ym, form.title.trim(), form.desc.trim(), url, fname, d.brands);
       setForm((f) => ({ ...f, title: "", desc: "" })); setFile(null); load();
+      // 파일이 있으면 업로드 직후 AI 자동 정리
+      if (newId && hadFile) runAi(newId);
     } catch (e) { alert(T("업로드 실패: ") + (e as Error).message); }
     setBusy(false);
   }
@@ -2268,10 +2321,12 @@ function OrientSheets({ d, mode, scope, month }: { d: Bundle; mode: "admin" | "b
               <span style={{ color: "var(--faint)", fontSize: 12 }}>{r.yearMonth}</span>
               <b style={{ fontSize: 14 }}>{r.title}</b>
               <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                {mode === "admin" && r.fileUrl && <button className="btn sm" disabled={aiBusy === r.id} onClick={() => runAi(r.id)}>{aiBusy === r.id ? T("AI 정리 중…") : (r.aiStatus === "done" ? T("AI 다시 정리") : "✨ " + T("AI 정리"))}</button>}
                 {r.fileUrl && <a className="btn sm" href={r.fileUrl} target="_blank" rel="noreferrer">⬇ {r.fileName || T("파일")}</a>}
                 {(mode === "admin" || mode === "brand") && <button className="btn sm" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(r.id)}>{T("삭제")}</button>}
               </span>
             </div>
+            <OrientAiBlock r={r} busy={aiBusy === r.id} />
             {r.description && <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6, whiteSpace: "pre-wrap", color: "var(--muted)", background: "var(--surface-2)", borderRadius: 9, padding: "10px 12px" }}>{r.description}</div>}
           </div>
         ))}

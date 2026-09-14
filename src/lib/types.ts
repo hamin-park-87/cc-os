@@ -208,6 +208,23 @@ export interface OrientSheet {
   fileUrl?: string | null;
   fileName?: string | null;
   createdAt?: string | null;
+  // AI 정리 결과
+  aiSummary?: string | null;      // 한국어 요약(마크다운)
+  aiSummaryJa?: string | null;    // 일본어 요약(마크다운)
+  aiData?: OrientAiData | null;   // 구조화 필드
+  aiStatus?: string | null;       // none|processing|done|failed|unsupported
+  aiAt?: string | null;
+}
+
+// 오리엔시트 AI 구조화 결과
+export interface OrientAiData {
+  brand?: string; product?: string;
+  keyPoints?: string[]; keyPointsJa?: string[];       // 핵심 요청
+  mustInclude?: string[]; mustIncludeJa?: string[];   // 필수 포함요소
+  tone?: string; toneJa?: string;                     // 톤&매너
+  hashtags?: string[]; mentions?: string[];           // 해시태그·멘션
+  deadline?: string;                                  // 납기/일정
+  dont?: string[]; dontJa?: string[];                 // 금지사항
 }
 
 export interface Account {
