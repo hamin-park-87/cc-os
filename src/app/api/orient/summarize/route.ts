@@ -165,13 +165,17 @@ async function callClaude(key: string, content: any): Promise<Record<string, any
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
-      model: MODEL, max_tokens: 2048,
+      model: MODEL, max_tokens: 4096,
       messages: [{ role: "user", content }],
     }),
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j?.error?.message || "Claude 요청 실패");
-  const text = j?.content?.[0]?.text ?? "";
+  // 응답이 max_tokens로 잘리면 파싱 실패 → 명확한 에러
+  if (j?.stop_reason === "max_tokens") throw new Error("AI 응답이 잘렸어요(max_tokens). 다시 시도해주세요.");
+  const text = (j?.content?.[0]?.text ?? "").trim().replace(/^```json\s*|\s*```$/g, "");
   const m = text.match(/\{[\s\S]*\}/);
-  return m ? JSON.parse(m[0]) : null;
+  if (!m) return null;
+  try { return JSON.parse(m[0]); }
+  catch { return null; }
 }
