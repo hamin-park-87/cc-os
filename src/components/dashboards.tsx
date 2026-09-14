@@ -1446,9 +1446,17 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
   const load = useCallback(async () => {
     if (!supabaseConfigured()) { setRows(ACCOUNTS.map((a, i) => ({ id: String(i), email: a.email, role: a.role, scope: a.scope, status: a.status, lastLogin: a.lastLogin }))); return; }
     try {
-      const { data: { session } } = await getSupabase().auth.getSession();
+      const sb = getSupabase();
+      // 세션이 아직 복원 안 됐으면 갱신 시도(리다이렉트 직후·새로고침 레이스 대비)
+      let { data: { session } } = await sb.auth.getSession();
+      if (!session) { const r = await sb.auth.refreshSession(); session = r.data.session; }
       if (session) {
-        const res = await fetch("/api/account/list", { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const call = (tok: string) => fetch("/api/account/list", { headers: { Authorization: `Bearer ${tok}` } });
+        let res = await call(session.access_token);
+        if (res.status === 401) { // 토큰 만료 → 갱신 후 1회 재시도
+          const r = await sb.auth.refreshSession();
+          if (r.data.session) res = await call(r.data.session.access_token);
+        }
         if (res.ok) { const j = await res.json(); setRows(j.rows ?? []); return; }
       }
     } catch { /* fallback */ }
