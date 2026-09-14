@@ -9,4 +9,6 @@ export interface DataProvider {
   contracts(): Promise<Contract[]>;
   assignments(): Promise<Assignment[]>;
   accounts(): Promise<Account[]>;
+  // 초기 로딩 최적화용 통합 페치(선택). 미구현 시 개별 메서드로 폴백.
+  bundle?(): Promise<{ brands: Brand[]; creators: Creator[]; contents: Content[]; deals: Deal[]; contracts: Contract[]; assignments: Assignment[] }>;
 }

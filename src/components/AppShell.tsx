@@ -120,9 +120,14 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
     setReloading(true);
     try {
       const api = getData();
-      const [brands, creators, contents, deals, contracts, assignments] = await Promise.all(
-        [api.brands(), api.creators(), api.contents(), api.deals(), api.contracts(), api.assignments()]);
-      setD({ brands, creators, contents, deals, contracts, assignments });
+      // 통합 페치(bundle)로 중복 조회 제거 + 요청 수 축소. 미지원 provider는 개별 메서드로 폴백.
+      if (api.bundle) {
+        setD(await api.bundle());
+      } else {
+        const [brands, creators, contents, deals, contracts, assignments] = await Promise.all(
+          [api.brands(), api.creators(), api.contents(), api.deals(), api.contracts(), api.assignments()]);
+        setD({ brands, creators, contents, deals, contracts, assignments });
+      }
       setReloadN((n) => n + 1);
     } finally { setReloading(false); }
   }, []);
