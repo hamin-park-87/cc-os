@@ -8,10 +8,20 @@ import { getSupabase } from "@/lib/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
+// Supabase는 요청당 기본 1000행만 반환 → 전체를 페이지네이션으로 수집(누락 방지).
+// id 정렬로 페이지 간 안정적 순서 보장.
 async function q(table: string, cols = "*"): Promise<Row[]> {
-  const { data, error } = await getSupabase().from(table).select(cols);
-  if (error) { console.warn(`[supabase] ${table}:`, error.message); return []; }
-  return (data ?? []) as Row[];
+  const sb = getSupabase();
+  const PAGE = 1000;
+  const out: Row[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await sb.from(table).select(cols).order("id", { ascending: true }).range(from, from + PAGE - 1);
+    if (error) { console.warn(`[supabase] ${table}:`, error.message); break; }
+    const batch = (data ?? []) as Row[];
+    out.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return out;
 }
 
 export const supabaseProvider: DataProvider = {
@@ -41,7 +51,10 @@ export const supabaseProvider: DataProvider = {
     });
   },
   async contents() {
-    const [rows, brands, creators, metrics] = await Promise.all([q("contents"), q("brands"), q("creators"), q("content_metric_snapshots")]);
+    // caption 등 UI 미사용 컬럼 제외로 페이로드 축소, 스냅샷은 최신값 계산에 필요한 컬럼만
+    const CONTENT_COLS = "id,brand_id,creator_id,deal_id,client,ig_media_id,permalink,thumbnail_url,product,kind,planned_date,published_at,status,match_source,sched,archived_video_url,video_status,year_month,sample_received,sample_courier,sample_tracking";
+    const SNAP_COLS = "content_id,captured_at,views,reach,likes,comments,saved,shares,avg_watch_time";
+    const [rows, brands, creators, metrics] = await Promise.all([q("contents", CONTENT_COLS), q("brands"), q("creators"), q("content_metric_snapshots", SNAP_COLS)]);
     const bName = new Map(brands.map((b) => [b.id, b.name]));
     const cName = new Map(creators.map((c) => [c.id, c.name]));
     // 콘텐츠별 최신 스냅샷
@@ -52,7 +65,7 @@ export const supabaseProvider: DataProvider = {
       return {
         id: r.id, brandId: bName.get(r.brand_id) ?? null, brandName: r.client ?? bName.get(r.brand_id) ?? "", creatorId: r.creator_id,
         creatorName: cName.get(r.creator_id) ?? "", dealId: r.deal_id, client: r.client, igMediaId: r.ig_media_id,
-        permalink: r.permalink, thumbnailUrl: r.thumbnail_url, caption: r.caption, product: r.product, kind: r.kind,
+        permalink: r.permalink, thumbnailUrl: r.thumbnail_url, caption: r.caption ?? "", product: r.product, kind: r.kind,
         yearMonth: r.year_month ?? null, sampleReceived: r.sample_received ?? false, sampleCourier: r.sample_courier ?? null, sampleTracking: r.sample_tracking ?? null,
         plannedDate: r.planned_date, publishedAt: r.published_at ? String(r.published_at).slice(0, 10) : null,
         status: r.status, matchSource: r.match_source, sched: r.sched ?? {}, videoStatus: r.video_status, archivedVideoUrl: r.archived_video_url,
