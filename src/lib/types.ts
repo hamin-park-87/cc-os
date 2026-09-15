@@ -133,6 +133,7 @@ export interface Deal {
   type: DealType;
   brief?: string;
   fee: number;
+  tax?: number | null;          // 소비세(외부 PR 정산용)
   secondaryFee?: number | null; // 2차 활용 비용
   shareCompany: number;
   shareCreator: number;

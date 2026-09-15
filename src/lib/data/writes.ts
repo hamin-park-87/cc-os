@@ -141,7 +141,7 @@ export async function setProductAssignment(productId: string, creatorName: strin
 function dealRow(d: Deal, creatorId: string | null) {
   return {
     code: d.code ?? null, title: d.title, client: d.client, creator_id: creatorId, manager: d.manager ?? null,
-    source: d.source, type: d.type, brief: d.brief ?? null, fee: d.fee, secondary_fee: d.secondaryFee ?? null,
+    source: d.source, type: d.type, brief: d.brief ?? null, fee: d.fee, tax: d.tax ?? null, secondary_fee: d.secondaryFee ?? null,
     share_company: d.shareCompany, share_creator: d.shareCreator,
     due_date: d.dueDate || null, upload_date: d.uploadDate || null, step: d.step, sched: d.sched ?? {},
     received_date: d.receivedDate || null, payment_due: d.paymentDue || null, paid_date: d.paidDate || null, invoice_file: d.invoiceFile ?? null,
@@ -332,16 +332,27 @@ export async function deleteOrientSheet(id: string): Promise<void> {
 }
 
 // CC 피드백 (creator_feedback) — 크리에이터×월별
+export interface FeedbackAttachment { url: string; name: string }
 export async function getFeedback(creatorName: string, yearMonth: string, creators: Creator[]): Promise<string> {
   if (!isDb()) return "";
   const cid = creators.find((c) => c.name === creatorName)?.id; if (!cid) return "";
   const { data } = await getSupabase().from("creator_feedback").select("body").eq("creator_id", cid).eq("year_month", yearMonth).maybeSingle();
   return data?.body ?? "";
 }
-export async function saveFeedback(creatorName: string, yearMonth: string, body: string, creators: Creator[]): Promise<void> {
+// 본문 + 첨부(인사이트 캡쳐 등) 함께 조회 — REQ-010
+export async function getFeedbackFull(creatorName: string, yearMonth: string, creators: Creator[]): Promise<{ body: string; attachments: FeedbackAttachment[] }> {
+  if (!isDb()) return { body: "", attachments: [] };
+  const cid = creators.find((c) => c.name === creatorName)?.id; if (!cid) return { body: "", attachments: [] };
+  const { data } = await getSupabase().from("creator_feedback").select("body, attachments").eq("creator_id", cid).eq("year_month", yearMonth).maybeSingle();
+  return { body: data?.body ?? "", attachments: Array.isArray(data?.attachments) ? data!.attachments : [] };
+}
+export async function saveFeedback(creatorName: string, yearMonth: string, body: string, creators: Creator[], attachments?: FeedbackAttachment[]): Promise<void> {
   if (!isDb()) return;
   const cid = creators.find((c) => c.name === creatorName)?.id; if (!cid) throw new Error("creator not found");
-  const { error } = await getSupabase().from("creator_feedback").upsert({ creator_id: cid, year_month: yearMonth, body, updated_at: new Date().toISOString() }, { onConflict: "creator_id,year_month" });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row: any = { creator_id: cid, year_month: yearMonth, body, updated_at: new Date().toISOString() };
+  if (attachments) row.attachments = attachments;
+  const { error } = await getSupabase().from("creator_feedback").upsert(row, { onConflict: "creator_id,year_month" });
   if (error) throw error;
 }
 

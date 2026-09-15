@@ -21,14 +21,31 @@ export async function GET(req: NextRequest) {
     if (!creator) return NextResponse.json({ rows: [] });
     creatorId = creator.id;
   }
-  let cq = admin.from("contents")
-    .select("id, creator_id, product, permalink, thumbnail_url, caption, published_at, status, kind, client, brand_id")
-    .eq("status", "uploaded").limit(600);
-  if (creatorId) cq = cq.eq("creator_id", creatorId);
-  const { data: contents } = await cq;
-  const ids = (contents ?? []).map((c) => c.id);
-  const [{ data: metrics }, { data: brands }, { data: creators }] = await Promise.all([
-    ids.length ? admin.from("content_metric_snapshots").select("content_id, views, reach, likes, comments, saved, shares, captured_at").in("content_id", ids) : Promise.resolve({ data: [] }),
+  // 1000행 하드캡 방지: 페이지네이션으로 전체 수집
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pageAll = async (make: (from: number, to: number) => any): Promise<any[]> => {
+    const PAGE = 1000; const out: any[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await make(from, from + PAGE - 1);
+      if (error) break;
+      const batch = data ?? []; out.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    return out;
+  };
+  const contents = await pageAll((from, to) => {
+    let cq = admin.from("contents")
+      .select("id, creator_id, product, permalink, thumbnail_url, caption, published_at, status, kind, client, brand_id")
+      .eq("status", "uploaded");
+    if (creatorId) cq = cq.eq("creator_id", creatorId);
+    return cq.order("id", { ascending: true }).range(from, to);
+  });
+  const idSet = new Set((contents ?? []).map((c) => c.id));
+  // 스냅샷은 전체를 페이지네이션으로 받아 ids로 필터(대량 in() URL 회피)
+  const allMetrics = await pageAll((from, to) =>
+    admin.from("content_metric_snapshots").select("content_id, views, reach, likes, comments, saved, shares, captured_at").order("id", { ascending: true }).range(from, to));
+  const metrics = allMetrics.filter((m) => idSet.has(m.content_id));
+  const [{ data: brands }, { data: creators }] = await Promise.all([
     admin.from("brands").select("id, name"),
     admin.from("creators").select("id, name"),
   ]);

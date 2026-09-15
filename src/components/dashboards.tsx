@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, saveFeedback } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -1923,7 +1923,8 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
 
 function InvoiceModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
   const sec = deal.secondaryFee ?? 0;
-  const grand = deal.fee + sec;
+  const tax = deal.tax ?? 0;
+  const grand = deal.fee + sec + tax;
   const compRev = Math.round(deal.fee * deal.shareCompany / 100);
   const crRev = Math.round(deal.fee * deal.shareCreator / 100);
   const no = `INV-${deal.code ?? deal.id.slice(0, 6)}`;
@@ -1947,10 +1948,12 @@ function InvoiceModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
           <tbody>
             <tr><td>{deal.title} {T("(PR 콘텐츠 제작)")}</td><td className="num" style={{ textAlign: "right" }}>{yen(deal.fee)}</td></tr>
             {sec > 0 && <tr><td>{deal.title} {T("(2차 활용)")}</td><td className="num" style={{ textAlign: "right" }}>{yen(sec)}</td></tr>}
+            {tax > 0 && <tr><td>{T("소비세")}</td><td className="num" style={{ textAlign: "right" }}>{yen(tax)}</td></tr>}
           </tbody></table>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 14, fontSize: 13 }}>
-          {sec > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("PR 비용")}</span><span className="num">{yen(deal.fee)}</span></div>}
+          {(sec > 0 || tax > 0) && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("PR 비용")}</span><span className="num">{yen(deal.fee)}</span></div>}
           {sec > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("2차 활용 비용")}</span><span className="num">{yen(sec)}</span></div>}
+          {tax > 0 && <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("소비세")}</span><span className="num">{yen(tax)}</span></div>}
           <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--faint)" }}>{T("총 청구액")}</span><b className="num">{yen(grand)}</b></div>
           <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)" }}><span>{T("쉐어 (회사")} {deal.shareCompany}% / {T("크리에이터")} {deal.shareCreator}%)</span><span className="num">{T("회사")} {yen(compRev)} · {T("크리")} {yen(crRev)}</span></div>
         </div>
@@ -2007,6 +2010,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
         <Field label={T("담당 매니저")}><select style={inp} value={f.manager} onChange={(e) => up("manager", e.target.value)}><option value="mai">mai</option><option value="yuta">yuta</option></select></Field>
         <Field label={T("인입 경로")}><select style={inp} value={f.source} onChange={(e) => up("source", e.target.value)}><option value="creator_email">{T("크리에이터 이메일")}</option><option value="creator_dm">{T("인스타 DM")}</option><option value="company_email">{T("회사 이메일")}</option></select></Field>
         <Field label={T("PR 비용 (¥)")}><input style={inp} type="number" value={f.fee} onChange={(e) => up("fee", +e.target.value)} /></Field>
+        <Field label={T("소비세 (¥)")}><input style={inp} type="number" placeholder={T("예: 부가세 10%")} value={f.tax ?? ""} onChange={(e) => up("tax", e.target.value === "" ? null : +e.target.value)} /></Field>
         <Field label={T("회사 쉐어 (%)")}><input style={inp} type="number" value={f.shareCompany} onChange={(e) => up("shareCompany", +e.target.value)} /></Field>
         <Field label={T("크리에이터 쉐어 (%)")}><input style={inp} type="number" value={f.shareCreator} onChange={(e) => up("shareCreator", +e.target.value)} /></Field>
         <Field label={T("진행 단계")}><select style={inp} value={f.step} onChange={(e) => up("step", +e.target.value)}>{DEAL_STEPS.map((s, i) => <option key={i} value={i}>{i + 1}. {s}</option>)}</select></Field>
@@ -2669,9 +2673,11 @@ function FeedbackView({ d, month }: { d: Bundle; month: string }) {
   const actives = [...d.creators].filter((c) => c.status === "active").sort(cmpCreatorByCode);
   const [name, setName] = useState(actives[0]?.name ?? "");
   const [body, setBody] = useState("");
+  const [atts, setAtts] = useState<FeedbackAttachment[]>([]);
+  const [upBusy, setUpBusy] = useState(false);
   const [orient, setOrient] = useState<OrientSheet[]>([]);
   const [busy, setBusy] = useState(false); const [saved, setSaved] = useState(false);
-  useEffect(() => { getFeedback(name, month, d.creators).then(setBody).catch(() => setBody("")); setSaved(false); }, [name, month, d.creators]);
+  useEffect(() => { getFeedbackFull(name, month, d.creators).then((r) => { setBody(r.body); setAtts(r.attachments); }).catch(() => { setBody(""); setAtts([]); }); setSaved(false); }, [name, month, d.creators]);
   useEffect(() => { getOrientSheets().then(setOrient).catch(() => setOrient([])); }, []);
   const cr = d.creators.find((c) => c.name === name);
   const mine = d.contents.filter((c) => c.creatorName === name);
@@ -2679,7 +2685,14 @@ function FeedbackView({ d, month }: { d: Bundle; month: string }) {
   const avgEng = ups.length ? (ups.reduce((s, c) => s + parseFloat(engRate(c)), 0) / ups.length).toFixed(1) : "—";
   const totViews = ups.reduce((s, c) => s + c.views, 0);
   const orientM = orient.filter((o) => o.yearMonth === month);
-  async function save() { setBusy(true); try { await saveFeedback(name, month, body, d.creators); setSaved(true); setTimeout(() => setSaved(false), 1600); } catch (e) { alert(T("저장 실패: ") + (e as Error).message); } setBusy(false); }
+  async function save(nextAtts?: FeedbackAttachment[]) { setBusy(true); try { await saveFeedback(name, month, body, d.creators, nextAtts ?? atts); setSaved(true); setTimeout(() => setSaved(false), 1600); } catch (e) { alert(T("저장 실패: ") + (e as Error).message); } setBusy(false); }
+  async function addCapture(file: File) {
+    setUpBusy(true);
+    try { const url = await uploadAttachment(file, "feedback"); const next = [...atts, { url, name: file.name }]; setAtts(next); await save(next); }
+    catch (e) { alert(T("업로드 실패: ") + (e as Error).message); }
+    setUpBusy(false);
+  }
+  async function removeCapture(i: number) { const next = atts.filter((_, idx) => idx !== i); setAtts(next); await save(next); }
   const stIn = { fontFamily: "var(--body)", fontSize: 13, padding: "8px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" } as const;
   return (<>
     <div className="filterbar">
@@ -2714,8 +2727,21 @@ function FeedbackView({ d, month }: { d: Bundle; month: string }) {
           </div>}
         <div className="sec-h" style={{ marginTop: 0 }}><h2>✍ {T("피드백")}</h2></div>
         <textarea style={{ ...stIn, width: "100%", minHeight: 160, resize: "vertical" }} placeholder={T("인사이트·참조자료를 보고 크리에이터에게 전달할 피드백을 작성하세요.")} value={body} onChange={(e) => { setBody(e.target.value); setSaved(false); }} />
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", marginBottom: 6 }}>📎 {T("인사이트 캡쳐 · 참고 이미지")}</div>
+          {atts.length > 0 && <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+            {atts.map((a, i) => (
+              <div key={i} style={{ position: "relative", width: 84, height: 84, borderRadius: 9, overflow: "hidden", border: "1px solid var(--border)" }}>
+                <a href={a.url} target="_blank" rel="noreferrer"><img src={a.url} alt={a.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /></a>
+                <button onClick={() => removeCapture(i)} title={T("삭제")} style={{ position: "absolute", top: 2, right: 2, width: 18, height: 18, borderRadius: 9, border: 0, background: "rgba(0,0,0,.6)", color: "#fff", fontSize: 11, cursor: "pointer", lineHeight: 1 }}>✕</button>
+              </div>
+            ))}
+          </div>}
+          <label className="btn sm" style={{ cursor: "pointer" }}>{upBusy ? T("업로드 중…") : "+ " + T("캡쳐 업로드")}
+            <input type="file" accept="image/*" style={{ display: "none" }} disabled={upBusy} onChange={(e) => { const f = e.target.files?.[0]; if (f) addCapture(f); e.currentTarget.value = ""; }} /></label>
+        </div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
-          <button className="btn acc" disabled={busy} onClick={save}>{saved ? "✓ " + T("저장됨") : busy ? T("저장 중…") : T("피드백 저장")}</button>
+          <button className="btn acc" disabled={busy} onClick={() => save()}>{saved ? "✓ " + T("저장됨") : busy ? T("저장 중…") : T("피드백 저장")}</button>
         </div>
       </div>
     </div>
