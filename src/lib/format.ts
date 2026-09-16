@@ -7,6 +7,16 @@ export const yen = (n: number) => "¥" + fmt(Math.round(n));
 export const engRate = (c: Content) =>
   c.views ? (((c.likes + c.comments + c.saves + c.shares) / c.views) * 100).toFixed(1) + "%" : "—";
 export const monthOf = (c: Content) => (c.publishedAt ? c.publishedAt.slice(0, 7) : null);
+
+// 인스타 공유링크 정규화 — 공유토큰(stkn)·utm 등 뷰어별 파라미터 제거해 누구나 같은 게시물을 보게 함.
+// 예: .../reel/CODE/?stkn=... → https://www.instagram.com/reel/CODE/
+export const canonicalIgUrl = (u?: string | null): string => {
+  if (!u) return u ?? "";
+  const m = u.match(/instagram\.com\/(?:share\/)?(reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i);
+  if (!m) return u; // 인스타 게시물 URL이 아니면 원본 유지
+  const kind = m[1].toLowerCase().startsWith("reel") ? "reel" : m[1].toLowerCase();
+  return `https://www.instagram.com/${kind}/${m[2]}/`;
+};
 // 콘텐츠 귀속 월(YYYY-MM): 업로드=게시월, 예정=업로드예정월, 없으면 귀속월(year_month), 그래도 없으면 null
 export const contentMonth = (c: Content): string | null =>
   c.status === "uploaded" ? monthOf(c)

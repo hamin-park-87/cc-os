@@ -5,7 +5,7 @@ import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
 import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./charts";
-import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT } from "@/lib/format";
+import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment } from "@/lib/data/writes";
@@ -1135,10 +1135,11 @@ function ContentActions({ c }: { c?: Content | null }) {
   if (!c) return <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>;
   const hasMetrics = (c.views ?? 0) > 0 || (c.likes ?? 0) > 0 || (c.comments ?? 0) > 0;
   if (!c.permalink && !hasMetrics) return <span style={{ color: "var(--faint)", fontSize: 12 }}>—</span>;
+  const link = canonicalIgUrl(c.permalink); // 공유토큰 제거 → 관리자·브랜드가 크리에이터가 올린 그 게시물을 그대로 봄
   const rate = engRate(c);
   const cells: [string, number][] = [["조회수", c.views], ["도달", c.reach], ["좋아요", c.likes], ["댓글", c.comments], ["저장", c.saves], ["공유", c.shares]];
   return (<span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-    {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noreferrer" style={{ padding: "4px 9px", fontSize: 11.5 }}>▶ {T("영상")}</a>}
+    {c.permalink && <a className="btn sm" href={link} target="_blank" rel="noreferrer" style={{ padding: "4px 9px", fontSize: 11.5 }}>▶ {T("영상")}</a>}
     {hasMetrics ? <button className="btn sm" style={{ padding: "4px 9px", fontSize: 11.5 }} onClick={() => setOpen(true)}>📊 {rate}%</button>
       : c.permalink ? <span style={{ fontSize: 11, color: "var(--faint)" }} title={T("Instagram 연동·동기화 후 지표가 표시됩니다.")}>{T("지표 대기")}</span> : null}
     {open && <Modal title={T("인게이지먼트")} width={440} onClose={() => setOpen(false)}>
@@ -1147,7 +1148,7 @@ function ContentActions({ c }: { c?: Content | null }) {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>{c.product}</div>
           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{withCode(c.creatorName)}{c.brandName ? ` · ${c.brandName}` : ""}</div>
-          {c.permalink && <a className="btn sm" href={c.permalink} target="_blank" rel="noreferrer" style={{ marginTop: 8, display: "inline-block" }}>▶ {T("영상 열기")}</a>}
+          {c.permalink && <a className="btn sm" href={link} target="_blank" rel="noreferrer" style={{ marginTop: 8, display: "inline-block" }}>▶ {T("영상 열기")}</a>}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
@@ -1982,12 +1983,14 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
       let target: Deal;
       if (deal) { const saved = await saveDeal(f, false, creators); Object.assign(deal, saved); target = deal; }
       else { const saved = await saveDeal(f, true, creators); deals.unshift(saved); target = saved; }
-      // 완료 콘텐츠 URL 입력 시 콘텐츠 생성/링크
-      if (contentUrl.trim() && !existingContent) {
-        const ct = await createDealContent(target, contentUrl.trim(), creators);
+      // 완료 콘텐츠 URL 입력 시 콘텐츠 생성/링크 (공유토큰 제거해 정규 URL로 저장)
+      const cleanUrl = canonicalIgUrl(contentUrl.trim());
+      if (cleanUrl && !existingContent) {
+        const ct = await createDealContent(target, cleanUrl, creators);
         contents.push(ct); target.contentId = ct.id;
-      } else if (contentUrl.trim() && existingContent) {
-        existingContent.permalink = contentUrl.trim();
+      } else if (cleanUrl && existingContent) {
+        existingContent.permalink = cleanUrl;
+        await patchContentFields(existingContent.id, { permalink: cleanUrl });
       }
       onSaved(); onClose();
     } catch (e) { alert(T("저장 실패: ") + (e as Error).message); }
@@ -3122,8 +3125,9 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
   }
   async function saveRow(c: Content, brand: string) {
     try {
+      const clean = canonicalIgUrl(c.permalink) || null; c.permalink = clean ?? undefined; // 공유토큰 제거해 저장
       await updateContentSchedule(c.id, c.sched as Record<string, string>, c.status);
-      await patchContentFields(c.id, { permalink: c.permalink || null });
+      await patchContentFields(c.id, { permalink: clean });
       setCollapsed((prev) => new Set(prev).add(brand)); // 저장하면 폴더 닫힘
       showToast(T("일정 추가 완료"));
     } catch (e) { alert(T("저장 실패: ") + (e as Error).message); }

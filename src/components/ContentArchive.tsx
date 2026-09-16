@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import type { Content } from "@/lib/types";
 import { Avatar } from "./Avatar";
-import { fmt, kfmt, engRate, monthOf } from "@/lib/format";
+import { fmt, kfmt, engRate, monthOf, canonicalIgUrl } from "@/lib/format";
 import { BRAND_COLOR } from "@/lib/data/seed";
 import { T } from "@/lib/i18n";
 
@@ -143,7 +143,7 @@ function VideoModal({ content: c, tagBrands, onTag, onChanged, onClose }: { cont
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button className="btn acc">▶ {T("아카이브 재생")}</button>
-            {c.permalink && <a className="btn" href={c.permalink} target="_blank" rel="noopener">{T("원본 게시물")}</a>}
+            {c.permalink && <a className="btn" href={canonicalIgUrl(c.permalink)} target="_blank" rel="noopener">{T("원본 게시물")}</a>}
           </div>
           {onTag && tagBrands && <div style={{ padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6 }}>{T("전략 브랜드 태깅")}</div>
