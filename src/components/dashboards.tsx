@@ -123,6 +123,7 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
   if (pane === "a-clients") return <ClientsTable d={d} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
+  if (pane === "a-payroll") return <PayrollView d={d} month={month} />;
   if (pane === "a-cost") return <CostTable creators={d.creators} />;
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} onNav={onNav} />;
   if (pane === "a-feedback") return <FeedbackView d={d} month={month} />;
@@ -1408,6 +1409,104 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       </tbody></table></div>}
     <div style={{ fontSize: 12, color: "var(--faint)", marginTop: 8 }}>{T("전략 브랜드 콘텐츠와 외부 PR 안건의 기획·촬영·편집·업로드 일정이 한 화면에 모입니다. 업로드되면 브랜드·관리자가 링크와 인게이지먼트를 바로 확인합니다.")}</div>
   </>);
+}
+
+/* REQ-013: 급여명세서 — 크리에이터 정산 자동 + 스태프 CSV 업로드, 개별 명세서 PDF (이메일 발송은 연동 후) */
+type PaySlip = { kind: "creator" | "staff"; name: string; code?: string | null; email?: string | null; bank?: string | null; items: { label: string; amt: number }[]; deduction: number };
+const payGross = (s: PaySlip) => s.items.reduce((a, b) => a + b.amt, 0);
+const payNet = (s: PaySlip) => payGross(s) - s.deduction;
+
+function PayrollView({ d, month }: { d: Bundle; month: string }) {
+  const [fMonth, setFMonth] = useState(month);
+  const [staff, setStaff] = useState<PaySlip[]>([]);
+  const [open, setOpen] = useState<PaySlip | null>(null);
+  const dealMonth = (x: Deal) => (x.uploadDate || x.dueDate || x.receivedDate || "").slice(0, 7);
+  const creatorSlips: PaySlip[] = d.creators.filter((c) => c.status === "active").map((c) => {
+    const base = c.baseFee ?? c.fixedCost ?? 0;
+    const prNet = d.deals.filter((x) => x.creatorName === c.name && dealMonth(x) === fMonth)
+      .reduce((s, x) => s + Math.round((x.fee + (x.secondaryFee ?? 0)) * x.shareCreator / 100), 0);
+    const items = [{ label: T("기본 보수"), amt: base }, { label: T("PR 정산"), amt: prNet }].filter((i) => i.amt);
+    return { kind: "creator" as const, name: c.name, code: c.code, email: c.email, bank: c.bankAccount, items, deduction: 0 };
+  }).filter((s) => payGross(s) > 0);
+  const slips = [...creatorSlips, ...staff];
+  const totalNet = slips.reduce((a, s) => a + payNet(s), 0);
+  const num = (v?: string) => +((v ?? "0").replace(/[^0-9.-]/g, "")) || 0;
+  async function onStaffCsv(f: File) {
+    try {
+      const text = (await f.text()).replace(/^﻿/, "");
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      const rows: PaySlip[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const c = parseCsvLine(lines[i]); const name = (c[0] ?? "").trim(); if (!name) continue;
+        rows.push({ kind: "staff", name, email: (c[1] ?? "").trim(), bank: (c[4] ?? "").trim(), items: [{ label: T("지급액"), amt: num(c[2]) }], deduction: num(c[3]) });
+      }
+      if (!rows.length) { alert(T("업로드할 급여 데이터가 없어요.")); return; }
+      setStaff(rows);
+    } catch (e) { alert(T("업로드 실패: ") + (e as Error).message); }
+  }
+  function dlTemplate() {
+    const csv = [["이름", "이메일", "지급액", "공제액", "계좌(선택)"], ["예) 김스태프", "staff@81degree.com", "3000000", "300000", ""]]
+      .map((r) => r.map((x) => `"${x}"`).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "급여명세_스태프_템플릿.csv"; document.body.appendChild(a); a.click(); a.remove();
+  }
+  return (<>
+    <div className="filterbar">
+      <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}>{ASSIGN_MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}</select>
+      <span className="count">{slips.length}{T("명")}</span>
+      <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+        <button className="btn sm" onClick={dlTemplate}>⬇ {T("스태프 템플릿")}</button>
+        <label className="btn sm" style={{ cursor: "pointer" }}>+ {T("스태프 급여 업로드")}<input type="file" accept=".csv" style={{ display: "none" }} onChange={(e) => { const f = e.target.files?.[0]; if (f) onStaffCsv(f); e.currentTarget.value = ""; }} /></label>
+      </span>
+    </div>
+    <div className="grid-kpi" style={{ marginBottom: 14 }}>
+      <Kpi lab={T("지급 대상")} val={slips.length} unit={T("명")} />
+      <Kpi lab={T("크리에이터")} val={creatorSlips.length} unit={T("명")} />
+      <Kpi lab={T("스태프")} val={staff.length} unit={T("명")} />
+      <Kpi lab={T("실수령 합계")} val={yen(totalNet)} />
+    </div>
+    <div className="card pad" style={{ marginBottom: 12, fontSize: 12.5, color: "var(--muted)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+      <span>ℹ️ {T("이메일 일괄 발송은 메일 연동(RESEND) 후 활성화됩니다. 지금은 명세서 확인·PDF 저장이 가능합니다.")}</span>
+      <button className="btn sm" disabled style={{ marginLeft: "auto", opacity: .5 }} title={T("메일 연동 후 활성화")}>✉️ {T("일괄 메일 발송")}</button>
+    </div>
+    {!slips.length ? <div className="placeholder">{T("이 달 지급 대상이 없어요. 스태프는 CSV로 업로드하세요.")}</div> :
+      <div className="tablewrap"><table><thead><tr><th>{T("구분")}</th><th>{T("대상")}</th><th>{T("이메일")}</th><th>{T("지급액")}</th><th>{T("공제")}</th><th>{T("실수령")}</th><th></th></tr></thead><tbody>
+        {slips.map((s, i) => (<tr key={i}>
+          <td><span className="chip">{s.kind === "creator" ? T("크리에이터") : T("스태프")}</span></td>
+          <td><b>{s.kind === "creator" ? withCode(s.name) : s.name}</b></td>
+          <td style={{ color: "var(--muted)" }}>{s.email || "—"}</td>
+          <td className="num">{yen(payGross(s))}</td>
+          <td className="num" style={{ color: "var(--faint)" }}>{s.deduction ? `-${yen(s.deduction)}` : "—"}</td>
+          <td className="num" style={{ fontWeight: 700 }}>{yen(payNet(s))}</td>
+          <td style={{ textAlign: "right" }}><button className="btn sm" onClick={() => setOpen(s)}>{T("명세서")}</button></td>
+        </tr>))}
+      </tbody></table></div>}
+    {open && <PayrollSlipModal slip={open} month={fMonth} onClose={() => setOpen(null)} />}
+  </>);
+}
+
+function PayrollSlipModal({ slip, month, onClose }: { slip: PaySlip; month: string; onClose: () => void }) {
+  const net = payNet(slip);
+  return (<Modal title={T("급여명세서")} onClose={onClose} width={520}
+    footer={<><button className="btn" onClick={onClose}>{T("닫기")}</button><button className="btn acc" onClick={() => window.print()}>{T("인쇄 / PDF 저장")}</button></>}>
+    <div id="invoice" style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 28, background: "#fff", color: "#111" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+        <div><div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 22, color: "#111" }}>81&apos;DEGREE</div><div style={{ fontSize: 12, color: "#666" }}>81degree.inc</div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 18 }}>{T("급여명세서")}</div><div className="num" style={{ fontSize: 12, color: "#666" }}>{month}</div></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 18 }}>
+        <div><span style={{ color: "#666" }}>{T("수급자")}</span><div style={{ fontWeight: 600 }}>{slip.kind === "creator" ? withCode(slip.name) : slip.name}</div></div>
+        <div><span style={{ color: "#666" }}>{T("이메일")}</span><div>{slip.email || "—"}</div></div>
+        {slip.bank && <div style={{ gridColumn: "1/3" }}><span style={{ color: "#666" }}>{T("입금 계좌")}</span><div>{slip.bank}</div></div>}
+      </div>
+      <table style={{ minWidth: 0 }}><thead><tr><th>{T("항목")}</th><th style={{ textAlign: "right" }}>{T("금액")}</th></tr></thead><tbody>
+        {slip.items.map((it, i) => (<tr key={i}><td>{it.label}</td><td className="num" style={{ textAlign: "right" }}>{yen(it.amt)}</td></tr>))}
+        {slip.deduction > 0 && <tr><td>{T("공제")}</td><td className="num" style={{ textAlign: "right" }}>-{yen(slip.deduction)}</td></tr>}
+      </tbody></table>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTop: "2px solid #111" }}><b>{T("실수령액")}</b><b className="num">{yen(net)}</b></div>
+      <div style={{ marginTop: 18, fontSize: 11.5, color: "#666" }}>{T("본 명세서는 81'DEGREE에서 발행되었습니다.")} · {month}</div>
+    </div>
+  </Modal>);
 }
 
 /* 비용 관리 (단가 · 고정비 편집) */
