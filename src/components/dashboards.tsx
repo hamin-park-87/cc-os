@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./chart
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -1172,6 +1172,59 @@ interface ProdRow {
   sched: ContentSched; uploaded: boolean; permalink?: string | null; stepLabel?: string;
   month: string | null; content?: Content; deal?: Deal;
 }
+// CSV 한 줄 파싱 (따옴표·콤마 처리)
+function parseCsvLine(line: string): string[] {
+  const out: string[] = []; let cur = ""; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (q) { if (ch === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+    else { if (ch === '"') q = true; else if (ch === ",") { out.push(cur); cur = ""; } else cur += ch; }
+  }
+  out.push(cur); return out;
+}
+
+/* REQ-015: 배송정보(택배사·송장번호) 일괄 등록 — 템플릿 CSV 다운로드 → 채워서 업로드 */
+function ShipImport({ rows, onApplied }: { rows: ProdRow[]; onApplied: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const targets = rows.filter((r) => r.type === "brand" && r.content);
+  function downloadTemplate() {
+    const header = ["content_id", "크리에이터", "콘텐츠", "택배사", "송장번호"];
+    const body = targets.map((r) => [r.content!.id, r.creatorName, r.label, r.content!.sampleCourier ?? "", r.content!.sampleTracking ?? ""]);
+    const csv = [header, ...body].map((cols) => cols.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = `배송정보_일괄등록_템플릿.csv`; document.body.appendChild(a); a.click(); a.remove();
+  }
+  async function onFile(f: File) {
+    setBusy(true);
+    try {
+      const text = (await f.text()).replace(/^﻿/, "");
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+      const parsed: { contentId: string; courier: string; tracking: string }[] = [];
+      for (let i = 1; i < lines.length; i++) { // 1행=헤더
+        const c = parseCsvLine(lines[i]);
+        const id = (c[0] ?? "").trim(); if (!id) continue;
+        parsed.push({ contentId: id, courier: (c[3] ?? "").trim(), tracking: (c[4] ?? "").trim() });
+      }
+      if (!parsed.length) { alert(T("등록할 배송정보가 없어요. 템플릿의 택배사·송장번호를 채워주세요.")); setBusy(false); return; }
+      const res = await bulkShip(parsed);
+      // 로컬 반영
+      const byId = new Map(targets.map((r) => [r.content!.id, r.content!]));
+      for (const p of parsed) { const ct = byId.get(p.contentId); if (ct && (p.courier || p.tracking)) { ct.sampleReceived = true; if (p.courier) ct.sampleCourier = p.courier; if (p.tracking) ct.sampleTracking = p.tracking; } }
+      onApplied();
+      alert(`${T("배송정보 반영 완료")}: ${res.updated}${T("건")}${res.skipped ? ` · ${T("건너뜀")} ${res.skipped}` : ""}`);
+    } catch (e) { alert(T("일괄 등록 실패: ") + (e as Error).message); }
+    setBusy(false);
+  }
+  return (
+    <span style={{ display: "inline-flex", gap: 6 }}>
+      <button className="btn sm" onClick={downloadTemplate}>⬇ {T("배송 템플릿")}</button>
+      <label className="btn sm acc" style={{ cursor: "pointer" }}>{busy ? T("등록 중…") : "📦 " + T("배송정보 일괄등록")}
+        <input type="file" accept=".csv" style={{ display: "none" }} disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); e.currentTarget.value = ""; }} /></label>
+    </span>
+  );
+}
+
 function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, month }: { d: Bundle; creatorName?: string; brandName?: string; readonly?: boolean; includeDeals?: boolean; month?: string }) {
   const [, setTick] = useState(0);
   const [fBrand, setFBrand] = useState(""); const [fCreator, setFCreator] = useState("");
@@ -1291,6 +1344,10 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       <select value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | "up" | "plan")}><option value="">{T("전체 상태")}</option><option value="plan">{T("진행중")}</option><option value="up">{T("업로드")}</option></select>
       <span className="count">{items.length}{T("건")}</span>
     </div>
+    {/* REQ-015: 배송정보 일괄 등록 (관리자·브랜드) */}
+    {items.some((r) => r.type === "brand" && r.content) && <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 12 }}>
+      <ShipImport rows={items} onApplied={() => setTick((t) => t + 1)} />
+    </div>}
     {/* 전략 브랜드 진행 현황 */}
     {showBrandProg && brandProg.length > 0 && <div style={{ marginBottom: 14 }}>
       <div className="sec-h" style={{ margin: "0 0 8px" }}><h2 style={{ fontSize: 14 }}>{T("전략 브랜드 진행 현황")}</h2><span className="hint">{fMonth.slice(0, 4)}. {+fMonth.slice(5)}{T("월")} · {T("배정 물량 기준")}</span></div>

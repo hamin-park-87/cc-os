@@ -356,6 +356,18 @@ export async function saveFeedback(creatorName: string, yearMonth: string, body:
   if (error) throw error;
 }
 
+// REQ-015: 배송정보(택배사·송장번호) 일괄 등록 — 서버에서 권한검증 후 갱신
+export async function bulkShip(rows: { contentId: string; courier?: string; tracking?: string }[]): Promise<{ updated: number; skipped: number }> {
+  const { data: { session } } = await getSupabase().auth.getSession();
+  if (!session) throw new Error("로그인이 필요합니다");
+  const res = await fetch("/api/contents/bulk-ship", {
+    method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ rows }),
+  });
+  if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || String(res.status)); }
+  return res.json();
+}
+
 // 의뢰사(클라이언트) 관리 — clients 테이블 (관리자 전용)
 import type { Client } from "@/lib/types";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

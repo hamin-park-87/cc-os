@@ -10,7 +10,7 @@ export type ParsedDeal = Record<string, any>;
 const str = (v: unknown, max = 4000) => (typeof v === "string" ? v : v == null ? "" : String(v)).slice(0, max);
 
 // PR 안건 등록 (중복 방지 · 크리에이터 자동 매칭 · 확인필요 판정)
-export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: string; deduped?: boolean; skipped?: boolean; needsReview?: boolean; title?: string; error?: string }> {
+export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: string; deduped?: boolean; skipped?: boolean; needsReview?: boolean; title?: string; prNo?: string; error?: string }> {
   const subject = str(p.subject, 250).trim();
   const summary = str(p.summary).trim();
   const body = str(p.body).trim();
@@ -75,17 +75,32 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
     fee, share_company: 0, share_creator: 0, due_date: dueDate, received_date: receivedAt, brief,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };
-  return { ok: true, id: data.id, needsReview, title: title0 };
+
+  // REQ-014: PR 구분번호(PR-0XX) 산정 — OS 목록과 동일 기준(인입일, 없으면 등록시각 오름차순)
+  let prNo = "";
+  try {
+    const { data: all } = await admin.from("deals").select("id, received_date, created_at");
+    const key = (d: { received_date?: string | null; created_at?: string | null }) => d.received_date || d.created_at || "";
+    const sorted = [...(all ?? [])].sort((a, b) => {
+      const x = key(a), y = key(b); if (!x && !y) return 0; if (!x) return 1; if (!y) return -1; return x.localeCompare(y);
+    });
+    const idx = sorted.findIndex((d) => d.id === data.id);
+    if (idx >= 0) prNo = "PR-" + String(idx + 1).padStart(3, "0");
+  } catch { /* 번호 산정 실패해도 등록은 유지 */ }
+
+  return { ok: true, id: data.id, needsReview, title: title0, prNo };
 }
 
 // 슬랙 알림: [제목] 메인 + 스레드에 세부 내용
-export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsReview?: boolean; title?: string }): Promise<boolean> {
+export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsReview?: boolean; title?: string; prNo?: string }): Promise<boolean> {
   const tk = str(p.titleKo, 120).trim(); const tj = str(p.titleJa, 120).trim();
   const titleLine = (tk && tj) ? `${tk} / ${tj}` : (tk || str(p.subject, 200).trim() || res.title || str(p.summary, 120).trim() || "PR 안건 / PR案件");
-  const head = `${res.needsReview ? "🔎 [확인필요 / 要確認] " : ""}[${titleLine}]`;
+  const noPrefix = res.prNo ? `${res.prNo} · ` : ""; // REQ-014: 구분번호 병기
+  const head = `${res.needsReview ? "🔎 [확인필요 / 要確認] " : ""}[${noPrefix}${titleLine}]`;
   const ts = await slackPost(PR_CHANNEL, head);
   if (!ts) return false;
   const L: string[] = [];
+  if (res.prNo) L.push(`• 구분번호 / 識別番号: ${res.prNo}`);
   const client = str(p.client, 120).trim() || str(p.fromName, 120).trim();
   if (client) L.push(`• 의뢰사 / 依頼社: ${client}`);
   if (str(p.brand, 120).trim()) L.push(`• 브랜드 / ブランド: ${str(p.brand, 120).trim()}`);

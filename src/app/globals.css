@@ -424,9 +424,16 @@
 
   @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
 
-  /* 인보이스 인쇄: #invoice만 출력 */
+  /* 인보이스 인쇄: #invoice만 출력 (잘림 방지 — 조상 클리핑 해제 + 정적 흐름 + 다중 페이지) */
   @media print {
+    @page { size: A4; margin: 12mm; }
+    html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
     body * { visibility: hidden !important; }
+    /* 모달 컨테이너의 높이·오버플로 제한 해제 (이게 잘림의 원인) */
+    .modal-backdrop { position: static !important; inset: auto !important; background: none !important; backdrop-filter: none !important; display: block !important; z-index: auto !important; }
+    .modal-card { position: static !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; width: auto !important; max-width: none !important; padding: 0 !important; border: 0 !important; }
     #invoice, #invoice * { visibility: visible !important; }
-    #invoice { position: absolute !important; left: 0; top: 0; width: 100%; border: 0 !important; }
+    #invoice { position: static !important; left: auto; top: auto; width: 100% !important; border: 0 !important; background: #fff !important; color: #111 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #invoice table { page-break-inside: auto; width: 100% !important; }
+    #invoice tr, #invoice img { page-break-inside: avoid; }
   }
