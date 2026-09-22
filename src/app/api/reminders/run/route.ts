@@ -62,7 +62,14 @@ export async function GET(req: NextRequest) {
     }
   }
   let slackSent = false;
-  if (lines.length) slackSent = await sendSlack(`📅 *마감 임박·지연 리마인드* (${now.toISOString().slice(0, 10)})\n\n${lines.join("\n\n")}`);
+  if (lines.length) {
+    const digest = `📅 *마감 임박·지연 리마인드* (${now.toISOString().slice(0, 10)})\n\n${lines.join("\n\n")}`;
+    slackSent = await sendSlack(digest); // 웹훅(설정 시)
+    // 봇으로도 발송(웹훅 미설정 대비) — 제작·업로드 일정 채널
+    const ch = process.env.SCHEDULE_SLACK_CHANNEL || PR_CHANNEL;
+    const ts = await slackPost(ch, `📅 [제작·업로드 마감 리마인드 / 制作・アップロード期日リマインド] ${now.toISOString().slice(0, 10)}`);
+    if (ts) { await slackPost(ch, lines.join("\n\n"), ts); slackSent = true; }
+  }
 
   // REQ-009: 외부 PR 업로드 기일 리마인드 — PR 채널(#cc_pr_gmail)에 담당자별로 봇 알림
   let prReminderSent = false;
