@@ -72,20 +72,26 @@ export async function GET(req: NextRequest) {
     if (ts) { await slackPost(ch, lines.join("\n\n"), ts); slackSent = true; }
   }
 
-  // 크리에이터 채널(#05_cc)에 부드러운 톤으로 안내 — 지연 표기 없이 임박 중심, 일/한 병기
+  // 크리에이터 채널(#05_cc) 안내 — 미업로드·마감경과 강조 + 임박, 일/한 병기
   let creatorSlackSent = false;
   if (byCreator.size) {
-    const gtag = (du: number) => du < 0 ? "🔔 締切超過・ご確認を / 마감 경과·확인 부탁"
+    // 마감 경과(미업로드)는 경과일수를 명확히 표기, 임박은 부드럽게
+    const gtag = (du: number) => du < 0 ? `⚠️ 未アップロード・締切${-du}日超過 / 미업로드·마감 ${-du}일 경과`
       : du === 0 ? "📌 本日締切 / 오늘 마감" : `⏰ あと${du}日 / D-${du}`;
+    let overdueCnt = 0, soonCnt = 0;
     const blocks: string[] = [];
     for (const [cid, items] of byCreator) {
       const c = cById.get(cid); if (!c) continue;
-      items.sort((a, b) => a.du - b.du);
+      items.sort((a, b) => a.du - b.du); // 경과(음수) → 임박 순
+      items.forEach((i) => { if (i.du < 0) overdueCnt++; else soonCnt++; });
       blocks.push(`*${c.name}*\n` + items.map((i) => `  • ${i.title} — ${gtag(i.du)}`).join("\n"));
     }
+    const summary = [overdueCnt ? `⚠️ 未アップロード ${overdueCnt}件 / 미업로드 ${overdueCnt}건` : "", soonCnt ? `⏰ 締切間近 ${soonCnt}件 / 임박 ${soonCnt}건` : ""].filter(Boolean).join(" · ");
     const msg = `🌱 [アップロード リマインド / 업로드 리마인드] ${now.toISOString().slice(0, 10)}\n`
-      + `締切が近い投稿のご案内です。よろしくお願いします🙏 / 마감 임박 콘텐츠 안내예요. 잘 부탁드려요!\n\n`
-      + `${blocks.join("\n\n")}\n\n🔗 https://cc-os.81degree.com/#a-schedule`;
+      + `締切が過ぎて未アップロードの投稿・締切間近の投稿のご案内です。ご確認をお願いします🙏\n`
+      + `마감이 지났는데 아직 업로드 안 된 콘텐츠 + 마감 임박 콘텐츠 안내예요. 확인 부탁드려요!\n`
+      + (summary ? `(${summary})\n` : "")
+      + `\n${blocks.join("\n\n")}\n\n🔗 https://cc-os.81degree.com/#a-schedule`;
     creatorSlackSent = !!(await slackPost(CREATOR_CHANNEL, msg));
   }
 
