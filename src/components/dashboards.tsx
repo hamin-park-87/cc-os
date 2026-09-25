@@ -4,11 +4,11 @@ import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, Contrac
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
-import { Spark, MiniSpark, Donut, Bars, audienceOf } from "./charts";
+import { Spark, MiniSpark, Donut, Bars } from "./charts";
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -44,6 +44,13 @@ function useFollowerSeries(creatorId?: string | null): number[] {
   const [series, setSeries] = useState<number[]>([]);
   useEffect(() => { if (!creatorId) { setSeries([]); return; } getAccountSeries(creatorId).then(setSeries).catch(() => setSeries([])); }, [creatorId]);
   return series;
+}
+// 오디언스(성별·연령) 실데이터(audience_snapshots) 로드 훅
+const EMPTY_AUD = { female: -1, ages: [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]] as [string, number][] };
+function useAudience(creatorId?: string | null): { female: number; ages: [string, number][] } {
+  const [aud, setAud] = useState(EMPTY_AUD);
+  useEffect(() => { if (!creatorId) { setAud(EMPTY_AUD); return; } getAudience(creatorId).then(setAud).catch(() => setAud(EMPTY_AUD)); }, [creatorId]);
+  return aud;
 }
 
 function Ring({ p, label }: { p: number; label: string }) {
@@ -1547,7 +1554,7 @@ function Insights({ creators, contents, onNav }: { creators: Creator[]; contents
   const series = useFollowerSeries(c?.id);
   const hasTrend = series.length > 1; // 팔로워 추이 실데이터 존재 여부
   const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0] * 100) : 0;
-  const aud = audienceOf(name);
+  const aud = useAudience(c?.id);
   const ups = contents.filter((x) => x.creatorName === name && x.status === "uploaded" && x.views > 0);
   const totalViews = ups.reduce((s, x) => s + x.views, 0);
   const avgEng = ups.length ? ups.reduce((s, x) => s + parseFloat(engRate(x)), 0) / ups.length : 0;
@@ -2946,6 +2953,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
   const myFollowerSeries = useFollowerSeries(d.creators.find((x) => x.name === me)?.id);
+  const myAudience = useAudience(d.creators.find((x) => x.name === me)?.id);
   const [secReqs, setSecReqs] = useState<SecondaryReq[]>([]);
   useEffect(() => { getSecondaryRequests().then(setSecReqs).catch(() => setSecReqs([])); }, []);
   // 마감 임박/지연 리마인드 (인앱)
@@ -2995,7 +3003,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
     const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
     const series = myFollowerSeries;
     const hasTrend = series.length > 1;
-    const aud = audienceOf(me);
+    const aud = myAudience;
     const maxAge = Math.max(1, ...aud.ages.map((a) => a[1]));
     const ups2 = mine.filter((c) => c.status === "uploaded" && c.views > 0);
     const avgSave = ups2.length ? (ups2.reduce((s, c) => s + (c.saves / c.views * 100), 0) / ups2.length).toFixed(1) : "0";

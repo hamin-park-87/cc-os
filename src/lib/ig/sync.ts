@@ -75,9 +75,48 @@ export async function syncCreatorData(admin: SupabaseClient, creatorId: string, 
         metricCount++;
       } catch { /* 인사이트 미지원 미디어 건너뜀 */ }
     }
+    // 오디언스(성별·연령) 수집 — IG follower_demographics. 미지원 계정이면 조용히 건너뜀.
+    try {
+      const aud = await provider.fetchAudience(acct.ig_user_id ?? "");
+      const parsed = parseAudience(aud.genderAge);
+      if (parsed) await admin.from("audience_snapshots").upsert(
+        { creator_id: creatorId, date: today, female_pct: parsed.female, ages: parsed.ages, raw: aud.genderAge },
+        { onConflict: "creator_id,date" });
+    } catch { /* 데모그래픽 미지원 계정 */ }
+
     return { followers, contents: reels.length, metrics: metricCount };
   } catch (e) {
     await admin.from("ig_accounts").update({ status: "expired" }).eq("creator_id", creatorId);
     throw e;
   }
+}
+
+// IG follower_demographics(breakdown=age,gender) → { female:%, ages:[[bucket,%],...] }
+// 성별 데이터가 없으면 female=null. 파싱 불가 시 null 반환.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseAudience(data: any): { female: number | null; ages: [string, number][] } | null {
+  const bd = data?.[0]?.total_value?.breakdowns?.[0];
+  const results = bd?.results;
+  if (!Array.isArray(results) || !results.length) return null;
+  const keys: string[] = bd.dimension_keys || ["age", "gender"];
+  const ageIdx = keys.indexOf("age"), genderIdx = keys.indexOf("gender");
+  const bucketOf = (a: string) => {
+    if (!a) return "45+";
+    if (a.startsWith("13")) return "13–17";
+    if (a.startsWith("18")) return "18–24";
+    if (a.startsWith("25")) return "25–34";
+    if (a.startsWith("35")) return "35–44";
+    return "45+";
+  };
+  const buckets: Record<string, number> = { "13–17": 0, "18–24": 0, "25–34": 0, "35–44": 0, "45+": 0 };
+  let total = 0, female = 0, hasGender = false;
+  for (const r of results) {
+    const v = Number(r.value) || 0; total += v;
+    const dv: string[] = r.dimension_values || [];
+    if (ageIdx >= 0) buckets[bucketOf(dv[ageIdx])] += v;
+    if (genderIdx >= 0) { hasGender = true; if ((dv[genderIdx] || "").toUpperCase() === "F") female += v; }
+  }
+  if (!total) return null;
+  const ages: [string, number][] = Object.entries(buckets).map(([k, v]) => [k, Math.round(v / total * 100)]);
+  return { female: hasGender ? Math.round(female / total * 100) : null, ages };
 }

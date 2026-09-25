@@ -365,6 +365,16 @@ export async function getAccountSeries(creatorId: string): Promise<number[]> {
   return (data ?? []).map((r) => Number(r.followers) || 0);
 }
 
+// 오디언스(성별·연령) 최신 스냅샷 — audience_snapshots (RLS: 관리자 전체 / 크리에이터 본인)
+export async function getAudience(creatorId: string): Promise<{ female: number; ages: [string, number][] }> {
+  const empty = { female: -1, ages: [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]] as [string, number][] };
+  if (!isDb() || !creatorId) return empty;
+  const { data } = await getSupabase().from("audience_snapshots").select("female_pct, ages")
+    .eq("creator_id", creatorId).order("date", { ascending: false }).limit(1).maybeSingle();
+  if (!data) return empty;
+  return { female: data.female_pct ?? -1, ages: (data.ages as [string, number][]) ?? empty.ages };
+}
+
 // REQ-015: 배송정보(택배사·송장번호) 일괄 등록 — 서버에서 권한검증 후 갱신
 export async function bulkShip(rows: { contentId: string; courier?: string; tracking?: string }[]): Promise<{ updated: number; skipped: number }> {
   const { data: { session } } = await getSupabase().auth.getSession();
