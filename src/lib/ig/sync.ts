@@ -75,7 +75,7 @@ export async function syncCreatorData(admin: SupabaseClient, creatorId: string, 
         metricCount++;
       } catch { /* 인사이트 미지원 미디어 건너뜀 */ }
     }
-    return { followers, contents: rows.length, metrics: metricCount };
+    return { followers, contents: reels.length, metrics: metricCount };
   } catch (e) {
     await admin.from("ig_accounts").update({ status: "expired" }).eq("creator_id", creatorId);
     throw e;
