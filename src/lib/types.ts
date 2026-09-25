@@ -142,6 +142,7 @@ export interface Deal {
   step: number;                 // 0~7
   contentId?: string | null;
   // 외부 PR 정산
+  prSeq?: number | null;        // 외부 PR 영구 구분번호(삭제해도 결번 유지, 재사용 없음)
   registeredBy?: string | null; // 안건을 등록한 사람(관리자 이메일) 또는 "메일 자동등록"
   createdAt?: string | null;    // 레코드 생성 시각(등록 시각) — 인입일 없을 때 정렬 보조
   receivedDate?: string | null; // 수주(최초 메일 수신)일

@@ -165,6 +165,12 @@ export async function uploadAttachment(file: File, prefix = "invoice"): Promise<
   if (error) throw error;
   return sb.storage.from("attachments").getPublicUrl(path).data.publicUrl;
 }
+// REQ-022: 다음 PR 영구 번호 = 현재 최대 pr_seq + 1 (삭제해도 최대값은 안 줄어 재사용 없음)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function nextPrSeq(sb: any): Promise<number> {
+  const { data } = await sb.from("deals").select("pr_seq").not("pr_seq", "is", null).order("pr_seq", { ascending: false }).limit(1).maybeSingle();
+  return (data?.pr_seq ?? 0) + 1;
+}
 export async function saveDeal(d: Deal, isNew: boolean, creators: Creator[]): Promise<Deal> {
   if (!isDb()) return d;
   const sb = getSupabase();
@@ -172,9 +178,10 @@ export async function saveDeal(d: Deal, isNew: boolean, creators: Creator[]): Pr
   if (isNew) {
     const { data: u } = await sb.auth.getUser();
     const registeredBy = d.registeredBy || u?.user?.email || "직접 등록";
-    const { data, error } = await sb.from("deals").insert({ ...dealRow(d, creatorId), registered_by: registeredBy }).select("id").single();
+    const prSeq = await nextPrSeq(sb); // REQ-022: 영구 번호(결번 유지·재사용 없음)
+    const { data, error } = await sb.from("deals").insert({ ...dealRow(d, creatorId), registered_by: registeredBy, pr_seq: prSeq }).select("id").single();
     if (error) throw error;
-    return { ...d, id: data.id, registeredBy };
+    return { ...d, id: data.id, registeredBy, prSeq };
   }
   const { error } = await sb.from("deals").update(dealRow(d, creatorId)).eq("id", d.id);
   if (error) throw error;
@@ -376,6 +383,17 @@ export async function getAudience(creatorId: string): Promise<{ female: number; 
     female: data.female_pct ?? -1, ages: (data.ages as [string, number][]) ?? empty.ages,
     countries: (data.countries as [string, number][]) ?? [], cities: (data.cities as [string, number][]) ?? [],
   };
+}
+
+// REQ-017: 외부 PR 안건 목록 xlsx 다운로드 (관리자)
+export async function exportDealsXlsx(): Promise<void> {
+  const { data: { session } } = await getSupabase().auth.getSession();
+  if (!session) throw new Error("로그인이 필요합니다");
+  const res = await fetch("/api/deals/export", { headers: { Authorization: `Bearer ${session.access_token}` } });
+  if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || String(res.status)); }
+  const blob = await res.blob();
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `PR안건_${new Date().toISOString().slice(0, 10)}.xlsx`; document.body.appendChild(a); a.click(); a.remove();
 }
 
 // REQ-015: 배송정보(택배사·송장번호) 일괄 등록 — 서버에서 권한검증 후 갱신

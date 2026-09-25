@@ -69,25 +69,21 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
   const brief = [summary || body, meta.join("\n")].filter(Boolean).join("\n\n") || null;
   const title = (needsReview ? "🔎 " : "") + title0.slice(0, 190);
 
+  // REQ-022: PR 영구 구분번호 = 현재 최대 pr_seq + 1 (삭제해도 결번 유지·재사용 없음)
+  let prSeq = 0;
+  try {
+    const { data: mx } = await admin.from("deals").select("pr_seq").not("pr_seq", "is", null).order("pr_seq", { ascending: false }).limit(1).maybeSingle();
+    prSeq = ((mx?.pr_seq as number) ?? 0) + 1;
+  } catch { /* pr_seq 미지원(마이그레이션 전)이면 0 */ }
+
   const { data, error } = await admin.from("deals").insert({
     code, title, client, creator_id, manager, source: "company_email", type: "creator", step: 0,
-    registered_by: "메일 자동등록",
+    registered_by: "메일 자동등록", ...(prSeq ? { pr_seq: prSeq } : {}),
     fee, share_company: 0, share_creator: 0, due_date: dueDate, received_date: receivedAt, brief,
   }).select("id").single();
   if (error) return { ok: false, error: error.message };
 
-  // REQ-014: PR 구분번호(PR-0XX) 산정 — OS 목록과 동일 기준(인입일, 없으면 등록시각 오름차순)
-  let prNo = "";
-  try {
-    const { data: all } = await admin.from("deals").select("id, received_date, created_at");
-    const key = (d: { received_date?: string | null; created_at?: string | null }) => d.received_date || d.created_at || "";
-    const sorted = [...(all ?? [])].sort((a, b) => {
-      const x = key(a), y = key(b); if (!x && !y) return 0; if (!x) return 1; if (!y) return -1; return x.localeCompare(y);
-    });
-    const idx = sorted.findIndex((d) => d.id === data.id);
-    if (idx >= 0) prNo = "PR-" + String(idx + 1).padStart(3, "0");
-  } catch { /* 번호 산정 실패해도 등록은 유지 */ }
-
+  const prNo = prSeq ? "PR-" + String(prSeq).padStart(3, "0") : "";
   return { ok: true, id: data.id, needsReview, title: title0, prNo };
 }
 

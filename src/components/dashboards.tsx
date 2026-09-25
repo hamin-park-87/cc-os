@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars } from "./charts";
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience, exportDealsXlsx } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -191,7 +191,7 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} onNav={onNav} />;
   if (pane === "a-feedback") return <FeedbackView d={d} month={month} />;
   if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} email={email} />;
-  if (pane === "a-archive") return <ContentArchive contents={d.contents} tagBrands={d.brands.length ? d.brands.map((b) => b.name) : ALL_BRANDS} onTag={(c, bn) => tagContentBrand(c.id, bn, d.brands)} />;
+  if (pane === "a-archive") return <ContentArchive contents={d.contents} strategicBrands={d.brands.map((b) => b.name)} tagBrands={d.brands.length ? d.brands.map((b) => b.name) : ALL_BRANDS} onTag={(c, bn) => tagContentBrand(c.id, bn, d.brands)} />;
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
   if (pane === "a-risk") return <RiskList d={d} />;
   return <Placeholder name={pane} />;
@@ -1291,6 +1291,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   const [, setTick] = useState(0);
   const [fBrand, setFBrand] = useState(""); const [fCreator, setFCreator] = useState("");
   const [fType, setFType] = useState<"" | "brand" | "pr">(""); const [fStatus, setFStatus] = useState<"" | "up" | "plan">("");
+  const [schedView, setSchedView] = useState<"board" | "calendar">("board"); // REQ-018: 보드/캘린더 전환
   const groupByCreator = !creatorName;
   const today = localToday();
   const curMonth = today.slice(0, 7);
@@ -1401,10 +1402,14 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
     <div className="filterbar">
       <select value={fMonth} onChange={(e) => setFMonth(e.target.value)}>{monthOpts.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{T("월")}</option>)}<option value="">{T("전체 기간")}</option></select>
       {includeDeals && <select value={fType} onChange={(e) => setFType(e.target.value as "" | "brand" | "pr")}><option value="">{T("전체 유형")}</option><option value="brand">{T("전략 브랜드")}</option><option value="pr">{T("외부 PR")}</option></select>}
-      {!brandName && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 대상")}</option>{Array.from(new Set(rows.map((r) => r.target).filter(Boolean))).sort().map((t) => <option key={t} value={t}>{t}</option>)}</select>}
+      {!brandName && <select value={fBrand} onChange={(e) => setFBrand(e.target.value)}><option value="">{T("전체 브랜드")}</option>{Array.from(new Set(rows.filter((r) => r.type === "brand").map((r) => r.target).filter(Boolean))).sort().map((t) => <option key={t} value={t}>{t}</option>)}</select>}
       {!creatorName && <select value={fCreator} onChange={(e) => setFCreator(e.target.value)}><option value="">{T("전체 크리에이터")}</option>{d.creators.sort(cmpCreatorByCode).map((c) => <option key={c.id} value={c.name}>{withCode(c.name)}</option>)}</select>}
       <select value={fStatus} onChange={(e) => setFStatus(e.target.value as "" | "up" | "plan")}><option value="">{T("전체 상태")}</option><option value="plan">{T("진행중")}</option><option value="up">{T("업로드")}</option></select>
       <span className="count">{items.length}{T("건")}</span>
+      <span className="subtabs" style={{ margin: 0, border: 0, marginLeft: "auto" }}>
+        <button className={schedView === "board" ? "active" : ""} onClick={() => setSchedView("board")}>{T("보드")}</button>
+        <button className={schedView === "calendar" ? "active" : ""} onClick={() => setSchedView("calendar")}>{T("캘린더")}</button>
+      </span>
     </div>
     {/* REQ-015: 배송정보 일괄 등록 (관리자·브랜드) */}
     {items.some((r) => r.type === "brand" && r.content) && <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 12 }}>
@@ -1436,7 +1441,12 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
         })}
       </div>
     </div>}
-    {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요. 위 ‘전략 브랜드 진행 현황’에서 배정 물량을 확인하고 ‘일정 생성’으로 만들 수 있어요.")}</div> :
+    {schedView === "calendar" ? <ProductionCalendar events={(() => {
+      const ev: CalEvent[] = [];
+      for (const r of items) for (const s of SCHED_STAGES) { const dt = r.sched?.[s.k as keyof ContentSched]; if (dt) ev.push({ date: String(dt).slice(0, 10), label: `${withCode(r.creatorName)} · ${r.target} ${T(s.label)}`, kind: r.type === "pr" && s.k === "upload" ? "deal" : s.k }); }
+      return ev;
+    })()} /> :
+    !items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요. 위 ‘전략 브랜드 진행 현황’에서 배정 물량을 확인하고 ‘일정 생성’으로 만들 수 있어요.")}</div> :
       <div className="tablewrap"><table className="sched-board"><thead><tr>
         <th>{T("콘텐츠")}</th><th>{T("구분")}</th>
         {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th>{T("콘텐츠")}</th>{!readonly && <th></th>}
@@ -2009,14 +2019,8 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
     if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; // 날짜 없으면 뒤로
     return sortBy.endsWith("asc") ? da.localeCompare(db) : db.localeCompare(da);
   });
-  // 안건 번호 — 인입일(없으면 등록시각) 오름차순 고정 배정, 오래된 순 = PR-001
-  const chrono = [...deals].sort((a, b) => {
-    const da = a.receivedDate || a.createdAt || "", db2 = b.receivedDate || b.createdAt || "";
-    if (!da && !db2) return 0; if (!da) return 1; if (!db2) return -1;
-    return da.localeCompare(db2);
-  });
-  const seqOf = new Map<string, number>(); chrono.forEach((dl, i) => seqOf.set(dl.id, i + 1));
-  const prNo = (dl: Deal) => "PR-" + String(seqOf.get(dl.id) ?? 0).padStart(3, "0");
+  // 안건 번호 — 영구 번호(pr_seq): 삭제해도 결번 유지·재사용 없음 (REQ-022)
+  const prNo = (dl: Deal) => dl.prSeq ? "PR-" + String(dl.prSeq).padStart(3, "0") : "—";
   // 단계별 요약
   const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
   // 납기 지연/임박 감지 (업로드 전 step<5 & 납기일 기준)
@@ -2038,6 +2042,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
         <span style={{ display: "flex", gap: 8 }}>
           {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>{T("선택 삭제")} ({sel.size})</button>}
           <button className="btn" onClick={() => setView(view === "list" ? "card" : "list")}>{view === "list" ? T("카드 보기") : T("목록 보기")}</button>
+          <button className="btn" onClick={async () => { try { await exportDealsXlsx(); } catch (e) { alert(T("엑셀 출력 실패: ") + (e as Error).message); } }}>⬇ {T("엑셀 출력")}</button>
           <button className="btn acc" onClick={() => setEdit(null)}>+ {T("안건 추가")}</button>
         </span></div>}
       {!readonly && atRisk.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
@@ -2187,16 +2192,24 @@ function InvoiceModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
 
 function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { deal: Deal | null; deals: Deal[]; contents: Content[]; creators: Creator[]; onClose: () => void; onSaved: () => void }) {
   const isNew = !deal;
-  const [f, setF] = useState<Deal>(deal ? { ...deal } : {
+  const DRAFT_KEY = "cc-os.draft.deal.new"; // REQ-019: 입력 자동저장(신규 안건)
+  const defaults: Deal = {
     id: "D-" + (100 + deals.length + 1), title: "", client: "", creatorName: creators[0]?.name ?? "hina",
     manager: "mai", source: "company_email", type: "ahchannel", fee: 1000000, shareCompany: 50, shareCreator: 50, step: 0,
+  };
+  const [f, setF] = useState<Deal>(() => {
+    if (deal) return { ...deal };
+    try { const s = localStorage.getItem(DRAFT_KEY); if (s) return { ...defaults, ...JSON.parse(s) }; } catch { /* noop */ }
+    return defaults;
   });
+  const [restored] = useState(() => { if (deal) return false; try { return !!localStorage.getItem(DRAFT_KEY); } catch { return false; } });
+  const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY); } catch { /* noop */ } };
   const existingContent = deal?.contentId ? contents.find((c) => c.id === deal.contentId) : null;
   const [contentUrl, setContentUrl] = useState(existingContent?.permalink ?? "");
   const [hasSecondary, setHasSecondary] = useState(deal?.secondaryFee != null);
   const [invBusy, setInvBusy] = useState(false);
   const sortedCreators = [...creators].sort(cmpCreatorByCode);
-  const up = (k: keyof Deal, v: unknown) => setF((s) => ({ ...s, [k]: v } as Deal));
+  const up = (k: keyof Deal, v: unknown) => setF((s) => { const n = { ...s, [k]: v } as Deal; if (isNew) { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(n)); } catch { /* noop */ } } return n; });
   async function save() {
     try {
       let target: Deal;
@@ -2211,6 +2224,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
         existingContent.permalink = cleanUrl;
         await patchContentFields(existingContent.id, { permalink: cleanUrl });
       }
+      if (isNew) clearDraft();
       onSaved(); onClose();
     } catch (e) { alert(T("저장 실패: ") + (e as Error).message); }
   }
@@ -2223,6 +2237,9 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
     <Modal title={isNew ? T("PR 안건 추가") : T("PR 안건 수정")} onClose={onClose}
       footer={<>{!isNew && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)", marginRight: "auto" }} onClick={del}>{T("삭제")}</button>}
         <button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" onClick={save}>{T("저장")}</button></>}>
+      {isNew && restored && <div className="note" style={{ marginBottom: 12, background: "var(--accent-weak)", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
+        💾 {T("작성 중이던 내용을 불러왔어요.")}<button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => { clearDraft(); setF(defaults); }}>{T("새로 작성")}</button>
+      </div>}
       <Field label={T("안건명")}><input style={inp} value={f.title} onChange={(e) => up("title", e.target.value)} /></Field>
       <Field label={T("요청사 콘텐츠 브리핑")}><textarea style={{ ...inp, minHeight: 64 }} value={f.brief ?? ""} onChange={(e) => up("brief", e.target.value)} /></Field>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>

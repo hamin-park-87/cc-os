@@ -9,10 +9,11 @@ import { T } from "@/lib/i18n";
 const bcolor = (b?: string | null) => (b && BRAND_COLOR[b]) || "#3B7DD8";
 const grad = (c: string) => `linear-gradient(150deg, ${c}, ${c}22)`;
 
-export function ContentArchive({ contents, showCreator = true, showBrand = true, hint, tagBrands, onTag, compact, limit, onMore }: {
+export function ContentArchive({ contents, showCreator = true, showBrand = true, hint, tagBrands, onTag, compact, limit, onMore, strategicBrands }: {
   contents: Content[]; showCreator?: boolean; showBrand?: boolean; hint?: string;
   tagBrands?: string[]; onTag?: (c: Content, brandName: string | null) => Promise<void>;
   compact?: boolean; limit?: number; onMore?: () => void; // compact: 필터 숨김 + N개 미리보기 + 더보기
+  strategicBrands?: string[]; // 주어지면 브랜드 필터를 전략 브랜드로만 제한(외부 PR 의뢰사 제외) — REQ-021
 }) {
   const [, setTick] = useState(0);
   const [creator, setCreator] = useState("");
@@ -26,7 +27,11 @@ export function ContentArchive({ contents, showCreator = true, showBrand = true,
   const [visN, setVisN] = useState(60); // 전체 모드 페이지네이션
 
   const creators = useMemo(() => [...new Set(contents.map((c) => c.creatorName))], [contents]);
-  const brands = useMemo(() => [...new Set(contents.map((c) => c.brandName).filter(Boolean))] as string[], [contents]);
+  const brands = useMemo(() => {
+    const present = [...new Set(contents.map((c) => c.brandName).filter(Boolean))] as string[];
+    // strategicBrands가 주어지면 전략 브랜드만(외부 PR 의뢰사 제외)
+    return strategicBrands ? present.filter((b) => strategicBrands.includes(b)) : present;
+  }, [contents, strategicBrands]);
   const months = useMemo(() => [...new Set(contents.map(monthOf).filter(Boolean))].sort().reverse() as string[], [contents]);
 
   const items = useMemo(() => {
