@@ -189,6 +189,10 @@
   th,td{padding:11px 14px; text-align:left; font-size:13px; border-bottom:1px solid var(--border); white-space:nowrap}
   th{font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--faint); font-weight:600}
   tbody tr:last-child td{border-bottom:0}
+  /* 제작 일정 보드: 행 여백 축소로 진행상황 가독성 향상 */
+  .sched-board td,.sched-board th{padding:4px 12px}
+  .sched-board input,.sched-board select{padding:3px 7px !important; font-size:12px}
+  .sched-board .chip{padding:2px 8px}
   tbody tr:hover{background:var(--surface-2)}
   td.mx{text-align:center; font-family:var(--mono); font-weight:500}
   .cell{display:inline-grid; place-items:center; min-width:34px; height:24px; padding:0 4px; border-radius:6px; font-family:var(--mono); font-size:12px; font-weight:500}

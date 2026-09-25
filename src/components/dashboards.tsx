@@ -1437,7 +1437,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       </div>
     </div>}
     {!items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요. 위 ‘전략 브랜드 진행 현황’에서 배정 물량을 확인하고 ‘일정 생성’으로 만들 수 있어요.")}</div> :
-      <div className="tablewrap"><table><thead><tr>
+      <div className="tablewrap"><table className="sched-board"><thead><tr>
         <th>{T("콘텐츠")}</th><th>{T("구분")}</th>
         {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th>{T("콘텐츠")}</th>{!readonly && <th></th>}
       </tr></thead><tbody>
