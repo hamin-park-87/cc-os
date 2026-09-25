@@ -79,8 +79,10 @@ export async function syncCreatorData(admin: SupabaseClient, creatorId: string, 
     try {
       const aud = await provider.fetchAudience(acct.ig_user_id ?? "");
       const parsed = parseAudience(aud.genderAge);
-      if (parsed) await admin.from("audience_snapshots").upsert(
-        { creator_id: creatorId, date: today, female_pct: parsed.female, ages: parsed.ages, raw: aud.genderAge },
+      const countries = parseTopBreakdown(aud.country);
+      const cities = parseTopBreakdown(aud.city);
+      if (parsed || countries.length || cities.length) await admin.from("audience_snapshots").upsert(
+        { creator_id: creatorId, date: today, female_pct: parsed?.female ?? null, ages: parsed?.ages ?? null, countries, cities, raw: aud.genderAge },
         { onConflict: "creator_id,date" });
     } catch { /* 데모그래픽 미지원 계정 */ }
 
@@ -119,4 +121,15 @@ export function parseAudience(data: any): { female: number | null; ages: [string
   if (!total) return null;
   const ages: [string, number][] = Object.entries(buckets).map(([k, v]) => [k, Math.round(v / total * 100)]);
   return { female: hasGender ? Math.round(female / total * 100) : null, ages };
+}
+
+// 단일 차원(country/city) breakdown → 상위 N개 [[값, %], ...]
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseTopBreakdown(data: any, limit = 6): [string, number][] {
+  const results = data?.[0]?.total_value?.breakdowns?.[0]?.results;
+  if (!Array.isArray(results) || !results.length) return [];
+  let total = 0; const map: Record<string, number> = {};
+  for (const r of results) { const v = Number(r.value) || 0; total += v; const k = (r.dimension_values || [])[0]; if (k) map[k] = (map[k] || 0) + v; }
+  if (!total) return [];
+  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, limit).map(([k, v]) => [k, Math.round(v / total * 100)]);
 }

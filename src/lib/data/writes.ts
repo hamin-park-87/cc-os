@@ -357,22 +357,25 @@ export async function saveFeedback(creatorName: string, yearMonth: string, body:
 }
 
 // 팔로워 추이 — creator_account_snapshots(일별) 시계열 (RLS: 관리자 전체 / 크리에이터 본인)
-export async function getAccountSeries(creatorId: string): Promise<number[]> {
+export async function getAccountSeries(creatorId: string): Promise<{ date: string; followers: number }[]> {
   if (!isDb() || !creatorId) return [];
   const { data, error } = await getSupabase().from("creator_account_snapshots")
     .select("date, followers").eq("creator_id", creatorId).order("date", { ascending: true });
   if (error) { console.warn("[acctSeries]", error.message); return []; }
-  return (data ?? []).map((r) => Number(r.followers) || 0);
+  return (data ?? []).map((r) => ({ date: String(r.date), followers: Number(r.followers) || 0 }));
 }
 
 // 오디언스(성별·연령) 최신 스냅샷 — audience_snapshots (RLS: 관리자 전체 / 크리에이터 본인)
-export async function getAudience(creatorId: string): Promise<{ female: number; ages: [string, number][] }> {
-  const empty = { female: -1, ages: [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]] as [string, number][] };
+export async function getAudience(creatorId: string): Promise<{ female: number; ages: [string, number][]; countries: [string, number][]; cities: [string, number][] }> {
+  const empty = { female: -1, ages: [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]] as [string, number][], countries: [] as [string, number][], cities: [] as [string, number][] };
   if (!isDb() || !creatorId) return empty;
-  const { data } = await getSupabase().from("audience_snapshots").select("female_pct, ages")
+  const { data } = await getSupabase().from("audience_snapshots").select("female_pct, ages, countries, cities")
     .eq("creator_id", creatorId).order("date", { ascending: false }).limit(1).maybeSingle();
   if (!data) return empty;
-  return { female: data.female_pct ?? -1, ages: (data.ages as [string, number][]) ?? empty.ages };
+  return {
+    female: data.female_pct ?? -1, ages: (data.ages as [string, number][]) ?? empty.ages,
+    countries: (data.countries as [string, number][]) ?? [], cities: (data.cities as [string, number][]) ?? [],
+  };
 }
 
 // REQ-015: 배송정보(택배사·송장번호) 일괄 등록 — 서버에서 권한검증 후 갱신

@@ -107,12 +107,12 @@ export function metaProvider(token: string): IngestProvider {
       return { followers: p.followers_count ?? 0, reach: 0, views: 0, profileViews: 0 };
     },
     async fetchAudience(igUserId: string): Promise<AudienceMetric> {
+      const call = (breakdown: string) => g(`${igUserId}/insights`, {
+        metric: "follower_demographics", period: "lifetime", metric_type: "total_value", breakdown, access_token: token,
+      }).then((j) => j.data ?? []).catch(() => []);
       try {
-        const j = await g(`${igUserId}/insights`, {
-          metric: "follower_demographics", period: "lifetime", metric_type: "total_value",
-          breakdown: "age,gender", access_token: token,
-        });
-        return { genderAge: j.data ?? [], country: null, city: null };
+        const [genderAge, country, city] = await Promise.all([call("age,gender"), call("country"), call("city")]);
+        return { genderAge, country, city };
       } catch { return { genderAge: null, country: null, city: null }; }
     },
     async checkTokenHealth(): Promise<TokenHealth> {

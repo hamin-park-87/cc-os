@@ -39,18 +39,68 @@ const statusPill = (s: Creator["status"]) => {
 };
 const md = (dt?: string) => dt ? `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}` : "—";
 const ymd = (dt?: string | null) => dt ? dt.slice(0, 10).replace(/-/g, "/") : "—"; // 2026/08/27
-// 팔로워 추이 실데이터(creator_account_snapshots) 로드 훅
-function useFollowerSeries(creatorId?: string | null): number[] {
-  const [series, setSeries] = useState<number[]>([]);
-  useEffect(() => { if (!creatorId) { setSeries([]); return; } getAccountSeries(creatorId).then(setSeries).catch(() => setSeries([])); }, [creatorId]);
-  return series;
+// 팔로워 추이 실데이터(creator_account_snapshots) 로드 훅 — 일별 포인트
+type FollowerPoint = { date: string; followers: number };
+function useFollowerSeries(creatorId?: string | null): FollowerPoint[] {
+  const [pts, setPts] = useState<FollowerPoint[]>([]);
+  useEffect(() => { if (!creatorId) { setPts([]); return; } getAccountSeries(creatorId).then(setPts).catch(() => setPts([])); }, [creatorId]);
+  return pts;
+}
+// 일/주/월 집계 — 주·월은 각 기간의 마지막(최신) 팔로워 값 사용
+function aggFollowers(points: FollowerPoint[], gran: "d" | "w" | "m"): number[] {
+  if (gran === "d") return points.map((p) => p.followers);
+  const key = (d: string) => gran === "m" ? d.slice(0, 7) : String(Math.floor(new Date(d + "T00:00:00Z").getTime() / 86400000 / 7));
+  const last = new Map<string, number>(); // points가 날짜 오름차순이라 마지막 값이 기간 대표
+  for (const p of points) last.set(key(p.date), p.followers);
+  return [...last.values()];
+}
+// 팔로워 추이 카드 (일/주/월 토글 + 스파크라인)
+function FollowerTrend({ points, hint }: { points: FollowerPoint[]; hint?: string }) {
+  const [gran, setGran] = useState<"d" | "w" | "m">("d");
+  const series = aggFollowers(points, gran);
+  const has = series.length > 1;
+  return (
+    <div className="card pad">
+      <div className="sec-h" style={{ margin: "0 0 6px", alignItems: "center" }}><h2>{T("팔로워 추이")}</h2>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+          {([["d", "일"], ["w", "주"], ["m", "월"]] as const).map(([g, l]) => (
+            <button key={g} className={`chip ${gran === g ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0, fontSize: 11 }} onClick={() => setGran(g)}>{T(l)}</button>
+          ))}
+          {hint && <span className="hint" style={{ marginLeft: 6 }}>{hint}</span>}
+        </span>
+      </div>
+      {has ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}
+    </div>
+  );
 }
 // 오디언스(성별·연령) 실데이터(audience_snapshots) 로드 훅
-const EMPTY_AUD = { female: -1, ages: [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]] as [string, number][] };
-function useAudience(creatorId?: string | null): { female: number; ages: [string, number][] } {
-  const [aud, setAud] = useState(EMPTY_AUD);
+type Aud = { female: number; ages: [string, number][]; countries: [string, number][]; cities: [string, number][] };
+const EMPTY_AUD: Aud = { female: -1, ages: [["13–17", 0], ["18–24", 0], ["25–34", 0], ["35–44", 0], ["45+", 0]], countries: [], cities: [] };
+function useAudience(creatorId?: string | null): Aud {
+  const [aud, setAud] = useState<Aud>(EMPTY_AUD);
   useEffect(() => { if (!creatorId) { setAud(EMPTY_AUD); return; } getAudience(creatorId).then(setAud).catch(() => setAud(EMPTY_AUD)); }, [creatorId]);
   return aud;
+}
+// 국가 코드 → 표시명(간단 매핑; 없으면 코드 그대로)
+const COUNTRY_LABEL: Record<string, string> = { JP: "일본", KR: "한국", US: "미국", TW: "대만", CN: "중국", TH: "태국", VN: "베트남", HK: "홍콩", ID: "인도네시아", PH: "필리핀", SG: "싱가포르", GB: "영국", FR: "프랑스", DE: "독일", CA: "캐나다", AU: "호주" };
+// 국가/도시 상위 목록 렌더 (막대)
+function GeoList({ title, items }: { title: string; items: [string, number][] }) {
+  if (!items?.length) return null;
+  const max = Math.max(1, ...items.map((i) => i[1]));
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="sec-h" style={{ margin: "0 0 8px" }}><h2>{title}</h2></div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {items.map(([k, v]) => (
+          <div key={k} style={{ display: "grid", gridTemplateColumns: "90px 1fr 42px", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{COUNTRY_LABEL[k] ?? k}</span>
+            <div style={{ height: 8, background: "var(--surface-3)", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: `${v / max * 100}%`, background: "var(--accent)", borderRadius: 5 }} /></div>
+            <span className="num" style={{ textAlign: "right", color: "var(--muted)" }}>{v}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function Ring({ p, label }: { p: number; label: string }) {
@@ -283,7 +333,8 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
   const mine = contents.filter((x) => x.creatorName === c.name);
   const uploaded = mine.filter((x) => x.status === "uploaded");
   const totalViews = uploaded.reduce((s, x) => s + (x.views || 0), 0);
-  const series = useFollowerSeries(c.id);
+  const points = useFollowerSeries(c.id);
+  const series = points.map((p) => p.followers);
   const hasTrend = series.length > 1;
   const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0]) * 100 : 0;
   const ups = uploaded.filter((x) => x.views > 0);
@@ -342,10 +393,7 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
           <Kpi lab={T("평균 참여율")} val={ups.length ? avgEng.toFixed(1) : "—"} unit={ups.length ? "%" : ""} />
           <Kpi lab={T("업로드")} val={uploaded.length} unit={T("건")} />
         </div>
-        {hasTrend && <div className="card pad" style={{ marginBottom: 14 }}>
-          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle}</span></div>
-          <div style={{ marginTop: 8 }}><Spark data={series} /></div>
-        </div>}
+        {hasTrend && <div style={{ marginBottom: 14 }}><FollowerTrend points={points} hint={c.handle} /></div>}
         <div className="card pad" style={{ marginBottom: 14 }}>
           <div className="sec-h" style={{ margin: "0 0 12px" }}><h2>✨ {T("AI 성장 코치")}</h2><button className="btn acc" onClick={runAI}>{T("분석 실행")}</button></div>
           {!ai ? <div className="note">{T("'분석 실행'을 누르면 성장률·아카이브 콘텐츠를 분석해 피드백과 추천을 제공합니다.")}</div>
@@ -1551,7 +1599,8 @@ function Insights({ creators, contents, onNav }: { creators: Creator[]; contents
   const [name, setName] = useState(actives[0]?.name ?? "hina");
   const [ai, setAi] = useState<{ t: string; s: string }[] | null>(null);
   const c = creators.find((x) => x.name === name)!;
-  const series = useFollowerSeries(c?.id);
+  const points = useFollowerSeries(c?.id);
+  const series = points.map((p) => p.followers);
   const hasTrend = series.length > 1; // 팔로워 추이 실데이터 존재 여부
   const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0] * 100) : 0;
   const aud = useAudience(c?.id);
@@ -1578,13 +1627,14 @@ function Insights({ creators, contents, onNav }: { creators: Creator[]; contents
       <Kpi lab={T("평균 참여율")} val={hasReal ? avgEng.toFixed(1) : "—"} unit={hasReal ? "%" : ""} /><Kpi lab={T("업로드")} val={ups.length} unit={T("건")} />
     </div>
     <div className="two">
-      <div className="card pad"><div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{c.handle}</span></div>
-        {hasTrend ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}</div>
+      <FollowerTrend points={points} hint={c.handle} />
       <div className="card pad"><div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스")}</h2></div>
         {!hasReal || aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
           <div className="donut-wrap"><Donut pct={aud.female} label={T("여성")} /><div className="legend"><div className="it"><span className="sw" style={{ background: "var(--accent)" }} />{T("여성")} <b className="num">{aud.female}%</b></div><div className="it"><span className="sw" style={{ background: "var(--surface-3)" }} />{T("남성")} <b className="num">{100 - aud.female}%</b></div></div></div>
           <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
           <Bars items={aud.ages} />
+          <GeoList title={T("국가")} items={aud.countries} />
+          <GeoList title={T("도시")} items={aud.cities} />
         </>}
       </div>
     </div>
@@ -2952,7 +3002,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
-  const myFollowerSeries = useFollowerSeries(d.creators.find((x) => x.name === me)?.id);
+  const myFollowerPoints = useFollowerSeries(d.creators.find((x) => x.name === me)?.id);
   const myAudience = useAudience(d.creators.find((x) => x.name === me)?.id);
   const [secReqs, setSecReqs] = useState<SecondaryReq[]>([]);
   useEffect(() => { getSecondaryRequests().then(setSecReqs).catch(() => setSecReqs([])); }, []);
@@ -3001,7 +3051,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   if (pane === "c-growth") {
     const cr = d.creators.find((x) => x.name === me)!;
     const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
-    const series = myFollowerSeries;
+    const series = myFollowerPoints.map((p) => p.followers);
     const hasTrend = series.length > 1;
     const aud = myAudience;
     const maxAge = Math.max(1, ...aud.ages.map((a) => a[1]));
@@ -3026,10 +3076,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
         <Kpi lab={T("업로드")} val={mine.filter((c) => c.status === "uploaded").length} unit={T("건")} />
       </div>
       <div className="two">
-        <div className="card pad">
-          <div className="sec-h" style={{ margin: "0 0 6px" }}><h2>{T("팔로워 추이")}</h2><span className="hint">{cr?.handle}</span></div>
-          {hasTrend ? <div style={{ marginTop: 8 }}><Spark data={series} /></div> : <div className="note">{T("Instagram 연동·동기화 후 표시됩니다.")}</div>}
-        </div>
+        <FollowerTrend points={myFollowerPoints} hint={cr?.handle} />
         <div className="card pad">
           <div className="sec-h" style={{ margin: "0 0 14px" }}><h2>{T("오디언스 · 성별")}</h2></div>
           {!hasReal || aud.female < 0 ? <div className="note">{T("오디언스 데이터는 Instagram 인사이트 연동 후 표시됩니다.")}</div> : <>
@@ -3039,6 +3086,8 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
             </div>
             <div className="sec-h" style={{ margin: "18px 0 8px" }}><h2>{T("연령대")}</h2></div>
             <div className="bars">{aud.ages.map(([l, v]) => (<div className="bar" key={l}><span>{l}</span><div className="track"><div className="fill" style={{ width: `${v / maxAge * 100}%` }} /></div><span className="pct">{v}%</span></div>))}</div>
+            <GeoList title={T("국가")} items={aud.countries} />
+            <GeoList title={T("도시")} items={aud.cities} />
           </>}
         </div>
       </div>
