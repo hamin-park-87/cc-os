@@ -356,6 +356,15 @@ export async function saveFeedback(creatorName: string, yearMonth: string, body:
   if (error) throw error;
 }
 
+// 팔로워 추이 — creator_account_snapshots(일별) 시계열 (RLS: 관리자 전체 / 크리에이터 본인)
+export async function getAccountSeries(creatorId: string): Promise<number[]> {
+  if (!isDb() || !creatorId) return [];
+  const { data, error } = await getSupabase().from("creator_account_snapshots")
+    .select("date, followers").eq("creator_id", creatorId).order("date", { ascending: true });
+  if (error) { console.warn("[acctSeries]", error.message); return []; }
+  return (data ?? []).map((r) => Number(r.followers) || 0);
+}
+
 // REQ-015: 배송정보(택배사·송장번호) 일괄 등록 — 서버에서 권한검증 후 갱신
 export async function bulkShip(rows: { contentId: string; courier?: string; tracking?: string }[]): Promise<{ updated: number; skipped: number }> {
   const { data: { session } } = await getSupabase().auth.getSession();

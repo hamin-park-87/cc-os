@@ -4,11 +4,11 @@ import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, Contrac
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
-import { Spark, MiniSpark, Donut, Bars, growthSeries, audienceOf } from "./charts";
+import { Spark, MiniSpark, Donut, Bars, audienceOf } from "./charts";
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -39,6 +39,12 @@ const statusPill = (s: Creator["status"]) => {
 };
 const md = (dt?: string) => dt ? `${+dt.slice(5, 7)}/${+dt.slice(8, 10)}` : "—";
 const ymd = (dt?: string | null) => dt ? dt.slice(0, 10).replace(/-/g, "/") : "—"; // 2026/08/27
+// 팔로워 추이 실데이터(creator_account_snapshots) 로드 훅
+function useFollowerSeries(creatorId?: string | null): number[] {
+  const [series, setSeries] = useState<number[]>([]);
+  useEffect(() => { if (!creatorId) { setSeries([]); return; } getAccountSeries(creatorId).then(setSeries).catch(() => setSeries([])); }, [creatorId]);
+  return series;
+}
 
 function Ring({ p, label }: { p: number; label: string }) {
   return <div className="ring" style={{ ["--p" as string]: p }}><b>{label}</b></div>;
@@ -270,7 +276,7 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
   const mine = contents.filter((x) => x.creatorName === c.name);
   const uploaded = mine.filter((x) => x.status === "uploaded");
   const totalViews = uploaded.reduce((s, x) => s + (x.views || 0), 0);
-  const series = growthSeries();
+  const series = useFollowerSeries(c.id);
   const hasTrend = series.length > 1;
   const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0]) * 100 : 0;
   const ups = uploaded.filter((x) => x.views > 0);
@@ -1538,7 +1544,7 @@ function Insights({ creators, contents, onNav }: { creators: Creator[]; contents
   const [name, setName] = useState(actives[0]?.name ?? "hina");
   const [ai, setAi] = useState<{ t: string; s: string }[] | null>(null);
   const c = creators.find((x) => x.name === name)!;
-  const series = growthSeries();
+  const series = useFollowerSeries(c?.id);
   const hasTrend = series.length > 1; // 팔로워 추이 실데이터 존재 여부
   const pct = hasTrend ? ((series[series.length - 1] - series[0]) / series[0] * 100) : 0;
   const aud = audienceOf(name);
@@ -2939,6 +2945,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   registerCreatorCodes(d.creators);
   const me = scope;
   const mine = d.contents.filter((c) => c.creatorName === me);
+  const myFollowerSeries = useFollowerSeries(d.creators.find((x) => x.name === me)?.id);
   const [secReqs, setSecReqs] = useState<SecondaryReq[]>([]);
   useEffect(() => { getSecondaryRequests().then(setSecReqs).catch(() => setSecReqs([])); }, []);
   // 마감 임박/지연 리마인드 (인앱)
@@ -2986,7 +2993,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   if (pane === "c-growth") {
     const cr = d.creators.find((x) => x.name === me)!;
     const monthViews = mine.filter((c) => c.views).reduce((s, c) => s + c.views, 0);
-    const series = growthSeries();
+    const series = myFollowerSeries;
     const hasTrend = series.length > 1;
     const aud = audienceOf(me);
     const maxAge = Math.max(1, ...aud.ages.map((a) => a[1]));
