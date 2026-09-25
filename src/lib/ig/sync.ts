@@ -22,14 +22,43 @@ export async function syncCreatorData(admin: SupabaseClient, creatorId: string, 
 
     // 미디어 수집
     const reels = await provider.fetchRecentReels(acct.ig_user_id ?? "");
-    // 콘텐츠 메타데이터를 한 번에 upsert (개별 왕복 제거 → 타임아웃 방지)
-    const rows = reels.map((r) => ({
-      creator_id: creatorId, ig_media_id: r.igMediaId, permalink: r.permalink, thumbnail_url: r.thumbnailUrl,
-      caption: r.caption, product: (r.caption || "인스타 콘텐츠").split("\n")[0].slice(0, 60),
-      kind: "own", status: "uploaded", published_at: r.publishedAt || null, video_status: "ready", match_source: "auto",
-    }));
-    if (rows.length) await admin.from("contents").upsert(rows, { onConflict: "ig_media_id" });
-    // ig_media_id → content id 매핑 (지표 저장용)
+    // 릴스 permalink → 기존 콘텐츠(수동 등록 PR 등) 매칭용. 릴스 코드로 대조.
+    const reelCode = (u?: string | null) => { const m = (u || "").match(/instagram\.com\/(?:share\/)?(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i); return m ? m[1] : ""; };
+    const { data: existing } = await admin.from("contents").select("id, ig_media_id, permalink, kind").eq("creator_id", creatorId);
+    // PR/딜 등 비(非)-own 콘텐츠는 kind/product/brand를 보존해야 하므로 대량 upsert에서 제외하고 미디어 필드만 갱신
+    const protectedMedia = new Set<string>(); // 이미 ig_media_id가 붙은 비-own 콘텐츠
+    const prByCode = new Map<string, string>(); // permalink만 있는 비-own 콘텐츠: code → content id
+    for (const c of existing ?? []) {
+      if (c.kind !== "own") {
+        if (c.ig_media_id) protectedMedia.add(c.ig_media_id as string);
+        else { const cd = reelCode(c.permalink); if (cd) prByCode.set(cd, c.id as string); }
+      }
+    }
+    // 1) PR 콘텐츠에 릴스 연결(미디어 필드만) — kind/product/brand 보존
+    const bulkOwn: Record<string, unknown>[] = [];
+    for (const r of reels) {
+      const cd = reelCode(r.permalink);
+      const prId = (cd && prByCode.get(cd)) || null;
+      if (prId) {
+        await admin.from("contents").update({
+          ig_media_id: r.igMediaId, thumbnail_url: r.thumbnailUrl, published_at: r.publishedAt || null,
+          video_status: "ready", status: "uploaded",
+        }).eq("id", prId);
+        protectedMedia.add(r.igMediaId); // 이후 대량 upsert에서 제외
+      } else if (protectedMedia.has(r.igMediaId)) {
+        // 이미 연결된 PR 콘텐츠 — 썸네일 등 미디어 필드만 갱신(kind 보존)
+        await admin.from("contents").update({ thumbnail_url: r.thumbnailUrl, published_at: r.publishedAt || null, video_status: "ready" }).eq("ig_media_id", r.igMediaId);
+      } else {
+        bulkOwn.push({
+          creator_id: creatorId, ig_media_id: r.igMediaId, permalink: r.permalink, thumbnail_url: r.thumbnailUrl,
+          caption: r.caption, product: (r.caption || "인스타 콘텐츠").split("\n")[0].slice(0, 60),
+          kind: "own", status: "uploaded", published_at: r.publishedAt || null, video_status: "ready", match_source: "auto",
+        });
+      }
+    }
+    // 2) 나머지 개인 게시물 대량 upsert (기존 방식)
+    if (bulkOwn.length) await admin.from("contents").upsert(bulkOwn, { onConflict: "ig_media_id" });
+    // ig_media_id → content id 매핑 (지표 저장용) — PR 콘텐츠 포함
     const { data: idRows } = await admin.from("contents").select("id, ig_media_id").eq("creator_id", creatorId).not("ig_media_id", "is", null);
     const idByMedia = new Map((idRows ?? []).map((x) => [x.ig_media_id, x.id]));
     // 최근 maxMetrics건만 인사이트 조회 (느린 부분 제한)
