@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   try { admin = getAdminClient(); } catch { return NextResponse.json({ error: "server" }, { status: 500 }); }
 
   const { data: deal } = await admin.from("deals")
-    .select("id, pr_seq, title, client, creator_id, manager, step, brief, brief_raw, brief_summary, brief_ai_status, due_date, upload_date, received_date, sched, content_id, fee, tax, fee_agreed, invoice_url, invoice_name, invoice_at, paid_on, remittance_url, remittance_name")
+    .select("id, pr_seq, title, client, creator_id, manager, step, brief, brief_raw, brief_summary, brief_ai_status, due_date, upload_date, received_date, sched, content_id, fee, tax, fee_agreed, invoice_url, invoice_name, invoice_at, paid_on, remittance_url, remittance_name, payment_confirmed, payment_confirmed_at, payment_confirmed_by")
     .eq("share_token", token).maybeSingle();
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
 
@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
     fee: deal.fee != null ? Number(deal.fee) : null, tax: deal.tax != null ? Number(deal.tax) : null, feeAgreed: !!deal.fee_agreed,
     invoice: deal.invoice_url ? { url: deal.invoice_url, name: deal.invoice_name ?? null, at: deal.invoice_at ?? null } : null,
     payment: (deal.paid_on || deal.remittance_url) ? { paidOn: deal.paid_on ?? null, url: deal.remittance_url ?? null, name: deal.remittance_name ?? null } : null,
+    paymentConfirmed: !!deal.payment_confirmed, paymentConfirmedAt: deal.payment_confirmed_at ?? null, paymentConfirmedBy: deal.payment_confirmed_by ?? null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     feeProposals: (feeRows ?? []).map((p: any) => ({ id: p.id, by: p.by, author: p.author, amount: Number(p.amount), note: p.note, status: p.status, createdAt: p.created_at })),
     dueDate: deal.due_date, uploadDate: deal.upload_date, receivedDate: deal.received_date,

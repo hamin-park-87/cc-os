@@ -40,7 +40,9 @@ export async function POST(req: NextRequest) {
     if (!p) return NextResponse.json({ error: "제안을 찾을 수 없어요" }, { status: 404 });
     await admin.from("fee_proposals").update({ status: "agreed" }).eq("id", p.id);
     await admin.from("deals").update({ fee: p.amount, fee_agreed: true }).eq("id", deal.id);
-    notify = `✅ *비용 합의 완료* — ${yen(Number(p.amount))} (의뢰사 ${author || ""} 승인)`;
+    // 수락자는 제안자의 반대편(의뢰사 제안이면 우리측 수락, 우리 제안이면 의뢰사 수락)
+    const accepter = p.by === "client" ? "81degree" : "의뢰사";
+    notify = `✅ *비용 합의 완료* — ${yen(Number(p.amount))} (${accepter}${author ? ` ${author}` : ""} 승인)`;
   } else {
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   }

@@ -8,3 +8,7 @@ alter table public.deals add column if not exists paid_on date;
 alter table public.deals add column if not exists remittance_url text;
 alter table public.deals add column if not exists remittance_name text;
 alter table public.deals add column if not exists remittance_at timestamptz;
+-- 우리(81degree)측 최종 입금 확인(통장 확인) → 프로젝트 마무리
+alter table public.deals add column if not exists payment_confirmed boolean not null default false;
+alter table public.deals add column if not exists payment_confirmed_at timestamptz;
+alter table public.deals add column if not exists payment_confirmed_by text;

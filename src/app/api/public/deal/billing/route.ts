@@ -21,12 +21,22 @@ export async function POST(req: NextRequest) {
   const paidOn = String(fd.get("paidOn") || "").slice(0, 10);
   const file = fd.get("file");
   if (!token) return NextResponse.json({ error: "token 필요" }, { status: 400 });
-  if (!["invoice", "payment"].includes(kind)) return NextResponse.json({ error: "kind 오류" }, { status: 400 });
+  if (!["invoice", "payment", "confirm"].includes(kind)) return NextResponse.json({ error: "kind 오류" }, { status: 400 });
 
   const admin = getAdminClient();
   const { data: deal } = await admin.from("deals")
     .select("id, pr_seq, title, client, share_token, creator_id, slack_threads").eq("share_token", token).maybeSingle();
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // 우리(81degree)측 최종 입금 확인(통장 확인) → 프로젝트 마무리(step=완료)
+  if (kind === "confirm") {
+    const now = new Date().toISOString();
+    await admin.from("deals").update({ payment_confirmed: true, payment_confirmed_at: now, payment_confirmed_by: author || "81degree", step: 8 }).eq("id", deal.id);
+    try { await admin.from("deal_step_events").insert({ deal_id: deal.id, step: 8, at: now }); } catch { /* noop */ }
+    const notifyC = `🏁 *입금 최종 확인 완료 — 프로젝트 마무리* (81degree${author ? ` ${author}` : ""})`;
+    await notifyThread(admin, deal, notifyC);
+    return NextResponse.json({ ok: true });
+  }
 
   // 파일 업로드(있으면)
   let fileUrl = "", fileName = "";
@@ -59,24 +69,27 @@ export async function POST(req: NextRequest) {
     notify = `💴 *입금 확인* (의뢰사 ${author || ""})${paidOn ? `\n입금일: ${paidOn}` : ""}${fileUrl ? `\n송금확인증: ${fileName}\n🔗 ${fileUrl}` : ""}`;
   }
 
-  // Slack 알림 — 안건 스레드
+  await notifyThread(admin, deal, notify);
+  return NextResponse.json({ ok: true, fileUrl, fileName });
+}
+
+// 안건 스레드(【의뢰사】PR-0XX)에 답글로 누적 알림
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function notifyThread(admin: any, deal: any, text: string) {
   try {
     const prNo = deal.pr_seq ? "PR-" + String(deal.pr_seq).padStart(3, "0") : "";
     const url = `https://cc-os.81degree.com/pr/${deal.share_token}`;
     const rootText = `【${deal.client || ""}】${prNo}\n${deal.title}\n🔗 대시보드 / ダッシュボード: ${url}`;
     let ccChannel = "";
     if (deal.creator_id) { const { data: cr } = await admin.from("creators").select("slack_channel").eq("id", deal.creator_id).maybeSingle(); ccChannel = (cr?.slack_channel as string) || ""; }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const threads: Record<string, string> = (deal.slack_threads && typeof deal.slack_threads === "object") ? { ...(deal.slack_threads as any) } : {};
+    const threads: Record<string, string> = (deal.slack_threads && typeof deal.slack_threads === "object") ? { ...deal.slack_threads } : {};
     const targets = [PR_CHANNEL, ...(ccChannel && ccChannel !== PR_CHANNEL ? [ccChannel] : [])];
     let changed = false;
     for (const ch of targets) {
       let ts = threads[ch];
       if (!ts) { const t2 = await slackPost(ch, rootText); if (t2) { ts = t2; threads[ch] = t2; changed = true; } }
-      if (ts) await slackPost(ch, notify, ts);
+      if (ts) await slackPost(ch, text, ts);
     }
     if (changed) await admin.from("deals").update({ slack_threads: threads }).eq("id", deal.id);
   } catch { /* 알림 실패해도 저장은 유지 */ }
-
-  return NextResponse.json({ ok: true, fileUrl, fileName });
 }

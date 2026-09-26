@@ -16,6 +16,7 @@ type Deal = {
   fee: number | null; tax: number | null; feeAgreed: boolean; feeProposals: FeeProposal[];
   invoice: { url: string; name: string | null; at: string | null } | null;
   payment: { paidOn: string | null; url: string | null; name: string | null } | null;
+  paymentConfirmed: boolean; paymentConfirmedAt: string | null; paymentConfirmedBy: string | null;
   dueDate: string | null; uploadDate: string | null; receivedDate: string | null;
   sched: Record<string, string>;
   creator: { name: string; nameEn: string | null; handle: string | null; photoUrl: string | null } | null;
@@ -30,8 +31,8 @@ const STEPS: [string, string][] = [
 ];
 const STAGES: [string, string, string][] = [["plan", "기획", "企画"], ["shoot", "촬영", "撮影"], ["edit", "편집", "編集"], ["upload", "업로드", "投稿"]];
 const DICT = {
-  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!", edit: "수정", del: "삭제", save: "저장", cancel: "취소", reply: "답글", briefAi: "AI 요약", briefRaw: "의뢰 원문", briefStatus: "상태", briefProduct: "상품", deliverables: "요청 산출물", secondary: "2차 이용", feeCond: "개런티/조건", notes: "주의사항", scheduleP: "진행 일정", pasteBrief: "의뢰 원문 붙여넣기", briefPh: "의뢰사에서 받은 안건 내용을 그대로 붙여넣으면 AI가 핵심을 정리해요.", analyze: "AI로 정리", reanalyze: "수정 후 다시 정리", editRaw: "원문 수정", analyzing: "AI가 정리 중…", showRaw: "원문 보기", hideRaw: "원문 접기", expand: "펼치기", collapse: "접기", updateNote: "다시 붙여넣고 정리하면 기존 원문·AI 요약을 새 내용으로 교체해요.", aiFailed: "AI 정리에 실패했어요. 원문은 저장됐어요.", feeNego: "비용 협의", feePropose: "희망 비용 제안", feeAmount: "희망 금액(¥)", feeNote: "메모(선택)", feeSend: "제안하기", feeAgree: "이 금액으로 합의", feeAgreed: "합의 완료", feeAgreedAmt: "합의 금액", feeNone: "아직 제안된 금액이 없어요.", feeProposed: "제안", feeByCreator: "CC 제안", feeByClient: "의뢰사 제안", feeByManager: "매니저 제안", feeWho: "제안자", billing: "청구 · 입금", invoice: "청구서", invoiceUpload: "청구서 업로드(81degree)", noInvoice: "아직 청구서가 등록되지 않았어요.", open: "열기", paidDate: "입금일", remittance: "송금확인증", paymentTitle: "입금 확인(의뢰사)", paymentReport: "입금 등록", uploading: "업로드 중…", chooseFile: "파일 선택", paidOnLabel: "입금일" },
-  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！", edit: "編集", del: "削除", save: "保存", cancel: "キャンセル", reply: "返信", briefAi: "AI要約", briefRaw: "依頼原文", briefStatus: "ステータス", briefProduct: "商材", deliverables: "ご依頼事項", secondary: "二次利用", feeCond: "ギャランティ/条件", notes: "注意事項", scheduleP: "進行スケジュール", pasteBrief: "依頼原文を貼り付け", briefPh: "依頼社から届いた案件内容をそのまま貼り付けると、AIが要点を整理します。", analyze: "AIで整理", reanalyze: "修正して再整理", editRaw: "原文を修正", analyzing: "AIが整理中…", showRaw: "原文を見る", hideRaw: "原文を閉じる", expand: "開く", collapse: "閉じる", updateNote: "貼り直して整理すると、既存の原文・AI要約が新しい内容に置き換わります。", aiFailed: "AI整理に失敗しました。原文は保存されています。", feeNego: "費用のご相談", feePropose: "希望費用の提案", feeAmount: "希望金額(¥)", feeNote: "メモ(任意)", feeSend: "提案する", feeAgree: "この金額で合意", feeAgreed: "合意済み", feeAgreedAmt: "合意金額", feeNone: "まだ提案された金額はありません。", feeProposed: "提案", feeByCreator: "CC提案", feeByClient: "依頼社提案", feeByManager: "マネージャー提案", feeWho: "提案者", billing: "請求 · 入金", invoice: "請求書", invoiceUpload: "請求書アップロード(81degree)", noInvoice: "まだ請求書が登録されていません。", open: "開く", paidDate: "入金日", remittance: "送金確認書", paymentTitle: "入金確認(依頼社)", paymentReport: "入金を登録", uploading: "アップロード中…", chooseFile: "ファイル選択", paidOnLabel: "入金日" },
+  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!", edit: "수정", del: "삭제", save: "저장", cancel: "취소", reply: "답글", briefAi: "AI 요약", briefRaw: "의뢰 원문", briefStatus: "상태", briefProduct: "상품", deliverables: "요청 산출물", secondary: "2차 이용", feeCond: "개런티/조건", notes: "주의사항", scheduleP: "진행 일정", pasteBrief: "의뢰 원문 붙여넣기", briefPh: "의뢰사에서 받은 안건 내용을 그대로 붙여넣으면 AI가 핵심을 정리해요.", analyze: "AI로 정리", reanalyze: "수정 후 다시 정리", editRaw: "원문 수정", analyzing: "AI가 정리 중…", showRaw: "원문 보기", hideRaw: "원문 접기", expand: "펼치기", collapse: "접기", updateNote: "다시 붙여넣고 정리하면 기존 원문·AI 요약을 새 내용으로 교체해요.", aiFailed: "AI 정리에 실패했어요. 원문은 저장됐어요.", feeNego: "비용 협의", feePropose: "희망 비용 제안", feeAmount: "희망 금액(¥)", feeNote: "메모(선택)", feeSend: "제안하기", feeAgree: "이 금액으로 합의", feeAgreed: "합의 완료", feeAgreedAmt: "합의 금액", feeNone: "아직 제안된 금액이 없어요.", feeProposed: "제안", feeByCreator: "CC 제안", feeByClient: "의뢰사 제안", feeByManager: "매니저 제안", feeWho: "제안자", billing: "청구 · 입금", invoice: "청구서", invoiceUpload: "청구서 업로드(81degree)", noInvoice: "아직 청구서가 등록되지 않았어요.", open: "열기", paidDate: "입금일", remittance: "송금확인증", paymentTitle: "입금 확인(의뢰사)", paymentReport: "입금 등록", uploading: "업로드 중…", chooseFile: "파일 선택", paidOnLabel: "입금일", confirmTitle: "입금 최종 확인 (81degree)", confirmDesc: "통장 입금을 확인한 뒤 눌러 프로젝트를 마무리합니다.", confirmBtn: "통장 확인 완료 · 프로젝트 마무리", confirmedBadge: "입금 확인 완료 · 마무리", confirmName: "확인자 이름", confirmAsk: "통장 입금을 확인하셨나요? 프로젝트를 마무리합니다." },
+  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！", edit: "編集", del: "削除", save: "保存", cancel: "キャンセル", reply: "返信", briefAi: "AI要約", briefRaw: "依頼原文", briefStatus: "ステータス", briefProduct: "商材", deliverables: "ご依頼事項", secondary: "二次利用", feeCond: "ギャランティ/条件", notes: "注意事項", scheduleP: "進行スケジュール", pasteBrief: "依頼原文を貼り付け", briefPh: "依頼社から届いた案件内容をそのまま貼り付けると、AIが要点を整理します。", analyze: "AIで整理", reanalyze: "修正して再整理", editRaw: "原文を修正", analyzing: "AIが整理中…", showRaw: "原文を見る", hideRaw: "原文を閉じる", expand: "開く", collapse: "閉じる", updateNote: "貼り直して整理すると、既存の原文・AI要約が新しい内容に置き換わります。", aiFailed: "AI整理に失敗しました。原文は保存されています。", feeNego: "費用のご相談", feePropose: "希望費用の提案", feeAmount: "希望金額(¥)", feeNote: "メモ(任意)", feeSend: "提案する", feeAgree: "この金額で合意", feeAgreed: "合意済み", feeAgreedAmt: "合意金額", feeNone: "まだ提案された金額はありません。", feeProposed: "提案", feeByCreator: "CC提案", feeByClient: "依頼社提案", feeByManager: "マネージャー提案", feeWho: "提案者", billing: "請求 · 入金", invoice: "請求書", invoiceUpload: "請求書アップロード(81degree)", noInvoice: "まだ請求書が登録されていません。", open: "開く", paidDate: "入金日", remittance: "送金確認書", paymentTitle: "入金確認(依頼社)", paymentReport: "入金を登録", uploading: "アップロード中…", chooseFile: "ファイル選択", paidOnLabel: "入金日", confirmTitle: "入金最終確認 (81degree)", confirmDesc: "通帳の入金を確認してから押して、プロジェクトを完了します。", confirmBtn: "入金確認完了 · プロジェクト完了", confirmedBadge: "入金確認完了 · 完了", confirmName: "確認者名", confirmAsk: "通帳の入金を確認しましたか？プロジェクトを完了します。" },
 };
 const ROLE_OPT: [string, string, string][] = [["client", "의뢰사", "依頼社"], ["manager", "매니저", "マネージャー"], ["creator", "CC", "CC"]];
 const yen = (n?: number | null) => n == null ? null : "¥" + n.toLocaleString();
@@ -68,14 +69,14 @@ export default function PublicDealPage() {
     return false;
   }
   async function submit() {
-    if (!form.author.trim() || (!form.body.trim() && !form.url.trim())) return;
+    if (!form.body.trim() && !form.url.trim()) return;
     setSending(true);
     if (await post(form)) { setForm((f) => ({ ...f, body: "", url: "" })); setSentOk(true); setTimeout(() => setSentOk(false), 2000); }
     setSending(false);
   }
   const [replyTo, setReplyTo] = useState(""); const [reply, setReply] = useState({ role: "manager", author: "", body: "" });
   async function submitReply(parentId: string) {
-    if (!reply.author.trim() || !reply.body.trim()) return;
+    if (!reply.body.trim()) return;
     if (await post({ ...reply, kind: "note", parentId })) { setReply({ role: "manager", author: "", body: "" }); setReplyTo(""); }
   }
   const [feeForm, setFeeForm] = useState({ by: "creator", author: "", amount: "", note: "" }); const [feeBusy, setFeeBusy] = useState(false); const [feeOpen, setFeeOpen] = useState(false);
@@ -112,6 +113,17 @@ export default function PublicDealPage() {
       if (res.ok) { if (kind === "payment") setPaidOn(""); await load(); }
       else { const j = await res.json().catch(() => ({})); if (j.error) alert(j.error); }
     } catch { /* noop */ }
+    setBillBusy("");
+  }
+  async function confirmPayment() {
+    if (billBusy) return;
+    if (!confirm(lang === "ja" ? DICT.ja.confirmAsk : DICT.ko.confirmAsk)) return;
+    const who = prompt(lang === "ja" ? DICT.ja.confirmName : DICT.ko.confirmName, "") || "";
+    const fd = new FormData();
+    fd.append("token", token); fd.append("kind", "confirm"); fd.append("author", who);
+    setBillBusy("confirm");
+    try { const res = await fetch("/api/public/deal/billing", { method: "POST", body: fd }); if (res.ok) await load(); }
+    catch { /* noop */ }
     setBillBusy("");
   }
   const [briefText, setBriefText] = useState(""); const [briefBusy, setBriefBusy] = useState(false); const [showRaw, setShowRaw] = useState(false);
@@ -187,12 +199,11 @@ export default function PublicDealPage() {
           <div style={{ marginLeft: 14, marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <select value={reply.role} onChange={(e) => setReply((r) => ({ ...r, role: e.target.value }))} style={selSt}>{ROLE_OPT.map(([v, ko, ja]) => <option key={v} value={v}>{lang === "ja" ? ja : ko}</option>)}</select>
-              <input placeholder={t.name} value={reply.author} onChange={(e) => setReply((r) => ({ ...r, author: e.target.value }))} style={{ ...selSt, flex: 1, minWidth: 120 }} />
             </div>
             <textarea placeholder={t.msg} value={reply.body} onChange={(e) => setReply((r) => ({ ...r, body: e.target.value }))} style={{ ...selSt, minHeight: 56, resize: "vertical" }} />
             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
               <button onClick={() => setReplyTo("")} style={{ cursor: "pointer", border: "1px solid #2a322e", background: "transparent", color: "#8a938d", borderRadius: 7, padding: "5px 12px", fontSize: 12 }}>{t.cancel}</button>
-              <button onClick={() => submitReply(c.id)} disabled={!reply.author.trim() || !reply.body.trim()} style={{ cursor: "pointer", border: 0, background: "#3fb984", color: "#04120c", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700, opacity: (!reply.author.trim() || !reply.body.trim()) ? .6 : 1 }}>{t.send}</button>
+              <button onClick={() => submitReply(c.id)} disabled={!reply.body.trim()} style={{ cursor: "pointer", border: 0, background: "#3fb984", color: "#04120c", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700, opacity: !reply.body.trim() ? .6 : 1 }}>{t.send}</button>
             </div>
           </div>
         )}
@@ -246,7 +257,7 @@ export default function PublicDealPage() {
                   ? <div style={{ color: "#6b746e", fontSize: 13 }}>{t.feeNone}</div>
                   : (deal.feeProposals ?? []).map((p) => {
                     const label = p.by === "client" ? t.feeByClient : p.by === "manager" ? t.feeByManager : t.feeByCreator;
-                    const canAgree = !deal.feeAgreed && p.status !== "agreed" && p.by !== "client";
+                    const canAgree = !deal.feeAgreed && p.status !== "agreed";
                     return (
                       <div key={p.id} style={{ background: "#161b19", border: `1px solid ${p.status === "agreed" ? "rgba(63,185,132,.4)" : "#212824"}`, borderRadius: 10, padding: "9px 12px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -432,13 +443,12 @@ export default function PublicDealPage() {
                 <select value={form.kind} onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value }))} style={selSt}>
                   <option value="note">{t.note}</option><option value="request">{t.request}</option><option value="draft">{t.draft}</option>
                 </select>
-                <input placeholder={t.name} value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} style={{ ...selSt, flex: 1, minWidth: 120 }} />
               </div>
               <textarea placeholder={t.msg} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} style={{ ...selSt, minHeight: 70, resize: "vertical" }} />
               {(form.kind === "draft") && <input placeholder={t.link} value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} style={selSt} />}
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {sentOk && <span style={{ color: "#3fb984", fontSize: 12.5 }}>✓ {t.sent}</span>}
-                <button onClick={submit} disabled={sending || !form.author.trim() || (!form.body.trim() && !form.url.trim())} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: sending ? .6 : 1 }}>{sending ? t.sending : t.send}</button>
+                <button onClick={submit} disabled={sending || (!form.body.trim() && !form.url.trim())} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: sending ? .6 : 1 }}>{sending ? t.sending : t.send}</button>
               </div>
             </div>
           </Section>
@@ -486,6 +496,22 @@ export default function PublicDealPage() {
                   </label>
                   {paidOn && !deal.payment?.paidOn && <button onClick={() => uploadBilling("payment", null)} disabled={!!billBusy} style={{ cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: billBusy ? .6 : 1 }}>{billBusy === "payment" ? t.uploading : t.paymentReport}</button>}
                 </div>
+              </div>
+              {/* 우리(81degree)측 최종 입금 확인(통장 확인) → 프로젝트 마무리 */}
+              <div style={{ borderTop: "1px solid #1a201d", paddingTop: 14 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 8 }}>{t.confirmTitle}</div>
+                {deal.paymentConfirmed ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(63,185,132,.12)", border: "1px solid rgba(63,185,132,.35)", borderRadius: 10, padding: "12px 14px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>🏁 {t.confirmedBadge}</span>
+                    {deal.paymentConfirmedBy && <span style={{ fontSize: 12, color: "#c7ccc8" }}>{deal.paymentConfirmedBy}</span>}
+                    {deal.paymentConfirmedAt && <span style={{ fontSize: 11, color: "#6b746e", marginLeft: "auto" }}>{ymd(deal.paymentConfirmedAt)}</span>}
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ fontSize: 12, color: "#8a938d" }}>{t.confirmDesc}</div>
+                    <button onClick={confirmPayment} disabled={!!billBusy} style={{ cursor: "pointer", border: 0, borderRadius: 9, padding: "10px 16px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: billBusy ? .6 : 1 }}>{billBusy === "confirm" ? t.uploading : `✓ ${t.confirmBtn}`}</button>
+                  </div>
+                )}
               </div>
             </div>
           </Section>
