@@ -214,8 +214,24 @@ export default function PublicDealPage() {
 
   return (
     <div style={{ minHeight: "100dvh", background: "#0b0f0e", color: "#e8ece9", fontFamily: "system-ui, -apple-system, 'Noto Sans JP', 'Noto Sans KR', sans-serif" }}>
-      <style>{`.pr-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}.pr-two>*{margin-bottom:0}@media(max-width:560px){.pr-two{grid-template-columns:1fr}}`}</style>
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px" }}>
+      <style>{`
+        *{box-sizing:border-box}
+        .pr-wrap{max-width:720px;margin:0 auto;padding:24px max(20px,env(safe-area-inset-right)) calc(56px + env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+        .pr-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
+        .pr-two>*{margin-bottom:0}
+        @media(max-width:560px){
+          .pr-two{grid-template-columns:1fr}
+          .pr-wrap{padding:14px max(14px,env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+          /* iOS 입력 포커스 시 화면 확대 방지: 입력 폰트 16px 이상 */
+          .pr-wrap input,.pr-wrap select,.pr-wrap textarea{font-size:16px !important}
+          /* 탭 영역 확보 */
+          .pr-wrap select,.pr-wrap input[type=date]{min-height:44px}
+          .pr-wrap nav button{min-height:38px}
+          .pr-wrap textarea{min-height:88px}
+        }
+        .pr-wrap input,.pr-wrap textarea,.pr-wrap select{max-width:100%}
+      `}</style>
+      <div className="pr-wrap">
         <header style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 20, letterSpacing: "-.01em" }}>81<span style={{ color: "#3fb984" }}>&apos;</span>DEGREE</div>
