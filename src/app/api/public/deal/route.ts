@@ -10,14 +10,25 @@ export async function GET(req: NextRequest) {
   let admin;
   try { admin = getAdminClient(); } catch { return NextResponse.json({ error: "server" }, { status: 500 }); }
 
-  const { data: deal } = await admin.from("deals")
-    .select("id, pr_seq, title, client, creator_id, manager, step, brief, brief_raw, brief_summary, brief_ai_status, due_date, upload_date, received_date, sched, content_id, fee, tax, fee_agreed, invoice_url, invoice_name, invoice_at, paid_on, remittance_url, remittance_name, payment_confirmed, payment_confirmed_at, payment_confirmed_by")
-    .eq("share_token", token).maybeSingle();
+  // 신규 컬럼(마이그레이션 전이면 없을 수 있음) 포함 select → 실패 시 기본 컬럼으로 폴백
+  const FULL = "id, pr_seq, title, client, creator_id, manager, step, brief, brief_raw, brief_summary, brief_ai_status, due_date, upload_date, received_date, sched, content_id, fee, tax, fee_agreed, invoice_url, invoice_name, invoice_at, paid_on, remittance_url, remittance_name, payment_confirmed, payment_confirmed_at, payment_confirmed_by";
+  const BASE = "id, pr_seq, title, client, creator_id, manager, step, brief, due_date, upload_date, received_date, sched, content_id, fee, tax";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let deal: any = null;
+  {
+    const r = await admin.from("deals").select(FULL).eq("share_token", token).maybeSingle();
+    if (r.error) { const b = await admin.from("deals").select(BASE).eq("share_token", token).maybeSingle(); deal = b.data; }
+    else deal = r.data;
+  }
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  // 협업 스레드(수정요청·피드백·초안)
-  const { data: comments } = await admin.from("deal_comments")
-    .select("id, parent_id, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true });
+  // 협업 스레드(수정요청·피드백·초안) — parent_id 컬럼 없으면 폴백
+  let comments = null as { id: string; parent_id?: string | null; role: string; author: string | null; kind: string; body: string | null; url: string | null; created_at: string }[] | null;
+  {
+    const r = await admin.from("deal_comments").select("id, parent_id, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true });
+    if (r.error) { const b = await admin.from("deal_comments").select("id, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true }); comments = b.data; }
+    else comments = r.data;
+  }
   // 비용 협의 제안 이력
   const { data: feeRows } = await admin.from("fee_proposals")
     .select("id, by, author, amount, note, status, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true });
