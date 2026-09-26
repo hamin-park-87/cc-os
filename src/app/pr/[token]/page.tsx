@@ -204,7 +204,7 @@ export default function PublicDealPage() {
 
   return (
     <div style={{ minHeight: "100dvh", background: "#0b0f0e", color: "#e8ece9", fontFamily: "system-ui, -apple-system, 'Noto Sans JP', 'Noto Sans KR', sans-serif" }}>
-      <style>{`.pr-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}.pr-two>*{margin-bottom:0}@media(max-width:560px){.pr-two{grid-template-columns:1fr}}`}</style>
+      <style>{`.pr-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}.pr-two>*{margin-bottom:0}@media(max-width:560px){.pr-two{grid-template-columns:1fr}}`}</style>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px" }}>
         <header style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
           <div>
@@ -355,7 +355,7 @@ export default function PublicDealPage() {
           {/* 비용 협의 · 청구/입금 — 한 행 2열(좁으면 1열) */}
           <div className="pr-two" style={{ marginBottom: 16 }}>
           {/* 비용 협의 */}
-          <Section title={t.feeNego} id="sec-fee">
+          <Section title={t.feeNego} id="sec-fee" collapsible defaultOpen labels={{ open: t.expand, close: t.collapse }}>
             {deal.feeAgreed && lastFee && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, background: "rgba(63,185,132,.1)", border: "1px solid rgba(63,185,132,.3)", borderRadius: 10, padding: "12px 14px" }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✓ {t.feeAgreed}</span>
@@ -404,7 +404,7 @@ export default function PublicDealPage() {
           </Section>
 
           {/* 청구 · 입금 */}
-          <Section title={t.billing} id="sec-billing">
+          <Section title={t.billing} id="sec-billing" collapsible defaultOpen labels={{ open: t.expand, close: t.collapse }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {/* 청구서 — 우리(81degree) 업로드 */}
               <div>
