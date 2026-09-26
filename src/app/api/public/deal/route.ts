@@ -11,9 +11,17 @@ export async function GET(req: NextRequest) {
   try { admin = getAdminClient(); } catch { return NextResponse.json({ error: "server" }, { status: 500 }); }
 
   const { data: deal } = await admin.from("deals")
-    .select("id, pr_seq, title, client, creator_id, manager, step, brief, due_date, upload_date, received_date, sched, content_id")
+    .select("id, pr_seq, title, client, creator_id, manager, step, brief, due_date, upload_date, received_date, sched, content_id, fee, tax")
     .eq("share_token", token).maybeSingle();
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  // 협업 스레드(수정요청·피드백·초안)
+  const { data: comments } = await admin.from("deal_comments")
+    .select("id, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true });
+  // 단계별 도달 일자(가장 이른 기록)
+  const { data: stepEvents } = await admin.from("deal_step_events").select("step, at").eq("deal_id", deal.id).order("at", { ascending: true });
+  const stepDates: Record<number, string> = {};
+  for (const e of stepEvents ?? []) { if (stepDates[e.step] == null) stepDates[e.step] = String(e.at).slice(0, 10); }
 
   const [{ data: creator }, { data: content }] = await Promise.all([
     deal.creator_id ? admin.from("creators").select("name, name_en, handle, photo_url").eq("id", deal.creator_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -31,9 +39,13 @@ export async function GET(req: NextRequest) {
     prNo: deal.pr_seq ? "PR-" + String(deal.pr_seq).padStart(3, "0") : null,
     title: deal.title, client: deal.client, manager: deal.manager ?? null,
     step: deal.step ?? 0, brief: deal.brief ?? null,
+    fee: deal.fee != null ? Number(deal.fee) : null, tax: deal.tax != null ? Number(deal.tax) : null,
     dueDate: deal.due_date, uploadDate: deal.upload_date, receivedDate: deal.received_date,
     sched: deal.sched ?? {},
     creator: creator ? { name: creator.name, nameEn: creator.name_en ?? null, handle: creator.handle ?? null, photoUrl: creator.photo_url ?? null } : null,
     content: content ? { permalink: content.permalink ?? null, thumbnailUrl: content.thumbnail_url ?? null, publishedAt: content.published_at ?? null, metrics } : null,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    comments: (comments ?? []).map((c: any) => ({ id: c.id, role: c.role, author: c.author, kind: c.kind, body: c.body, url: c.url, createdAt: c.created_at })),
+    stepDates,
   }, { headers: { "Cache-Control": "no-store" } });
 }

@@ -15,7 +15,7 @@ function creatorRow(c: Creator) {
     contract_date: c.contractDate ?? null, start_date: c.startDate ?? null, sns: c.sns, rates: c.rates,
     email: c.email ?? null, phone: c.phone ?? null, address: c.address ?? null, bank_account: c.bankAccount ?? null,
     invoice_reg_no: c.invoiceRegNo ?? null, entity_type: c.entityType ?? null, withholding: c.withholding ?? null,
-    contract_end: c.contractEnd ?? null, base_fee: c.baseFee ?? null, pay_cycle: c.payCycle ?? null,
+    contract_end: c.contractEnd ?? null, base_fee: c.baseFee ?? null, pay_cycle: c.payCycle ?? null, slack_channel: c.slackChannel ?? null,
   };
 }
 
@@ -191,7 +191,11 @@ export async function deleteDeal(id: string) {
   if (!isDb()) return; const { error } = await getSupabase().from("deals").delete().eq("id", id); if (error) throw error;
 }
 export async function setDealStep(id: string, step: number) {
-  if (!isDb()) return; const { error } = await getSupabase().from("deals").update({ step }).eq("id", id); if (error) throw error;
+  if (!isDb()) return;
+  const sb = getSupabase();
+  const { error } = await sb.from("deals").update({ step }).eq("id", id); if (error) throw error;
+  // 단계 도달 일자 기록(진행 이력) — 실패해도 무시
+  try { await sb.from("deal_step_events").insert({ deal_id: id, step }); } catch { /* noop */ }
 }
 
 // PR 안건 완료 콘텐츠 URL → contents 생성/링크 (아카이브에 노출)

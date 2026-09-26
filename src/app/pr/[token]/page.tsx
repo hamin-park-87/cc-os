@@ -1,13 +1,17 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useParams } from "next/navigation";
 
+type Comment = { id: string; role: string; author: string | null; kind: string; body: string | null; url: string | null; createdAt: string };
 type Deal = {
   prNo: string | null; title: string; client: string; manager: string | null; step: number; brief: string | null;
+  fee: number | null; tax: number | null;
   dueDate: string | null; uploadDate: string | null; receivedDate: string | null;
   sched: Record<string, string>;
   creator: { name: string; nameEn: string | null; handle: string | null; photoUrl: string | null } | null;
   content: { permalink: string | null; thumbnailUrl: string | null; publishedAt: string | null; metrics: Record<string, number> | null } | null;
+  comments: Comment[];
+  stepDates: Record<string, string>;
 };
 
 const STEPS: [string, string][] = [
@@ -16,9 +20,11 @@ const STEPS: [string, string][] = [
 ];
 const STAGES: [string, string, string][] = [["plan", "기획", "企画"], ["shoot", "촬영", "撮影"], ["edit", "편집", "編集"], ["upload", "업로드", "投稿"]];
 const DICT = {
-  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", result: "결과물", viewVideo: "영상 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정" },
-  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", result: "成果物", viewVideo: "動画を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定" },
+  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!" },
+  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！" },
 };
+const ROLE_OPT: [string, string, string][] = [["client", "의뢰사", "依頼社"], ["manager", "매니저", "マネージャー"], ["creator", "CC", "CC"]];
+const yen = (n?: number | null) => n == null ? null : "¥" + n.toLocaleString();
 const fmtN = (n?: number) => n == null ? "—" : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(n);
 const ymd = (d?: string | null) => d ? d.slice(0, 10).replace(/-/g, ".") : "—";
 // 안건별 permalink 정규화(공유토큰 제거)
@@ -30,17 +36,33 @@ export default function PublicDealPage() {
   const [lang, setLang] = useState<"ko" | "ja">("ja");
   const [deal, setDeal] = useState<Deal | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "notfound">("loading");
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/public/deal?token=${encodeURIComponent(token)}`);
-        if (!res.ok) { setState("notfound"); return; }
-        setDeal(await res.json()); setState("ok");
-      } catch { setState("notfound"); }
-    })();
-  }, [token]);
+  const [form, setForm] = useState({ role: "client", kind: "note", author: "", body: "", url: "" });
+  const [sending, setSending] = useState(false); const [sentOk, setSentOk] = useState(false);
+  async function load() {
+    try {
+      const res = await fetch(`/api/public/deal?token=${encodeURIComponent(token)}`);
+      if (!res.ok) { setState("notfound"); return; }
+      setDeal(await res.json()); setState("ok");
+    } catch { setState("notfound"); }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
+  async function submit() {
+    if (!form.author.trim() || (!form.body.trim() && !form.url.trim())) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/public/deal/comment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...form }) });
+      if (res.ok) { setForm((f) => ({ ...f, body: "", url: "" })); setSentOk(true); setTimeout(() => setSentOk(false), 2000); await load(); }
+    } catch { /* noop */ }
+    setSending(false);
+  }
   const t = DICT[lang];
   const name = (c: NonNullable<Deal["creator"]>) => lang === "ja" ? (c.name) : (c.name);
+  const today = new Date().toISOString().slice(0, 10);
+  // 딜레이: 예정일이 지났는데 아직 업로드(단계<제작·업로드 완료=5) 전인 스테이지
+  const delays = deal && deal.step < 5 ? STAGES.filter(([k]) => { const d = deal.sched?.[k]; return d && d.slice(0, 10) < today; }).map(([, ko, ja]) => (lang === "ja" ? ja : ko)) : [];
+  const drafts = (deal?.comments ?? []).filter((c) => c.kind === "draft");
+  const thread = (deal?.comments ?? []).filter((c) => c.kind !== "draft");
+  const selSt: CSSProperties = { fontFamily: "inherit", fontSize: 13, padding: "8px 10px", borderRadius: 8, border: "1px solid #2a322e", background: "#121715", color: "#e8ece9" };
 
   return (
     <div style={{ minHeight: "100dvh", background: "#0b0f0e", color: "#e8ece9", fontFamily: "system-ui, -apple-system, 'Noto Sans JP', 'Noto Sans KR', sans-serif" }}>
@@ -68,17 +90,36 @@ export default function PublicDealPage() {
               <span style={{ fontSize: 12, color: "#8a938d" }}>{t.client}: {deal.client}</span>
             </div>
             <h1 style={{ fontSize: 21, fontWeight: 800, lineHeight: 1.35, margin: 0 }}>{deal.title}</h1>
+            {deal.fee != null && deal.fee > 0 && (
+              <div style={{ marginTop: 12, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: "#8a938d" }}>{t.amount}</span>
+                <span style={{ fontSize: 18, fontWeight: 800 }}>{yen(deal.fee)}</span>
+                {deal.tax != null && deal.tax > 0 && <span style={{ fontSize: 12, color: "#8a938d" }}>({t.tax} {yen(deal.tax)})</span>}
+                <span style={{ fontSize: 11, color: "#6b746e" }}>{t.amountNote}</span>
+              </div>
+            )}
           </div>
+
+          {/* 딜레이 안내 */}
+          {delays.length > 0 && (
+            <div style={{ marginTop: 14, background: "rgba(224,120,90,.12)", border: "1px solid rgba(224,120,90,.4)", color: "#f0a58a", borderRadius: 10, padding: "10px 12px", fontSize: 12.5, fontWeight: 600 }}>
+              ⚠️ {lang === "ja" ? `予定日を過ぎた工程があります: ${delays.join(", ")}` : `예정일이 지난 단계가 있어요: ${delays.join(", ")}`}
+            </div>
+          )}
 
           {/* 진행 단계 */}
           <Section title={t.progress}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {STEPS.map(([ko, ja], i) => {
                 const done = i < deal.step, now = i === deal.step;
+                const dt = deal.stepDates?.[String(i)];
                 return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 20, fontSize: 12.5, fontWeight: now ? 800 : 600,
-                    background: now ? "#3fb984" : done ? "rgba(63,185,132,.12)" : "#161b19", color: now ? "#04120c" : done ? "#3fb984" : "#6b746e", border: `1px solid ${now ? "#3fb984" : done ? "rgba(63,185,132,.3)" : "#212824"}` }}>
-                    <span>{done ? "✓" : i + 1}</span>{lang === "ja" ? ja : ko}
+                  <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 11px", borderRadius: 20, fontSize: 12.5, fontWeight: now ? 800 : 600,
+                      background: now ? "#3fb984" : done ? "rgba(63,185,132,.12)" : "#161b19", color: now ? "#04120c" : done ? "#3fb984" : "#6b746e", border: `1px solid ${now ? "#3fb984" : done ? "rgba(63,185,132,.3)" : "#212824"}` }}>
+                      <span>{done ? "✓" : i + 1}</span>{lang === "ja" ? ja : ko}
+                    </div>
+                    {dt && <span style={{ fontSize: 10, color: "#6b746e", paddingLeft: 4 }}>{dt.replace(/-/g, ".")}</span>}
                   </div>
                 );
               })}
@@ -114,6 +155,17 @@ export default function PublicDealPage() {
 
           {/* 결과물 */}
           <Section title={t.result}>
+            {drafts.length > 0 && (
+              <div style={{ marginBottom: deal.content?.permalink ? 14 : 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                {drafts.map((d) => (
+                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#161b19", border: "1px solid #212824", borderRadius: 10, padding: "10px 12px" }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "#c9a13a", flex: "none" }}>📝 {t.draft}</span>
+                    <span style={{ fontSize: 12, color: "#8a938d", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.body || d.url}</span>
+                    {d.url && <a href={d.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontWeight: 700, color: "#04120c", background: "#c9a13a", padding: "6px 12px", borderRadius: 8, textDecoration: "none", flex: "none" }}>▶ {t.viewDraft}</a>}
+                  </div>
+                ))}
+              </div>
+            )}
             {deal.content?.permalink ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -131,11 +183,49 @@ export default function PublicDealPage() {
                   </div>
                 )}
               </div>
-            ) : <div style={{ color: "#6b746e", fontSize: 13 }}>{t.notyet}</div>}
+            ) : (drafts.length ? null : <div style={{ color: "#6b746e", fontSize: 13 }}>{t.notyet}</div>)}
           </Section>
 
           {/* 의뢰 내용 */}
           {deal.brief && <Section title={t.brief}><div style={{ fontSize: 13, lineHeight: 1.7, color: "#c7ccc8", whiteSpace: "pre-wrap" }}>{deal.brief}</div></Section>}
+
+          {/* 수정요청 · 피드백 (협업 스레드) */}
+          <Section title={t.thread}>
+            {thread.length === 0 ? <div style={{ color: "#6b746e", fontSize: 13, marginBottom: 14 }}>{t.empty}</div> : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                {thread.map((c) => {
+                  const isReq = c.kind === "request";
+                  return (
+                    <div key={c.id} style={{ background: "#161b19", border: `1px solid ${isReq ? "rgba(224,120,90,.35)" : "#212824"}`, borderRadius: 10, padding: "10px 12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, fontSize: 11.5 }}>
+                        <span style={{ fontWeight: 800, color: isReq ? "#f0a58a" : "#3fb984" }}>{isReq ? t.request : (c.role === "client" ? t.client : c.role === "manager" ? t.manager : t.creator)}</span>
+                        <span style={{ color: "#c7ccc8", fontWeight: 600 }}>{c.author}</span>
+                        <span style={{ color: "#6b746e", marginLeft: "auto" }}>{(c.createdAt || "").slice(0, 16).replace("T", " ")}</span>
+                      </div>
+                      {c.body && <div style={{ fontSize: 13, lineHeight: 1.6, color: "#e8ece9", whiteSpace: "pre-wrap" }}>{c.body}</div>}
+                      {c.url && <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#3fb984", wordBreak: "break-all" }}>{c.url}</a>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* 작성 폼 — 누구나(의뢰사·CC·매니저) */}
+            <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} style={selSt}>{ROLE_OPT.map(([v, ko, ja]) => <option key={v} value={v}>{lang === "ja" ? ja : ko}</option>)}</select>
+                <select value={form.kind} onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value }))} style={selSt}>
+                  <option value="note">{t.note}</option><option value="request">{t.request}</option><option value="draft">{t.draft}</option>
+                </select>
+                <input placeholder={t.name} value={form.author} onChange={(e) => setForm((f) => ({ ...f, author: e.target.value }))} style={{ ...selSt, flex: 1, minWidth: 120 }} />
+              </div>
+              <textarea placeholder={t.msg} value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} style={{ ...selSt, minHeight: 70, resize: "vertical" }} />
+              {(form.kind === "draft") && <input placeholder={t.link} value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} style={selSt} />}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {sentOk && <span style={{ color: "#3fb984", fontSize: 12.5 }}>✓ {t.sent}</span>}
+                <button onClick={submit} disabled={sending || !form.author.trim() || (!form.body.trim() && !form.url.trim())} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: sending ? .6 : 1 }}>{sending ? t.sending : t.send}</button>
+              </div>
+            </div>
+          </Section>
 
           {deal.manager && <div style={{ marginTop: 20, fontSize: 12.5, color: "#8a938d", textAlign: "center" }}>{t.manager}: {deal.manager} · 81degree.inc</div>}
         </>)}

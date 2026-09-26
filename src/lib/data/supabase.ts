@@ -41,7 +41,7 @@ const mapCreator = (r: Row, ig?: Row): Creator => ({
   monthlyQuota: r.monthly_quota, fixedCost: Number(r.fixed_cost ?? 0), contractDate: r.contract_date, startDate: r.start_date,
   email: r.email, phone: r.phone, address: r.address, bankAccount: r.bank_account, invoiceRegNo: r.invoice_reg_no,
   entityType: r.entity_type, withholding: r.withholding, contractEnd: r.contract_end,
-  baseFee: r.base_fee != null ? Number(r.base_fee) : null, payCycle: r.pay_cycle,
+  baseFee: r.base_fee != null ? Number(r.base_fee) : null, payCycle: r.pay_cycle, slackChannel: r.slack_channel,
   sns: r.sns ?? {}, rates: r.rates ?? { reels: 0, secondary: 0, offline: 0, etc: 0 },
   ig: ig ? { status: ig.status, linkedAt: ig.linked_at, expiresAt: ig.expires_at, lastSyncedAt: ig.last_synced_at } : undefined,
 });

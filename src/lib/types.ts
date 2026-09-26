@@ -84,6 +84,7 @@ export interface Creator {
   contractEnd?: string | null;    // 계약종료일
   baseFee?: number | null;        // 기본보수 (세전/월)
   payCycle?: string | null;       // 지급사이클
+  slackChannel?: string | null;   // CC 소통 슬랙 채널 ID(대시보드 알림 라우팅)
   // 연동
   ig?: { status: IgStatus; linkedAt?: string | null; expiresAt?: string | null; lastSyncedAt?: string | null };
 }

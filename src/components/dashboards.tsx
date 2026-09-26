@@ -780,6 +780,7 @@ function CreatorEditModal({ creator, all, onClose, onSaved }: { creator: Creator
         <Field label={T("한자(일본어) 이름")}><input style={inp} placeholder="瀬戸川芽瑠" value={f.nameKanji ?? ""} onChange={(e) => up("nameKanji", e.target.value)} /></Field>
         <Field label={T("영문 이름")}><input style={inp} placeholder="Merumi Setokawa" value={f.nameEn ?? ""} onChange={(e) => up("nameEn", e.target.value)} /></Field>
         <Field label={T("인스타 핸들")}><input style={inp} value={f.handle ?? ""} onChange={(e) => up("handle", e.target.value)} /></Field>
+        <Field label={T("소통 슬랙 채널 ID")}><input style={inp} placeholder="C0XXXXXXXXX" value={f.slackChannel ?? ""} onChange={(e) => up("slackChannel", e.target.value)} /></Field>
         <Field label={T("팔로워")}><input style={inp} type="number" value={f.followers} onChange={(e) => up("followers", +e.target.value)} /></Field>
         <Field label={T("상태")}><select style={inp} value={f.status} onChange={(e) => up("status", e.target.value)}><option value="active">{T("활동중")}</option><option value="preparing">{T("계약준비")}</option><option value="on_hold">{T("보류")}</option></select></Field>
         <Field label={T("주력 카테고리")}><input style={inp} value={f.category ?? ""} onChange={(e) => up("category", e.target.value)} /></Field>
