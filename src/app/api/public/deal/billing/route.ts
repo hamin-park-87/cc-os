@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 export const maxDuration = 30;
 
 const PR_CHANNEL = process.env.PR_SLACK_CHANNEL || "C0BT56NHA5D"; // #cc_pr_gmail
+const ACCOUNTING_CHANNEL = process.env.ACCOUNTING_SLACK_CHANNEL || "C0B7U9B0XEZ"; // 경리(aika) — 입금/송금확인증 확인용
 const MAX_BYTES = 15 * 1024 * 1024; // 15MB
 
 // 청구서/입금 — multipart. 필드:
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     await admin.from("deals").update({ payment_confirmed: true, payment_confirmed_at: now, payment_confirmed_by: author || "81degree", step: 8 }).eq("id", deal.id);
     try { await admin.from("deal_step_events").insert({ deal_id: deal.id, step: 8, at: now }); } catch { /* noop */ }
     const notifyC = `🏁 *입금 최종 확인 완료 — 프로젝트 마무리* (81degree${author ? ` ${author}` : ""})`;
-    await notifyThread(admin, deal, notifyC);
+    await notifyThread(admin, deal, notifyC, [ACCOUNTING_CHANNEL]);
     return NextResponse.json({ ok: true });
   }
 
@@ -69,13 +70,14 @@ export async function POST(req: NextRequest) {
     notify = `💴 *입금 확인* (의뢰사 ${author || ""})${paidOn ? `\n입금일: ${paidOn}` : ""}${fileUrl ? `\n송금확인증: ${fileName}\n🔗 ${fileUrl}` : ""}`;
   }
 
-  await notifyThread(admin, deal, notify);
+  // 입금(송금확인증·입금일)은 경리 채널에도 안내
+  await notifyThread(admin, deal, notify, kind === "payment" ? [ACCOUNTING_CHANNEL] : []);
   return NextResponse.json({ ok: true, fileUrl, fileName });
 }
 
-// 안건 스레드(【의뢰사】PR-0XX)에 답글로 누적 알림
+// 안건 스레드(【의뢰사】PR-0XX)에 답글로 누적 알림. extra: 추가 채널(예: 경리)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function notifyThread(admin: any, deal: any, text: string) {
+async function notifyThread(admin: any, deal: any, text: string, extra: string[] = []) {
   try {
     const prNo = deal.pr_seq ? "PR-" + String(deal.pr_seq).padStart(3, "0") : "";
     const url = `https://cc-os.81degree.com/pr/${deal.share_token}`;
@@ -83,7 +85,7 @@ async function notifyThread(admin: any, deal: any, text: string) {
     let ccChannel = "";
     if (deal.creator_id) { const { data: cr } = await admin.from("creators").select("slack_channel").eq("id", deal.creator_id).maybeSingle(); ccChannel = (cr?.slack_channel as string) || ""; }
     const threads: Record<string, string> = (deal.slack_threads && typeof deal.slack_threads === "object") ? { ...deal.slack_threads } : {};
-    const targets = [PR_CHANNEL, ...(ccChannel && ccChannel !== PR_CHANNEL ? [ccChannel] : [])];
+    const targets = [...new Set([PR_CHANNEL, ...(ccChannel && ccChannel !== PR_CHANNEL ? [ccChannel] : []), ...extra])];
     let changed = false;
     for (const ch of targets) {
       let ts = threads[ch];
