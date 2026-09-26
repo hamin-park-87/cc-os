@@ -204,6 +204,7 @@ export default function PublicDealPage() {
 
   return (
     <div style={{ minHeight: "100dvh", background: "#0b0f0e", color: "#e8ece9", fontFamily: "system-ui, -apple-system, 'Noto Sans JP', 'Noto Sans KR', sans-serif" }}>
+      <style>{`.pr-two{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}.pr-two>*{margin-bottom:0}@media(max-width:560px){.pr-two{grid-template-columns:1fr}}`}</style>
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "28px 20px 60px" }}>
         <header style={{ display: "flex", alignItems: "center", marginBottom: 24 }}>
           <div>
@@ -247,8 +248,15 @@ export default function PublicDealPage() {
             </div>
           )}
 
+          {/* 카테고리 네비 — 클릭 시 해당 섹션으로 스크롤 */}
+          <nav style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", gap: 6, overflowX: "auto", padding: "10px 0", marginBottom: 4, background: "#0b0f0e", WebkitOverflowScrolling: "touch" }}>
+            {([["sec-brief", t.brief], ["sec-progress", t.progress], ...(deal.creator ? [["sec-creator", t.creator]] : []), ["sec-schedule", t.schedule], ["sec-fee", t.feeNego], ["sec-billing", t.billing], ["sec-result", t.result], ["sec-thread", t.thread]] as [string, string][]).map(([id, label]) => (
+              <button key={id} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} style={{ flexShrink: 0, cursor: "pointer", border: "1px solid #2a322e", background: "#161b19", color: "#c7ccc8", borderRadius: 999, padding: "6px 13px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{label}</button>
+            ))}
+          </nav>
+
           {/* 의뢰 내용 — AI 요약 + 원문 + 붙여넣기 (상단 배치) */}
-          <Section title={t.brief}>
+          <Section title={t.brief} id="sec-brief">
             {deal.brief && <div style={{ fontSize: 13, lineHeight: 1.7, color: "#c7ccc8", whiteSpace: "pre-wrap", marginBottom: sum || deal.briefRaw ? 14 : 0 }}>{deal.brief}</div>}
             {deal.briefAiStatus === "processing" && <div style={{ color: "#3fb984", fontSize: 12.5, marginBottom: 12 }}>⏳ {t.analyzing}</div>}
             {deal.briefAiStatus === "failed" && !sum && <div style={{ color: "#e0785a", fontSize: 12.5, marginBottom: 12 }}>⚠ {t.aiFailed}</div>}
@@ -299,7 +307,7 @@ export default function PublicDealPage() {
           </Section>
 
           {/* 진행 단계 */}
-          <Section title={t.progress}>
+          <Section title={t.progress} id="sec-progress">
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {STEPS.map(([ko, ja], i) => {
                 const done = i < deal.step, now = i === deal.step;
@@ -319,7 +327,7 @@ export default function PublicDealPage() {
 
           {/* 크리에이터 */}
           {deal.creator && (
-            <Section title={t.creator}>
+            <Section title={t.creator} id="sec-creator">
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 46, height: 46, borderRadius: 23, overflow: "hidden", background: "#1a201e", flex: "none" }}>
                   {deal.creator.photoUrl && <img src={deal.creator.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
@@ -333,7 +341,7 @@ export default function PublicDealPage() {
           )}
 
           {/* 제작 일정 */}
-          <Section title={t.schedule}>
+          <Section title={t.schedule} id="sec-schedule">
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
               {STAGES.map(([k, ko, ja]) => (
                 <div key={k} style={{ background: "#161b19", borderRadius: 10, padding: "10px 8px", textAlign: "center", border: "1px solid #212824" }}>
@@ -344,43 +352,10 @@ export default function PublicDealPage() {
             </div>
           </Section>
 
-          {/* 결과물 */}
-          <Section title={t.result}>
-            {drafts.length > 0 && (
-              <div style={{ marginBottom: deal.content?.permalink ? 14 : 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                {drafts.map((d) => (
-                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#161b19", border: "1px solid #212824", borderRadius: 10, padding: "10px 12px" }}>
-                    <span style={{ fontSize: 12, fontWeight: 800, color: "#c9a13a", flex: "none" }}>📝 {t.draft}</span>
-                    <span style={{ fontSize: 12, color: "#8a938d", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.body || d.url}</span>
-                    {d.url && <a href={d.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontWeight: 700, color: "#04120c", background: "#c9a13a", padding: "6px 12px", borderRadius: 8, textDecoration: "none", flex: "none" }}>▶ {t.viewDraft}</a>}
-                  </div>
-                ))}
-              </div>
-            )}
-            {deal.content?.permalink ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  {deal.content.thumbnailUrl && <img src={deal.content.thumbnailUrl} alt="" style={{ width: 64, height: 84, objectFit: "cover", borderRadius: 8, background: "#000" }} />}
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#3fb984" }}>● {t.uploaded}</span>
-                    <div style={{ fontSize: 12, color: "#8a938d", marginTop: 2 }}>{ymd(deal.content.publishedAt)}</div>
-                    <a href={canon(deal.content.permalink)} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8, fontSize: 13, fontWeight: 700, color: "#04120c", background: "#3fb984", padding: "7px 14px", borderRadius: 9, textDecoration: "none" }}>▶ {t.viewVideo}</a>
-                  </div>
-                </div>
-                {deal.content.metrics && (
-                  <div style={{ display: "flex", gap: 18, fontSize: 13 }}>
-                    <span>👁 <b>{fmtN(deal.content.metrics.views)}</b> <span style={{ color: "#8a938d", fontSize: 11 }}>{t.views}</span></span>
-                    <span>♡ <b>{fmtN(deal.content.metrics.likes)}</b> <span style={{ color: "#8a938d", fontSize: 11 }}>{t.likes}</span></span>
-                  </div>
-                )}
-              </div>
-            ) : (drafts.length ? null : <div style={{ color: "#6b746e", fontSize: 13 }}>{t.notyet}</div>)}
-          </Section>
-
-          {/* 비용 협의 · 청구/입금 — 한 행 2열(좁으면 자동 1열) */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, alignItems: "start" }}>
+          {/* 비용 협의 · 청구/입금 — 한 행 2열(좁으면 1열) */}
+          <div className="pr-two" style={{ marginBottom: 16 }}>
           {/* 비용 협의 */}
-          <Section title={t.feeNego}>
+          <Section title={t.feeNego} id="sec-fee">
             {deal.feeAgreed && lastFee && (
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, background: "rgba(63,185,132,.1)", border: "1px solid rgba(63,185,132,.3)", borderRadius: 10, padding: "12px 14px" }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✓ {t.feeAgreed}</span>
@@ -429,7 +404,7 @@ export default function PublicDealPage() {
           </Section>
 
           {/* 청구 · 입금 */}
-          <Section title={t.billing}>
+          <Section title={t.billing} id="sec-billing">
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {/* 청구서 — 우리(81degree) 업로드 */}
               <div>
@@ -476,8 +451,41 @@ export default function PublicDealPage() {
           </Section>
           </div>
 
+          {/* 결과물 (수정요청·피드백 바로 위 — 결과물 보고 피드백) */}
+          <Section title={t.result} id="sec-result">
+            {drafts.length > 0 && (
+              <div style={{ marginBottom: deal.content?.permalink ? 14 : 0, display: "flex", flexDirection: "column", gap: 8 }}>
+                {drafts.map((d) => (
+                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "#161b19", border: "1px solid #212824", borderRadius: 10, padding: "10px 12px" }}>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "#c9a13a", flex: "none" }}>📝 {t.draft}</span>
+                    <span style={{ fontSize: 12, color: "#8a938d", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.body || d.url}</span>
+                    {d.url && <a href={d.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontWeight: 700, color: "#04120c", background: "#c9a13a", padding: "6px 12px", borderRadius: 8, textDecoration: "none", flex: "none" }}>▶ {t.viewDraft}</a>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {deal.content?.permalink ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                  {deal.content.thumbnailUrl && <img src={deal.content.thumbnailUrl} alt="" style={{ width: 64, height: 84, objectFit: "cover", borderRadius: 8, background: "#000" }} />}
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#3fb984" }}>● {t.uploaded}</span>
+                    <div style={{ fontSize: 12, color: "#8a938d", marginTop: 2 }}>{ymd(deal.content.publishedAt)}</div>
+                    <a href={canon(deal.content.permalink)} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 8, fontSize: 13, fontWeight: 700, color: "#04120c", background: "#3fb984", padding: "7px 14px", borderRadius: 9, textDecoration: "none" }}>▶ {t.viewVideo}</a>
+                  </div>
+                </div>
+                {deal.content.metrics && (
+                  <div style={{ display: "flex", gap: 18, fontSize: 13 }}>
+                    <span>👁 <b>{fmtN(deal.content.metrics.views)}</b> <span style={{ color: "#8a938d", fontSize: 11 }}>{t.views}</span></span>
+                    <span>♡ <b>{fmtN(deal.content.metrics.likes)}</b> <span style={{ color: "#8a938d", fontSize: 11 }}>{t.likes}</span></span>
+                  </div>
+                )}
+              </div>
+            ) : (drafts.length ? null : <div style={{ color: "#6b746e", fontSize: 13 }}>{t.notyet}</div>)}
+          </Section>
+
           {/* 수정요청 · 피드백 (협업 스레드) */}
-          <Section title={t.thread}>
+          <Section title={t.thread} id="sec-thread">
             {roots.length === 0 ? <div style={{ color: "#6b746e", fontSize: 13, marginBottom: 14 }}>{t.empty}</div> : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
                 {roots.map((c) => renderNode(c, 0))}
@@ -530,9 +538,9 @@ function FieldList({ title, items, accent = "#3fb984" }: { title: string; items:
     </div>
   );
 }
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <div style={{ background: "#121715", border: "1px solid #212824", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+    <div id={id} style={{ background: "#121715", border: "1px solid #212824", borderRadius: 16, padding: 20, marginBottom: 16, scrollMarginTop: 70 }}>
       <div style={{ fontSize: 12.5, fontWeight: 800, color: "#8a938d", marginBottom: 12, letterSpacing: ".02em" }}>{title}</div>
       {children}
     </div>
