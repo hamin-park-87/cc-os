@@ -2089,7 +2089,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
        view === "list" ? (
         <div className="tablewrap"><table><thead><tr>
           {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label={T("전체 선택")} /></th>}
-          <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("등록자")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th>{!readonly && <th></th>}
+          <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th>{!readonly && <th></th>}
         </tr></thead><tbody>
           {list.map((dl) => (
             <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
@@ -2097,11 +2097,16 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <td className="num" style={{ color: "var(--faint)", whiteSpace: "nowrap", fontWeight: 600 }}>{prNo(dl)}</td>
               <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.receivedDate)}</td>
               <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.dueDate)}</td>
-              <td>{isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, marginRight: 6, verticalAlign: "middle" }}><span className="d" />{T("완료")}</span>}<b style={{ cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)}>{dl.title}</b> <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span>{dl.source === "company_email" && <span className="chip" title={T("메일에서 자동 등록")} style={{ marginLeft: 4 }}>✉️ {T("메일")}</span>}</td>
-              <td style={{ color: "var(--muted)" }}>{dl.client}</td>
+              <td style={{ maxWidth: 340, cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)} title={dl.title}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                  {isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, flex: "none" }}><span className="d" />{T("완료")}</span>}
+                  <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{dl.title}</b>
+                  <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ flex: "none" }}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span>
+                </div>
+              </td>
+              <td style={{ color: "var(--muted)", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={dl.client}>{dl.client}</td>
               <td>{withCode(dl.creatorName)}</td>
               <td style={{ color: "var(--muted)" }}>{dl.manager}</td>
-              <td><RegBadge by={dl.registeredBy} /></td>
               <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
               <td className="num">{yen(dl.fee)}</td>
               <td style={{ whiteSpace: "nowrap" }}><DashBtn dl={dl} /></td>
