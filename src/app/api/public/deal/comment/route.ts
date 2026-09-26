@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
   const body = String(b.body || "").slice(0, 4000).trim();
   const rawUrl = String(b.url || "").slice(0, 1000).trim();
   const urlOk = /^https?:\/\//i.test(rawUrl) ? rawUrl : "";
+  const parentId = String(b.parentId || "").trim() || null;
   if (!token) return NextResponse.json({ error: "token 필요" }, { status: 400 });
   if (!body && !urlOk) return NextResponse.json({ error: "내용을 입력해주세요" }, { status: 400 });
 
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editKey = ((globalThis.crypto as any)?.randomUUID?.() ?? (Math.random().toString(36).slice(2) + Date.now().toString(36))).replace(/-/g, "");
   const { data: row, error } = await admin.from("deal_comments")
-    .insert({ deal_id: deal.id, role, kind, author: author || ROLE_LABEL[role], body: body || null, url: urlOk || null, edit_key: editKey })
+    .insert({ deal_id: deal.id, role, kind, author: author || ROLE_LABEL[role], body: body || null, url: urlOk || null, edit_key: editKey, parent_id: parentId })
     .select("id, role, author, kind, body, url, created_at").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
