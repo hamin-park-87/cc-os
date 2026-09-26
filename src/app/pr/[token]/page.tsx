@@ -30,8 +30,8 @@ const STEPS: [string, string][] = [
 ];
 const STAGES: [string, string, string][] = [["plan", "기획", "企画"], ["shoot", "촬영", "撮影"], ["edit", "편집", "編集"], ["upload", "업로드", "投稿"]];
 const DICT = {
-  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!", edit: "수정", del: "삭제", save: "저장", cancel: "취소", reply: "답글", briefAi: "AI 요약", briefRaw: "의뢰 원문", briefStatus: "상태", briefProduct: "상품", deliverables: "요청 산출물", secondary: "2차 이용", feeCond: "개런티/조건", notes: "주의사항", scheduleP: "진행 일정", pasteBrief: "의뢰 원문 붙여넣기", briefPh: "의뢰사에서 받은 안건 내용을 그대로 붙여넣으면 AI가 핵심을 정리해요.", analyze: "AI로 정리", analyzing: "AI가 정리 중…", showRaw: "원문 보기", hideRaw: "원문 접기", aiFailed: "AI 정리에 실패했어요. 원문은 저장됐어요.", feeNego: "비용 협의", feePropose: "희망 비용 제안", feeAmount: "희망 금액(¥)", feeNote: "메모(선택)", feeSend: "제안하기", feeAgree: "이 금액으로 합의", feeAgreed: "합의 완료", feeAgreedAmt: "합의 금액", feeNone: "아직 제안된 금액이 없어요.", feeProposed: "제안", feeByCreator: "CC 제안", feeByClient: "의뢰사 제안", feeByManager: "매니저 제안", feeWho: "제안자", billing: "청구 · 입금", invoice: "청구서", invoiceUpload: "청구서 업로드(81degree)", noInvoice: "아직 청구서가 등록되지 않았어요.", open: "열기", paidDate: "입금일", remittance: "송금확인증", paymentTitle: "입금 확인(의뢰사)", paymentReport: "입금 등록", uploading: "업로드 중…", chooseFile: "파일 선택", paidOnLabel: "입금일" },
-  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！", edit: "編集", del: "削除", save: "保存", cancel: "キャンセル", reply: "返信", briefAi: "AI要約", briefRaw: "依頼原文", briefStatus: "ステータス", briefProduct: "商材", deliverables: "ご依頼事項", secondary: "二次利用", feeCond: "ギャランティ/条件", notes: "注意事項", scheduleP: "進行スケジュール", pasteBrief: "依頼原文を貼り付け", briefPh: "依頼社から届いた案件内容をそのまま貼り付けると、AIが要点を整理します。", analyze: "AIで整理", analyzing: "AIが整理中…", showRaw: "原文を見る", hideRaw: "原文を閉じる", aiFailed: "AI整理に失敗しました。原文は保存されています。", feeNego: "費用のご相談", feePropose: "希望費用の提案", feeAmount: "希望金額(¥)", feeNote: "メモ(任意)", feeSend: "提案する", feeAgree: "この金額で合意", feeAgreed: "合意済み", feeAgreedAmt: "合意金額", feeNone: "まだ提案された金額はありません。", feeProposed: "提案", feeByCreator: "CC提案", feeByClient: "依頼社提案", feeByManager: "マネージャー提案", feeWho: "提案者", billing: "請求 · 入金", invoice: "請求書", invoiceUpload: "請求書アップロード(81degree)", noInvoice: "まだ請求書が登録されていません。", open: "開く", paidDate: "入金日", remittance: "送金確認書", paymentTitle: "入金確認(依頼社)", paymentReport: "入金を登録", uploading: "アップロード中…", chooseFile: "ファイル選択", paidOnLabel: "入金日" },
+  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!", edit: "수정", del: "삭제", save: "저장", cancel: "취소", reply: "답글", briefAi: "AI 요약", briefRaw: "의뢰 원문", briefStatus: "상태", briefProduct: "상품", deliverables: "요청 산출물", secondary: "2차 이용", feeCond: "개런티/조건", notes: "주의사항", scheduleP: "진행 일정", pasteBrief: "의뢰 원문 붙여넣기", briefPh: "의뢰사에서 받은 안건 내용을 그대로 붙여넣으면 AI가 핵심을 정리해요.", analyze: "AI로 정리", reanalyze: "수정 후 다시 정리", editRaw: "원문 수정", analyzing: "AI가 정리 중…", showRaw: "원문 보기", hideRaw: "원문 접기", updateNote: "다시 붙여넣고 정리하면 기존 원문·AI 요약을 새 내용으로 교체해요.", aiFailed: "AI 정리에 실패했어요. 원문은 저장됐어요.", feeNego: "비용 협의", feePropose: "희망 비용 제안", feeAmount: "희망 금액(¥)", feeNote: "메모(선택)", feeSend: "제안하기", feeAgree: "이 금액으로 합의", feeAgreed: "합의 완료", feeAgreedAmt: "합의 금액", feeNone: "아직 제안된 금액이 없어요.", feeProposed: "제안", feeByCreator: "CC 제안", feeByClient: "의뢰사 제안", feeByManager: "매니저 제안", feeWho: "제안자", billing: "청구 · 입금", invoice: "청구서", invoiceUpload: "청구서 업로드(81degree)", noInvoice: "아직 청구서가 등록되지 않았어요.", open: "열기", paidDate: "입금일", remittance: "송금확인증", paymentTitle: "입금 확인(의뢰사)", paymentReport: "입금 등록", uploading: "업로드 중…", chooseFile: "파일 선택", paidOnLabel: "입금일" },
+  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！", edit: "編集", del: "削除", save: "保存", cancel: "キャンセル", reply: "返信", briefAi: "AI要約", briefRaw: "依頼原文", briefStatus: "ステータス", briefProduct: "商材", deliverables: "ご依頼事項", secondary: "二次利用", feeCond: "ギャランティ/条件", notes: "注意事項", scheduleP: "進行スケジュール", pasteBrief: "依頼原文を貼り付け", briefPh: "依頼社から届いた案件内容をそのまま貼り付けると、AIが要点を整理します。", analyze: "AIで整理", reanalyze: "修正して再整理", editRaw: "原文を修正", analyzing: "AIが整理中…", showRaw: "原文を見る", hideRaw: "原文を閉じる", updateNote: "貼り直して整理すると、既存の原文・AI要約が新しい内容に置き換わります。", aiFailed: "AI整理に失敗しました。原文は保存されています。", feeNego: "費用のご相談", feePropose: "希望費用の提案", feeAmount: "希望金額(¥)", feeNote: "メモ(任意)", feeSend: "提案する", feeAgree: "この金額で合意", feeAgreed: "合意済み", feeAgreedAmt: "合意金額", feeNone: "まだ提案された金額はありません。", feeProposed: "提案", feeByCreator: "CC提案", feeByClient: "依頼社提案", feeByManager: "マネージャー提案", feeWho: "提案者", billing: "請求 · 入金", invoice: "請求書", invoiceUpload: "請求書アップロード(81degree)", noInvoice: "まだ請求書が登録されていません。", open: "開く", paidDate: "入金日", remittance: "送金確認書", paymentTitle: "入金確認(依頼社)", paymentReport: "入金を登録", uploading: "アップロード中…", chooseFile: "ファイル選択", paidOnLabel: "入金日" },
 };
 const ROLE_OPT: [string, string, string][] = [["client", "의뢰사", "依頼社"], ["manager", "매니저", "マネージャー"], ["creator", "CC", "CC"]];
 const yen = (n?: number | null) => n == null ? null : "¥" + n.toLocaleString();
@@ -247,6 +247,57 @@ export default function PublicDealPage() {
             </div>
           )}
 
+          {/* 의뢰 내용 — AI 요약 + 원문 + 붙여넣기 (상단 배치) */}
+          <Section title={t.brief}>
+            {deal.brief && <div style={{ fontSize: 13, lineHeight: 1.7, color: "#c7ccc8", whiteSpace: "pre-wrap", marginBottom: sum || deal.briefRaw ? 14 : 0 }}>{deal.brief}</div>}
+            {deal.briefAiStatus === "processing" && <div style={{ color: "#3fb984", fontSize: 12.5, marginBottom: 12 }}>⏳ {t.analyzing}</div>}
+            {deal.briefAiStatus === "failed" && !sum && <div style={{ color: "#e0785a", fontSize: 12.5, marginBottom: 12 }}>⚠ {t.aiFailed}</div>}
+            {sum && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✦ {t.briefAi}</span>
+                  {sum.status && <span style={{ fontSize: 11.5, color: "#8a938d" }}>{t.briefStatus}: {sum.status}</span>}
+                </div>
+                {sumText && <div style={{ fontSize: 13.5, lineHeight: 1.7, color: "#e8ece9", whiteSpace: "pre-wrap" }}>{sumText}</div>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {sum.product && <Chip label={t.briefProduct} val={sum.product} />}
+                  {sum.fee && <Chip label={t.feeCond} val={sum.fee} />}
+                  {secText && <Chip label={t.secondary} val={secText} />}
+                </div>
+                {delivList.length > 0 && <FieldList title={t.deliverables} items={delivList} />}
+                {notesList.length > 0 && <FieldList title={t.notes} items={notesList} accent="#f0a58a" />}
+                {(sum.schedule ?? []).length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 6 }}>{t.scheduleP}</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      {(sum.schedule ?? []).map((s, i) => (
+                        <div key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, color: "#c7ccc8" }}>
+                          <span style={{ color: "#3fb984", fontWeight: 700, minWidth: 96, fontVariantNumeric: "tabular-nums" }}>{s.date || "—"}</span>
+                          <span>{(lang === "ja" ? s.itemJa : s.itemKo) || s.itemKo || s.itemJa}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {deal.briefRaw && (
+              <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button onClick={() => setShowRaw((v) => !v)} style={{ cursor: "pointer", border: "1px solid #2a322e", background: "transparent", color: "#8a938d", borderRadius: 8, padding: "6px 12px", fontSize: 12 }}>{showRaw ? t.hideRaw : t.showRaw}</button>
+                  <button onClick={() => { setBriefText(deal.briefRaw || ""); setShowRaw(false); }} style={{ cursor: "pointer", border: "1px solid #2a322e", background: "transparent", color: "#c7ccc8", borderRadius: 8, padding: "6px 12px", fontSize: 12 }}>✎ {t.editRaw}</button>
+                </div>
+                {showRaw && <div style={{ fontSize: 12.5, lineHeight: 1.7, color: "#a7afa9", whiteSpace: "pre-wrap", background: "#0f1412", border: "1px solid #212824", borderRadius: 10, padding: "12px 14px", maxHeight: 360, overflowY: "auto" }}>{deal.briefRaw}</div>}
+              </div>
+            )}
+            {/* 붙여넣기 인입 / 수정 — 의뢰사 */}
+            <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 12, color: "#8a938d" }}>{deal.briefRaw ? t.updateNote : t.pasteBrief}</div>
+              <textarea placeholder={t.briefPh} value={briefText} onChange={(e) => setBriefText(e.target.value)} style={{ ...selSt, minHeight: 90, resize: "vertical" }} />
+              <button onClick={submitBrief} disabled={briefBusy || briefText.trim().length < 10} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: (briefBusy || briefText.trim().length < 10) ? .6 : 1 }}>{briefBusy ? t.analyzing : (deal.briefRaw ? t.reanalyze : t.analyze)}</button>
+            </div>
+          </Section>
+
           {/* 진행 단계 */}
           <Section title={t.progress}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -419,54 +470,6 @@ export default function PublicDealPage() {
                   {paidOn && !deal.payment?.paidOn && <button onClick={() => uploadBilling("payment", null)} disabled={!!billBusy} style={{ cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: billBusy ? .6 : 1 }}>{billBusy === "payment" ? t.uploading : t.paymentReport}</button>}
                 </div>
               </div>
-            </div>
-          </Section>
-
-          {/* 의뢰 내용 — AI 요약 + 원문 + 붙여넣기 */}
-          <Section title={t.brief}>
-            {deal.brief && <div style={{ fontSize: 13, lineHeight: 1.7, color: "#c7ccc8", whiteSpace: "pre-wrap", marginBottom: sum || deal.briefRaw ? 14 : 0 }}>{deal.brief}</div>}
-            {deal.briefAiStatus === "processing" && <div style={{ color: "#3fb984", fontSize: 12.5, marginBottom: 12 }}>⏳ {t.analyzing}</div>}
-            {deal.briefAiStatus === "failed" && !sum && <div style={{ color: "#e0785a", fontSize: 12.5, marginBottom: 12 }}>⚠ {t.aiFailed}</div>}
-            {sum && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 14 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✦ {t.briefAi}</span>
-                  {sum.status && <span style={{ fontSize: 11.5, color: "#8a938d" }}>{t.briefStatus}: {sum.status}</span>}
-                </div>
-                {sumText && <div style={{ fontSize: 13.5, lineHeight: 1.7, color: "#e8ece9", whiteSpace: "pre-wrap" }}>{sumText}</div>}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {sum.product && <Chip label={t.briefProduct} val={sum.product} />}
-                  {sum.fee && <Chip label={t.feeCond} val={sum.fee} />}
-                  {secText && <Chip label={t.secondary} val={secText} />}
-                </div>
-                {delivList.length > 0 && <FieldList title={t.deliverables} items={delivList} />}
-                {notesList.length > 0 && <FieldList title={t.notes} items={notesList} accent="#f0a58a" />}
-                {(sum.schedule ?? []).length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 6 }}>{t.scheduleP}</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      {(sum.schedule ?? []).map((s, i) => (
-                        <div key={i} style={{ display: "flex", gap: 8, fontSize: 12.5, color: "#c7ccc8" }}>
-                          <span style={{ color: "#3fb984", fontWeight: 700, minWidth: 96, fontVariantNumeric: "tabular-nums" }}>{s.date || "—"}</span>
-                          <span>{(lang === "ja" ? s.itemJa : s.itemKo) || s.itemKo || s.itemJa}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-            {deal.briefRaw && (
-              <div style={{ marginBottom: 14 }}>
-                <button onClick={() => setShowRaw((v) => !v)} style={{ cursor: "pointer", border: "1px solid #2a322e", background: "transparent", color: "#8a938d", borderRadius: 8, padding: "6px 12px", fontSize: 12 }}>{showRaw ? t.hideRaw : t.showRaw}</button>
-                {showRaw && <div style={{ marginTop: 10, fontSize: 12.5, lineHeight: 1.7, color: "#a7afa9", whiteSpace: "pre-wrap", background: "#0f1412", border: "1px solid #212824", borderRadius: 10, padding: "12px 14px", maxHeight: 360, overflowY: "auto" }}>{deal.briefRaw}</div>}
-              </div>
-            )}
-            {/* 붙여넣기 인입 — 의뢰사 */}
-            <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: 12, color: "#8a938d" }}>{t.pasteBrief}</div>
-              <textarea placeholder={t.briefPh} value={briefText} onChange={(e) => setBriefText(e.target.value)} style={{ ...selSt, minHeight: 90, resize: "vertical" }} />
-              <button onClick={submitBrief} disabled={briefBusy || briefText.trim().length < 10} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: (briefBusy || briefText.trim().length < 10) ? .6 : 1 }}>{briefBusy ? t.analyzing : t.analyze}</button>
             </div>
           </Section>
 
