@@ -2021,6 +2021,14 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
   });
   // 안건 번호 — 영구 번호(pr_seq): 삭제해도 결번 유지·재사용 없음 (REQ-022)
   const prNo = (dl: Deal) => dl.prSeq ? "PR-" + String(dl.prSeq).padStart(3, "0") : "—";
+  // 의뢰사 공개 대시보드 열기(없으면 관리자만 생성) — Phase A
+  async function shareOpen(dl: Deal) {
+    try { const url = await getDealShareUrl(dl.id, dl.shareToken); dl.shareToken = url.split("/pr/")[1] ?? dl.shareToken; setTick((t) => t + 1); window.open(url, "_blank"); }
+    catch (e) { alert(T("공유 링크 생성 실패: ") + (e as Error).message); }
+  }
+  const DashBtn = ({ dl }: { dl: Deal }) => dl.shareToken
+    ? <a className="btn sm" href={`/pr/${dl.shareToken}`} target="_blank" rel="noreferrer" title={T("의뢰사 공유 대시보드")}>🔗 {T("대시보드")}</a>
+    : (!readonly ? <button className="btn sm" onClick={() => shareOpen(dl)} title={T("의뢰사 공유 대시보드")}>🔗 {T("대시보드")}</button> : <span style={{ color: "var(--faint)", fontSize: 11 }}>—</span>);
   // 단계별 요약
   const counts = STEPS.map((_, i) => deals.filter((d) => d.step === i).length);
   // 납기 지연/임박 감지 (업로드 전 step<5 & 납기일 기준)
@@ -2081,7 +2089,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
        view === "list" ? (
         <div className="tablewrap"><table><thead><tr>
           {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label={T("전체 선택")} /></th>}
-          <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("등록자")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th>{!readonly && <th></th>}
+          <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("등록자")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th>{!readonly && <th></th>}
         </tr></thead><tbody>
           {list.map((dl) => (
             <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
@@ -2096,6 +2104,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <td><RegBadge by={dl.registeredBy} /></td>
               <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
               <td className="num">{yen(dl.fee)}</td>
+              <td style={{ whiteSpace: "nowrap" }}><DashBtn dl={dl} /></td>
               {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 {dl.step < 8 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
                 <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
@@ -2131,11 +2140,14 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
               <span>{T("업로드")} <b className="num">{md(dl.uploadDate ?? undefined)}</b></span>
             </div>
             {ct && <div className="note" style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span>{T("업로드 콘텐츠")}</span><ContentActions c={ct} /></div>}
-            {!readonly && <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end" }}>
-              {dl.step >= 4 && <button className="btn sm" onClick={() => setInvoice(dl)}>{T("청구서")}</button>}
-              {dl.step < 8 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
-              <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
-            </div>}
+            <div className="frow" style={{ marginTop: 12, justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+              <DashBtn dl={dl} />
+              {!readonly && <>
+                {dl.step >= 4 && <button className="btn sm" onClick={() => setInvoice(dl)}>{T("청구서")}</button>}
+                {dl.step < 8 && <button className="btn acc sm" onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음 단계")} →</button>}
+                <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
+              </>}
+            </div>
           </div>
         );
       })}
