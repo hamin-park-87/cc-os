@@ -15,3 +15,6 @@ create policy deal_step_events_creator on public.deal_step_events for select
 
 -- CC별 소통 슬랙 채널 (대시보드 알림 라우팅용)
 alter table public.creators add column if not exists slack_channel text;
+
+-- 안건별 슬랙 스레드 루트 ts (채널ID → 루트 메시지 ts). 알림을 이 스레드에 답글로 누적.
+alter table public.deals add column if not exists slack_threads jsonb not null default '{}'::jsonb;

@@ -7,6 +7,7 @@ create table if not exists public.deal_comments (
   kind text not null default 'note',      -- note(댓글) | request(수정요청) | draft(1차완성본)
   body text,
   url text,                               -- 초안/첨부 링크
+  edit_key text,                          -- 작성자 본인 수정·삭제용 키(브라우저 보관)
   created_at timestamptz not null default now()
 );
 alter table public.deal_comments enable row level security;

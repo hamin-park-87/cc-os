@@ -20,8 +20,8 @@ const STEPS: [string, string][] = [
 ];
 const STAGES: [string, string, string][] = [["plan", "기획", "企画"], ["shoot", "촬영", "撮影"], ["edit", "편집", "編集"], ["upload", "업로드", "投稿"]];
 const DICT = {
-  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!" },
-  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！" },
+  ko: { subtitle: "PR 안건 진행 대시보드", client: "의뢰사", creator: "크리에이터", manager: "담당 매니저", progress: "진행 단계", schedule: "제작 일정", brief: "의뢰 내용", amount: "의뢰 금액", amountNote: "※ 최종 협의 후 확정", tax: "소비세", result: "결과물", draft: "1차 완성본", viewVideo: "영상 보기", viewDraft: "초안 보기", views: "조회수", likes: "좋아요", notyet: "아직 등록되지 않았어요", loading: "불러오는 중…", notfound: "안건을 찾을 수 없어요. 링크를 다시 확인해주세요.", uploaded: "업로드 완료", pending: "예정", thread: "수정요청 · 피드백", empty: "아직 등록된 내용이 없어요.", name: "이름", role: "역할", kind: "유형", note: "댓글", request: "수정요청", link: "링크(초안 등)", msg: "내용", send: "등록", sending: "등록 중…", sent: "등록되었어요!", edit: "수정", del: "삭제", save: "저장", cancel: "취소" },
+  ja: { subtitle: "PR案件 進行ダッシュボード", client: "依頼社", creator: "クリエイター", manager: "担当マネージャー", progress: "進行ステータス", schedule: "制作スケジュール", brief: "依頼内容", amount: "依頼金額", amountNote: "※ 最終協議後に確定", tax: "消費税", result: "成果物", draft: "初稿", viewVideo: "動画を見る", viewDraft: "初稿を見る", views: "再生数", likes: "いいね", notyet: "まだ登録されていません", loading: "読み込み中…", notfound: "案件が見つかりません。リンクをご確認ください。", uploaded: "投稿完了", pending: "予定", thread: "修正依頼 · フィードバック", empty: "まだ投稿がありません。", name: "お名前", role: "区分", kind: "種別", note: "コメント", request: "修正依頼", link: "リンク(初稿など)", msg: "内容", send: "登録", sending: "登録中…", sent: "登録しました！", edit: "編集", del: "削除", save: "保存", cancel: "キャンセル" },
 };
 const ROLE_OPT: [string, string, string][] = [["client", "의뢰사", "依頼社"], ["manager", "매니저", "マネージャー"], ["creator", "CC", "CC"]];
 const yen = (n?: number | null) => n == null ? null : "¥" + n.toLocaleString();
@@ -46,14 +46,31 @@ export default function PublicDealPage() {
     } catch { setState("notfound"); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [token]);
+  const EK = "cc-os.pr.editkeys";
+  const readKeys = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(EK) || "{}"); } catch { return {}; } };
+  const saveKey = (id: string, key: string) => { try { const m = readKeys(); m[id] = key; localStorage.setItem(EK, JSON.stringify(m)); } catch { /* noop */ } };
+  const [myKeys, setMyKeys] = useState<Record<string, string>>({});
+  useEffect(() => { setMyKeys(readKeys()); }, [deal]);
+  const [editingId, setEditingId] = useState(""); const [editBody, setEditBody] = useState(""); const [editUrl, setEditUrl] = useState("");
   async function submit() {
     if (!form.author.trim() || (!form.body.trim() && !form.url.trim())) return;
     setSending(true);
     try {
       const res = await fetch("/api/public/deal/comment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...form }) });
-      if (res.ok) { setForm((f) => ({ ...f, body: "", url: "" })); setSentOk(true); setTimeout(() => setSentOk(false), 2000); await load(); }
+      if (res.ok) { const j = await res.json().catch(() => ({})); if (j.comment?.id && j.editKey) saveKey(j.comment.id, j.editKey); setForm((f) => ({ ...f, body: "", url: "" })); setSentOk(true); setTimeout(() => setSentOk(false), 2000); await load(); setMyKeys(readKeys()); }
     } catch { /* noop */ }
     setSending(false);
+  }
+  async function saveEdit(c: Comment) {
+    const editKey = readKeys()[c.id]; if (!editKey) return;
+    const res = await fetch("/api/public/deal/comment", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, id: c.id, editKey, body: editBody, url: editUrl }) });
+    if (res.ok) { setEditingId(""); await load(); }
+  }
+  async function removeComment(c: Comment) {
+    const editKey = readKeys()[c.id]; if (!editKey) return;
+    if (!confirm(lang === "ja" ? "削除しますか？" : "삭제할까요?")) return;
+    const res = await fetch("/api/public/deal/comment", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, id: c.id, editKey }) });
+    if (res.ok) await load();
   }
   const t = DICT[lang];
   const name = (c: NonNullable<Deal["creator"]>) => lang === "ja" ? (c.name) : (c.name);
@@ -202,8 +219,23 @@ export default function PublicDealPage() {
                         <span style={{ color: "#c7ccc8", fontWeight: 600 }}>{c.author}</span>
                         <span style={{ color: "#6b746e", marginLeft: "auto" }}>{(c.createdAt || "").slice(0, 16).replace("T", " ")}</span>
                       </div>
-                      {c.body && <div style={{ fontSize: 13, lineHeight: 1.6, color: "#e8ece9", whiteSpace: "pre-wrap" }}>{c.body}</div>}
-                      {c.url && <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#3fb984", wordBreak: "break-all" }}>{c.url}</a>}
+                      {editingId === c.id ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+                          <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} style={{ ...selSt, minHeight: 60 }} />
+                          {c.kind === "draft" && <input value={editUrl} onChange={(e) => setEditUrl(e.target.value)} placeholder={t.link} style={selSt} />}
+                          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <button onClick={() => setEditingId("")} style={{ cursor: "pointer", border: "1px solid #2a322e", background: "transparent", color: "#8a938d", borderRadius: 7, padding: "5px 12px", fontSize: 12 }}>{t.cancel}</button>
+                            <button onClick={() => saveEdit(c)} style={{ cursor: "pointer", border: 0, background: "#3fb984", color: "#04120c", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700 }}>{t.save}</button>
+                          </div>
+                        </div>
+                      ) : (<>
+                        {c.body && <div style={{ fontSize: 13, lineHeight: 1.6, color: "#e8ece9", whiteSpace: "pre-wrap" }}>{c.body}</div>}
+                        {c.url && <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#3fb984", wordBreak: "break-all" }}>{c.url}</a>}
+                        {myKeys[c.id] && <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                          <button onClick={() => { setEditingId(c.id); setEditBody(c.body || ""); setEditUrl(c.url || ""); }} style={{ cursor: "pointer", border: 0, background: "none", color: "#6b746e", fontSize: 11.5, padding: 0 }}>{t.edit}</button>
+                          <button onClick={() => removeComment(c)} style={{ cursor: "pointer", border: 0, background: "none", color: "#e0785a", fontSize: 11.5, padding: 0 }}>{t.del}</button>
+                        </div>}
+                      </>)}
                     </div>
                   );
                 })}
