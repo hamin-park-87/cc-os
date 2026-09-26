@@ -377,6 +377,8 @@ export default function PublicDealPage() {
             ) : (drafts.length ? null : <div style={{ color: "#6b746e", fontSize: 13 }}>{t.notyet}</div>)}
           </Section>
 
+          {/* 비용 협의 · 청구/입금 — 한 행 2열(좁으면 자동 1열) */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, alignItems: "start" }}>
           {/* 비용 협의 */}
           <Section title={t.feeNego}>
             {deal.feeAgreed && lastFee && (
@@ -472,6 +474,7 @@ export default function PublicDealPage() {
               </div>
             </div>
           </Section>
+          </div>
 
           {/* 수정요청 · 피드백 (협업 스레드) */}
           <Section title={t.thread}>
