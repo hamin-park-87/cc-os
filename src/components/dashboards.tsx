@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars } from "./charts";
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience, exportDealsXlsx } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience, exportDealsXlsx, getDealShareUrl } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -2208,6 +2208,15 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
   const [contentUrl, setContentUrl] = useState(existingContent?.permalink ?? "");
   const [hasSecondary, setHasSecondary] = useState(deal?.secondaryFee != null);
   const [invBusy, setInvBusy] = useState(false);
+  const [shareUrl, setShareUrl] = useState(""); const [shareCopied, setShareCopied] = useState(false);
+  async function shareLink() {
+    try {
+      const url = await getDealShareUrl(deal!.id, deal!.shareToken);
+      if (deal) deal.shareToken = url.split("/pr/")[1] ?? deal.shareToken;
+      setShareUrl(url);
+      try { await navigator.clipboard?.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); } catch { /* noop */ }
+    } catch (e) { alert(T("공유 링크 생성 실패: ") + (e as Error).message); }
+  }
   const sortedCreators = [...creators].sort(cmpCreatorByCode);
   const up = (k: keyof Deal, v: unknown) => setF((s) => { const n = { ...s, [k]: v } as Deal; if (isNew) { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(n)); } catch { /* noop */ } } return n; });
   async function save() {
@@ -2239,6 +2248,12 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { 
         <button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" onClick={save}>{T("저장")}</button></>}>
       {isNew && restored && <div className="note" style={{ marginBottom: 12, background: "var(--accent-weak)", display: "flex", alignItems: "center", gap: 8, fontSize: 12.5 }}>
         💾 {T("작성 중이던 내용을 불러왔어요.")}<button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => { clearDraft(); setF(defaults); }}>{T("새로 작성")}</button>
+      </div>}
+      {!isNew && <div style={{ marginBottom: 12, padding: "10px 12px", background: "var(--surface-2)", borderRadius: 10, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700 }}>🔗 {T("의뢰사 공유 대시보드")}</span>
+        <button className="btn sm acc" onClick={shareLink}>{shareCopied ? T("복사됨 ✓") : (deal?.shareToken || shareUrl ? T("링크 복사") : T("공유 링크 생성"))}</button>
+        {(shareUrl || deal?.shareToken) && <a href={shareUrl || `/pr/${deal?.shareToken}`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--accent-ink)", wordBreak: "break-all" }}>{shareUrl || `${T("열기")} →`}</a>}
+        <span style={{ fontSize: 11.5, color: "var(--faint)", width: "100%" }}>{T("로그인 없이 열람 — 의뢰사에 링크를 전달하면 진행 상황을 직접 확인합니다.")}</span>
       </div>}
       <Field label={T("안건명")}><input style={inp} value={f.title} onChange={(e) => up("title", e.target.value)} /></Field>
       <Field label={T("요청사 콘텐츠 브리핑")}><textarea style={{ ...inp, minHeight: 64 }} value={f.brief ?? ""} onChange={(e) => up("brief", e.target.value)} /></Field>

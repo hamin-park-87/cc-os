@@ -385,6 +385,18 @@ export async function getAudience(creatorId: string): Promise<{ female: number; 
   };
 }
 
+// Phase A: 안건 공개 대시보드 공유 URL 생성/조회 (없으면 토큰 발급)
+export async function getDealShareUrl(dealId: string, existing?: string | null): Promise<string> {
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://cc-os.81degree.com";
+  if (existing) return `${origin}/pr/${existing}`;
+  if (!isDb()) throw new Error("db off");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const token = ((globalThis.crypto as any)?.randomUUID?.() ?? (Math.random().toString(36).slice(2) + Date.now().toString(36))).replace(/-/g, "");
+  const { error } = await getSupabase().from("deals").update({ share_token: token }).eq("id", dealId);
+  if (error) throw error;
+  return `${origin}/pr/${token}`;
+}
+
 // REQ-017: 외부 PR 안건 목록 xlsx 다운로드 (관리자)
 export async function exportDealsXlsx(): Promise<void> {
   const { data: { session } } = await getSupabase().auth.getSession();

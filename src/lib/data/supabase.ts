@@ -62,7 +62,7 @@ const mapDeal = (r: Row, cName: Map<string, string>): Deal => ({
   shareCompany: r.share_company, shareCreator: r.share_creator, dueDate: r.due_date, uploadDate: r.upload_date,
   step: r.step, contentId: r.content_id, sched: r.sched ?? {},
   receivedDate: r.received_date, paymentDue: r.payment_due, paidDate: r.paid_date, invoiceFile: r.invoice_file,
-  registeredBy: r.registered_by, createdAt: r.created_at, prSeq: r.pr_seq,
+  registeredBy: r.registered_by, createdAt: r.created_at, prSeq: r.pr_seq, shareToken: r.share_token,
 });
 const mapContract = (r: Row, bName: Map<string, string>): Contract => ({
   id: r.id, brandId: bName.get(r.brand_id) ?? r.brand_id, yearMonth: r.year_month, quota: r.quota,
