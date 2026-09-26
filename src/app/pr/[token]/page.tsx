@@ -78,7 +78,7 @@ export default function PublicDealPage() {
     if (!reply.author.trim() || !reply.body.trim()) return;
     if (await post({ ...reply, kind: "note", parentId })) { setReply({ role: "manager", author: "", body: "" }); setReplyTo(""); }
   }
-  const [feeForm, setFeeForm] = useState({ by: "creator", author: "", amount: "", note: "" }); const [feeBusy, setFeeBusy] = useState(false);
+  const [feeForm, setFeeForm] = useState({ by: "creator", author: "", amount: "", note: "" }); const [feeBusy, setFeeBusy] = useState(false); const [feeOpen, setFeeOpen] = useState(false);
   async function proposeFee() {
     const amount = Number(feeForm.amount);
     if (!(amount > 0) || feeBusy) return;
@@ -147,7 +147,6 @@ export default function PublicDealPage() {
   const secText = sum ? ((lang === "ja" ? sum.secondaryJa : sum.secondary) || sum.secondary || sum.secondaryJa || "") : "";
   const delivList = sum ? ((lang === "ja" ? sum.deliverablesJa : sum.deliverables) || sum.deliverables || []) : [];
   const notesList = sum ? ((lang === "ja" ? sum.notesJa : sum.notes) || sum.notes || []) : [];
-  const lastFee = (deal?.feeProposals ?? []).filter((p) => p.status === "agreed").slice(-1)[0] ?? null;
   const selSt: CSSProperties = { fontFamily: "inherit", fontSize: 13, padding: "8px 10px", borderRadius: 8, border: "1px solid #2a322e", background: "#121715", color: "#e8ece9" };
   const roots = thread.filter((c) => !c.parentId);
   const childrenOf = (id: string) => thread.filter((c) => c.parentId === id);
@@ -229,14 +228,48 @@ export default function PublicDealPage() {
               <span style={{ fontSize: 12, color: "#8a938d" }}>{t.client}: {deal.client}</span>
             </div>
             <h1 style={{ fontSize: 21, fontWeight: 800, lineHeight: 1.35, margin: 0 }}>{deal.title}</h1>
-            {deal.fee != null && deal.fee > 0 && (
-              <div style={{ marginTop: 12, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: "#8a938d" }}>{t.amount}</span>
-                <span style={{ fontSize: 18, fontWeight: 800 }}>{yen(deal.fee)}</span>
-                {deal.tax != null && deal.tax > 0 && <span style={{ fontSize: 12, color: "#8a938d" }}>({t.tax} {yen(deal.tax)})</span>}
-                {deal.feeAgreed
-                  ? <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✓ {t.feeAgreed}</span>
-                  : <span style={{ fontSize: 11, color: "#6b746e" }}>{t.amountNote}</span>}
+            {/* 비용 — 금액 + 비용 협의(심플 통합) */}
+            <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 12, color: "#8a938d" }}>{t.amount}</span>
+              <span style={{ fontSize: 18, fontWeight: 800 }}>{deal.fee != null && deal.fee > 0 ? yen(deal.fee) : "—"}</span>
+              {deal.tax != null && deal.tax > 0 && <span style={{ fontSize: 12, color: "#8a938d" }}>({t.tax} {yen(deal.tax)})</span>}
+              {deal.feeAgreed
+                ? <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✓ {t.feeAgreed}</span>
+                : <span style={{ fontSize: 11, color: "#6b746e" }}>{t.amountNote}</span>}
+              <button onClick={() => setFeeOpen((o) => !o)} style={{ marginLeft: "auto", cursor: "pointer", border: "1px solid #2a322e", background: feeOpen ? "#1a201e" : "transparent", color: "#3fb984", borderRadius: 999, padding: "5px 12px", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 4 }}>
+                {t.feeNego}<span style={{ transform: feeOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }}>▾</span>
+              </button>
+            </div>
+            {feeOpen && (
+              <div id="sec-fee" style={{ marginTop: 14, borderTop: "1px solid #1a201d", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10, scrollMarginTop: 70 }}>
+                {(deal.feeProposals ?? []).length === 0
+                  ? <div style={{ color: "#6b746e", fontSize: 13 }}>{t.feeNone}</div>
+                  : (deal.feeProposals ?? []).map((p) => {
+                    const label = p.by === "client" ? t.feeByClient : p.by === "manager" ? t.feeByManager : t.feeByCreator;
+                    const canAgree = !deal.feeAgreed && p.status !== "agreed" && p.by !== "client";
+                    return (
+                      <div key={p.id} style={{ background: "#161b19", border: `1px solid ${p.status === "agreed" ? "rgba(63,185,132,.4)" : "#212824"}`, borderRadius: 10, padding: "9px 12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 11.5, fontWeight: 800, color: p.by === "client" ? "#f0a58a" : "#3fb984" }}>{label}</span>
+                          <span style={{ fontSize: 11.5, color: "#c7ccc8" }}>{p.author}</span>
+                          <span style={{ fontSize: 15, fontWeight: 800, marginLeft: 4 }}>{yen(p.amount)}</span>
+                          {p.status === "agreed" && <span style={{ fontSize: 11, fontWeight: 800, color: "#3fb984" }}>✓ {t.feeAgreed}</span>}
+                          {canAgree && <button onClick={() => { const a = prompt(lang === "ja" ? "承認者のお名前" : "승인자 이름", feeForm.author || "") || feeForm.author; agreeFee(p.id, a); }} disabled={feeBusy} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: feeBusy ? .6 : 1 }}>{t.feeAgree}</button>}
+                        </div>
+                        {p.note && <div style={{ fontSize: 12.5, color: "#a7afa9", marginTop: 5, whiteSpace: "pre-wrap" }}>{p.note}</div>}
+                      </div>
+                    );
+                  })}
+                {/* 제안 폼 */}
+                <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <select value={feeForm.by} onChange={(e) => setFeeForm((f) => ({ ...f, by: e.target.value }))} style={selSt}>{ROLE_OPT.map(([v, ko, ja]) => <option key={v} value={v}>{lang === "ja" ? ja : ko}</option>)}</select>
+                    <input placeholder={t.name} value={feeForm.author} onChange={(e) => setFeeForm((f) => ({ ...f, author: e.target.value }))} style={{ ...selSt, flex: 1, minWidth: 100 }} />
+                    <input type="number" inputMode="numeric" placeholder={t.feeAmount} value={feeForm.amount} onChange={(e) => setFeeForm((f) => ({ ...f, amount: e.target.value }))} style={{ ...selSt, width: 140 }} />
+                  </div>
+                  <input placeholder={t.feeNote} value={feeForm.note} onChange={(e) => setFeeForm((f) => ({ ...f, note: e.target.value }))} style={selSt} />
+                  <button onClick={proposeFee} disabled={feeBusy || !(Number(feeForm.amount) > 0)} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "8px 16px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: (feeBusy || !(Number(feeForm.amount) > 0)) ? .6 : 1 }}>{feeBusy ? t.sending : t.feeSend}</button>
+                </div>
               </div>
             )}
           </div>
@@ -250,8 +283,8 @@ export default function PublicDealPage() {
 
           {/* 카테고리 네비 — 클릭 시 해당 섹션으로 스크롤 */}
           <nav style={{ position: "sticky", top: 0, zIndex: 5, display: "flex", gap: 6, overflowX: "auto", padding: "10px 0", marginBottom: 4, background: "#0b0f0e", WebkitOverflowScrolling: "touch" }}>
-            {([["sec-brief", t.brief], ["sec-progress", t.progress], ...(deal.creator ? [["sec-creator", t.creator]] : []), ["sec-schedule", t.schedule], ["sec-fee", t.feeNego], ["sec-billing", t.billing], ["sec-result", t.result], ["sec-thread", t.thread]] as [string, string][]).map(([id, label]) => (
-              <button key={id} onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" })} style={{ flexShrink: 0, cursor: "pointer", border: "1px solid #2a322e", background: "#161b19", color: "#c7ccc8", borderRadius: 999, padding: "6px 13px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{label}</button>
+            {([["sec-brief", t.brief], ["sec-fee", t.feeNego], ["sec-progress", t.progress], ...(deal.creator ? [["sec-creator", t.creator]] : []), ["sec-schedule", t.schedule], ["sec-result", t.result], ["sec-thread", t.thread], ["sec-billing", t.billing]] as [string, string][]).map(([id, label]) => (
+              <button key={id} onClick={() => { if (id === "sec-fee") { setFeeOpen(true); setTimeout(() => document.getElementById("sec-fee")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50); } else document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }); }} style={{ flexShrink: 0, cursor: "pointer", border: "1px solid #2a322e", background: "#161b19", color: "#c7ccc8", borderRadius: 999, padding: "6px 13px", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>{label}</button>
             ))}
           </nav>
 
@@ -352,105 +385,6 @@ export default function PublicDealPage() {
             </div>
           </Section>
 
-          {/* 비용 협의 · 청구/입금 — 한 행 2열(좁으면 1열) */}
-          <div className="pr-two" style={{ marginBottom: 16 }}>
-          {/* 비용 협의 */}
-          <Section title={t.feeNego} id="sec-fee" collapsible defaultOpen labels={{ open: t.expand, close: t.collapse }}>
-            {deal.feeAgreed && lastFee && (
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, background: "rgba(63,185,132,.1)", border: "1px solid rgba(63,185,132,.3)", borderRadius: 10, padding: "12px 14px" }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "#04120c", background: "#3fb984", borderRadius: 6, padding: "2px 8px" }}>✓ {t.feeAgreed}</span>
-                <span style={{ fontSize: 12, color: "#8a938d" }}>{t.feeAgreedAmt}</span>
-                <span style={{ fontSize: 18, fontWeight: 800 }}>{yen(lastFee.amount)}</span>
-              </div>
-            )}
-            {(deal.feeProposals ?? []).length === 0 ? (
-              <div style={{ color: "#6b746e", fontSize: 13, marginBottom: 14 }}>{t.feeNone}</div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-                {(deal.feeProposals ?? []).map((p) => {
-                  const label = p.by === "client" ? t.feeByClient : p.by === "manager" ? t.feeByManager : t.feeByCreator;
-                  const canAgree = !deal.feeAgreed && p.status !== "agreed" && p.by !== "client";
-                  return (
-                    <div key={p.id} style={{ background: "#161b19", border: `1px solid ${p.status === "agreed" ? "rgba(63,185,132,.4)" : "#212824"}`, borderRadius: 10, padding: "10px 12px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontSize: 11.5, fontWeight: 800, color: p.by === "client" ? "#f0a58a" : "#3fb984" }}>{label}</span>
-                        <span style={{ fontSize: 11.5, color: "#c7ccc8" }}>{p.author}</span>
-                        <span style={{ fontSize: 16, fontWeight: 800, marginLeft: 4 }}>{yen(p.amount)}</span>
-                        {p.status === "agreed" && <span style={{ fontSize: 11, fontWeight: 800, color: "#3fb984" }}>✓ {t.feeAgreed}</span>}
-                        <span style={{ fontSize: 11, color: "#6b746e", marginLeft: "auto" }}>{(p.createdAt || "").slice(0, 16).replace("T", " ")}</span>
-                      </div>
-                      {p.note && <div style={{ fontSize: 12.5, color: "#a7afa9", marginTop: 5, whiteSpace: "pre-wrap" }}>{p.note}</div>}
-                      {canAgree && (
-                        <div style={{ marginTop: 8 }}>
-                          <button onClick={() => { const a = prompt(lang === "ja" ? "承認者のお名前" : "승인자 이름", feeForm.author || "") || feeForm.author; agreeFee(p.id, a); }} disabled={feeBusy} style={{ cursor: "pointer", border: 0, borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: feeBusy ? .6 : 1 }}>{t.feeAgree}</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {/* 제안 폼 — CC/매니저/의뢰사 */}
-            <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-              <div style={{ fontSize: 12, color: "#8a938d" }}>{t.feePropose}</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <select value={feeForm.by} onChange={(e) => setFeeForm((f) => ({ ...f, by: e.target.value }))} style={selSt}>{ROLE_OPT.map(([v, ko, ja]) => <option key={v} value={v}>{lang === "ja" ? ja : ko}</option>)}</select>
-                <input placeholder={t.name} value={feeForm.author} onChange={(e) => setFeeForm((f) => ({ ...f, author: e.target.value }))} style={{ ...selSt, flex: 1, minWidth: 110 }} />
-                <input type="number" inputMode="numeric" placeholder={t.feeAmount} value={feeForm.amount} onChange={(e) => setFeeForm((f) => ({ ...f, amount: e.target.value }))} style={{ ...selSt, width: 150 }} />
-              </div>
-              <input placeholder={t.feeNote} value={feeForm.note} onChange={(e) => setFeeForm((f) => ({ ...f, note: e.target.value }))} style={selSt} />
-              <button onClick={proposeFee} disabled={feeBusy || !(Number(feeForm.amount) > 0)} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: (feeBusy || !(Number(feeForm.amount) > 0)) ? .6 : 1 }}>{feeBusy ? t.sending : t.feeSend}</button>
-            </div>
-          </Section>
-
-          {/* 청구 · 입금 */}
-          <Section title={t.billing} id="sec-billing" collapsible defaultOpen labels={{ open: t.expand, close: t.collapse }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* 청구서 — 우리(81degree) 업로드 */}
-              <div>
-                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 8 }}>{t.invoice}</div>
-                {deal.invoice ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#161b19", border: "1px solid #212824", borderRadius: 10, padding: "10px 12px" }}>
-                    <span style={{ fontSize: 18 }}>🧾</span>
-                    <span style={{ fontSize: 13, color: "#e8ece9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.invoice.name || t.invoice}</span>
-                    {deal.invoice.at && <span style={{ fontSize: 11, color: "#6b746e" }}>{ymd(deal.invoice.at)}</span>}
-                    <a href={deal.invoice.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#3fb984" }}>{t.open}</a>
-                  </div>
-                ) : <div style={{ color: "#6b746e", fontSize: 13, marginBottom: 8 }}>{t.noInvoice}</div>}
-                <label style={{ display: "inline-block", marginTop: 8, cursor: billBusy ? "default" : "pointer", border: "1px solid #2a322e", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, color: "#c7ccc8", opacity: billBusy ? .6 : 1 }}>
-                  {billBusy === "invoice" ? t.uploading : `＋ ${t.invoiceUpload}`}
-                  <input type="file" style={{ display: "none" }} disabled={!!billBusy} onChange={(e) => { const f = e.target.files?.[0] ?? null; if (f) uploadBilling("invoice", f); e.currentTarget.value = ""; }} />
-                </label>
-              </div>
-              {/* 입금 확인 — 의뢰사 */}
-              <div style={{ borderTop: "1px solid #1a201d", paddingTop: 14 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 8 }}>{t.paymentTitle}</div>
-                {deal.payment && (deal.payment.paidOn || deal.payment.url) && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(63,185,132,.08)", border: "1px solid rgba(63,185,132,.25)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 18 }}>💴</span>
-                    {deal.payment.paidOn && <span style={{ fontSize: 13, color: "#e8ece9" }}>{t.paidDate}: <b>{ymd(deal.payment.paidOn)}</b></span>}
-                    {deal.payment.url && <a href={deal.payment.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#3fb984" }}>{t.remittance} {t.open}</a>}
-                  </div>
-                )}
-                <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <input placeholder={t.name} value={payAuthor} onChange={(e) => setPayAuthor(e.target.value)} style={{ ...selSt, flex: 1, minWidth: 110 }} />
-                    <label style={{ fontSize: 11, color: "#8a938d", display: "flex", flexDirection: "column", gap: 3 }}>
-                      {t.paidOnLabel}
-                      <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} style={selSt} />
-                    </label>
-                  </div>
-                  <label style={{ display: "inline-block", cursor: billBusy ? "default" : "pointer", border: "1px solid #2a322e", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, color: "#c7ccc8", textAlign: "center", opacity: billBusy ? .6 : 1 }}>
-                    {billBusy === "payment" ? t.uploading : `＋ ${t.remittance} · ${t.paymentReport}`}
-                    <input type="file" style={{ display: "none" }} disabled={!!billBusy} onChange={(e) => { const f = e.target.files?.[0] ?? null; uploadBilling("payment", f); e.currentTarget.value = ""; }} />
-                  </label>
-                  {paidOn && !deal.payment?.paidOn && <button onClick={() => uploadBilling("payment", null)} disabled={!!billBusy} style={{ cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: billBusy ? .6 : 1 }}>{billBusy === "payment" ? t.uploading : t.paymentReport}</button>}
-                </div>
-              </div>
-            </div>
-          </Section>
-          </div>
-
           {/* 결과물 (수정요청·피드백 바로 위 — 결과물 보고 피드백) */}
           <Section title={t.result} id="sec-result">
             {drafts.length > 0 && (
@@ -505,6 +439,53 @@ export default function PublicDealPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 {sentOk && <span style={{ color: "#3fb984", fontSize: 12.5 }}>✓ {t.sent}</span>}
                 <button onClick={submit} disabled={sending || !form.author.trim() || (!form.body.trim() && !form.url.trim())} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: sending ? .6 : 1 }}>{sending ? t.sending : t.send}</button>
+              </div>
+            </div>
+          </Section>
+
+          {/* 청구 · 입금 (마지막 프로세스 — 맨 아래) */}
+          <Section title={t.billing} id="sec-billing" collapsible defaultOpen labels={{ open: t.expand, close: t.collapse }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* 청구서 — 우리(81degree) 업로드 */}
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 8 }}>{t.invoice}</div>
+                {deal.invoice ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#161b19", border: "1px solid #212824", borderRadius: 10, padding: "10px 12px" }}>
+                    <span style={{ fontSize: 18 }}>🧾</span>
+                    <span style={{ fontSize: 13, color: "#e8ece9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{deal.invoice.name || t.invoice}</span>
+                    {deal.invoice.at && <span style={{ fontSize: 11, color: "#6b746e" }}>{ymd(deal.invoice.at)}</span>}
+                    <a href={deal.invoice.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#3fb984" }}>{t.open}</a>
+                  </div>
+                ) : <div style={{ color: "#6b746e", fontSize: 13, marginBottom: 8 }}>{t.noInvoice}</div>}
+                <label style={{ display: "inline-block", marginTop: 8, cursor: billBusy ? "default" : "pointer", border: "1px solid #2a322e", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, color: "#c7ccc8", opacity: billBusy ? .6 : 1 }}>
+                  {billBusy === "invoice" ? t.uploading : `＋ ${t.invoiceUpload}`}
+                  <input type="file" style={{ display: "none" }} disabled={!!billBusy} onChange={(e) => { const f = e.target.files?.[0] ?? null; if (f) uploadBilling("invoice", f); e.currentTarget.value = ""; }} />
+                </label>
+              </div>
+              {/* 입금 확인 — 의뢰사 */}
+              <div style={{ borderTop: "1px solid #1a201d", paddingTop: 14 }}>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8a938d", marginBottom: 8 }}>{t.paymentTitle}</div>
+                {deal.payment && (deal.payment.paidOn || deal.payment.url) && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(63,185,132,.08)", border: "1px solid rgba(63,185,132,.25)", borderRadius: 10, padding: "10px 12px", marginBottom: 10, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 18 }}>💴</span>
+                    {deal.payment.paidOn && <span style={{ fontSize: 13, color: "#e8ece9" }}>{t.paidDate}: <b>{ymd(deal.payment.paidOn)}</b></span>}
+                    {deal.payment.url && <a href={deal.payment.url} target="_blank" rel="noreferrer" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#3fb984" }}>{t.remittance} {t.open}</a>}
+                  </div>
+                )}
+                <div style={{ background: "#0f1412", border: "1px solid #212824", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <input placeholder={t.name} value={payAuthor} onChange={(e) => setPayAuthor(e.target.value)} style={{ ...selSt, flex: 1, minWidth: 110 }} />
+                    <label style={{ fontSize: 11, color: "#8a938d", display: "flex", flexDirection: "column", gap: 3 }}>
+                      {t.paidOnLabel}
+                      <input type="date" value={paidOn} onChange={(e) => setPaidOn(e.target.value)} style={selSt} />
+                    </label>
+                  </div>
+                  <label style={{ display: "inline-block", cursor: billBusy ? "default" : "pointer", border: "1px solid #2a322e", borderRadius: 9, padding: "8px 14px", fontSize: 12.5, fontWeight: 700, color: "#c7ccc8", textAlign: "center", opacity: billBusy ? .6 : 1 }}>
+                    {billBusy === "payment" ? t.uploading : `＋ ${t.remittance} · ${t.paymentReport}`}
+                    <input type="file" style={{ display: "none" }} disabled={!!billBusy} onChange={(e) => { const f = e.target.files?.[0] ?? null; uploadBilling("payment", f); e.currentTarget.value = ""; }} />
+                  </label>
+                  {paidOn && !deal.payment?.paidOn && <button onClick={() => uploadBilling("payment", null)} disabled={!!billBusy} style={{ cursor: "pointer", border: 0, borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: billBusy ? .6 : 1 }}>{billBusy === "payment" ? t.uploading : t.paymentReport}</button>}
+                </div>
               </div>
             </div>
           </Section>
