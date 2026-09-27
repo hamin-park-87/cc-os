@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   let deals: any[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await admin.from("deals")
-      .select("pr_seq, client, title, creator_id, fee, tax, fee_agreed, step, upload_date, invoice_at, paid_on, payment_confirmed, share_token")
+      .select("pr_seq, client, title, creator_id, type, fee, tax, fee_agreed, step, upload_date, invoice_at, paid_on, payment_confirmed, share_token")
       .order("pr_seq", { ascending: true }).range(from, from + 999);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     deals = deals.concat(data || []);
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     : { data: [] };
   const nm: Record<string, string> = Object.fromEntries((crs || []).map((c: { id: string; name: string }) => [c.id, c.name]));
 
-  const header = ["PR번호", "의뢰사 依頼社", "안건 案件", "크리에이터 CC", "금액 金額(¥)", "소비세 消費税(¥)", "합의 合意", "진행단계 ステータス", "청구서발행일 請求書発行日", "입금예정·입금일 入金予定/入金日", "입금확인 入金確認", "대시보드 ダッシュボード"];
+  const header = ["PR번호", "의뢰사 依頼社", "안건 案件", "크리에이터 CC", "금액 金額(¥)", "소비세 消費税(¥)", "합의 合意", "진행단계 ステータス", "청구서발행일 請求書発行日", "입금예정·입금일 入金予定/入金日", "입금확인 入金確認", "채널 チャネル", "대시보드 ダッシュボード"];
   const rows = deals.map((d) => {
     const pr = d.pr_seq ? "PR-" + String(d.pr_seq).padStart(3, "0") : "";
     const est = (!d.paid_on && d.upload_date) ? estPayDate(d.upload_date) + " (예정)" : "";
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
       d.invoice_at ? String(d.invoice_at).slice(0, 10) : "",
       d.paid_on || est,
       d.payment_confirmed ? "입금완료" : "",
+      d.type === "ahchannel" ? "ah!channel" : "CC",
       BASE + d.share_token,
     ];
   });
