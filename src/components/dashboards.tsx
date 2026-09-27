@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, Fragment } from "react";
-import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, Contract, Assignment } from "@/lib/types";
+import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, DealType, Contract, Assignment } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
@@ -183,7 +183,8 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals month={month} />;
   if (pane === "a-orient") return <OrientSheets d={d} mode="admin" month={month} />;
   if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
-  if (pane === "a-deals") return <DealList deals={d.deals} contents={d.contents} creators={d.creators} />;
+  if (pane === "a-deals") return <DealList deals={d.deals.filter((x) => x.type !== "ahchannel")} contents={d.contents} creators={d.creators} channel="cc" />;
+  if (pane === "a-deals-ah") return <DealList deals={d.deals.filter((x) => x.type === "ahchannel")} contents={d.contents} creators={d.creators} channel="ahchannel" />;
   if (pane === "a-clients") return <ClientsTable d={d} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-payroll") return <PayrollView d={d} month={month} />;
@@ -1992,7 +1993,7 @@ function RegBadge({ by }: { by?: string | null }) {
   return <span className={`chip ${isAI ? "p-acc" : ""}`} title={by} style={{ gap: 4 }}>{isAI ? "🤖" : "👤"} {isAI ? T("AI") : name}</span>;
 }
 
-export function DealList({ deals, contents, readonly, creators }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[] }) {
+export function DealList({ deals, contents, readonly, creators, channel = "cc" }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[]; channel?: "cc" | "ahchannel" }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
   const [invoice, setInvoice] = useState<Deal | null>(null);
@@ -2047,7 +2048,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
 
   return (
     <>
-      {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("PR 안건 관리")}</h2>
+      {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>{channel === "ahchannel" ? T("ah!channel PR 안건 관리") : T("PR 안건 관리")}</h2>
         <span style={{ display: "flex", gap: 8 }}>
           {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>{T("선택 삭제")} ({sel.size})</button>}
           <button className="btn" onClick={() => setView(view === "list" ? "card" : "list")}>{view === "list" ? T("카드 보기") : T("목록 보기")}</button>
@@ -2158,7 +2159,7 @@ export function DealList({ deals, contents, readonly, creators }: { deals: Deal[
         );
       })}
     </div>}
-    {edit !== undefined && <DealEditModal deal={edit} deals={deals} contents={contents} creators={creators ?? []} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
+    {edit !== undefined && <DealEditModal deal={edit} deals={deals} contents={contents} creators={creators ?? []} defaultType={channel === "ahchannel" ? "ahchannel" : "creator"} onClose={() => setEdit(undefined)} onSaved={() => setTick((t) => t + 1)} />}
     {invoice && <InvoiceModal deal={invoice} onClose={() => setInvoice(null)} />}
   </>
   );
@@ -2208,12 +2209,12 @@ function InvoiceModal({ deal, onClose }: { deal: Deal; onClose: () => void }) {
   );
 }
 
-function DealEditModal({ deal, deals, contents, creators, onClose, onSaved }: { deal: Deal | null; deals: Deal[]; contents: Content[]; creators: Creator[]; onClose: () => void; onSaved: () => void }) {
+function DealEditModal({ deal, deals, contents, creators, onClose, onSaved, defaultType = "ahchannel" }: { deal: Deal | null; deals: Deal[]; contents: Content[]; creators: Creator[]; onClose: () => void; onSaved: () => void; defaultType?: DealType }) {
   const isNew = !deal;
   const DRAFT_KEY = "cc-os.draft.deal.new"; // REQ-019: 입력 자동저장(신규 안건)
   const defaults: Deal = {
     id: "D-" + (100 + deals.length + 1), title: "", client: "", creatorName: creators[0]?.name ?? "hina",
-    manager: "mai", source: "company_email", type: "ahchannel", fee: 1000000, shareCompany: 50, shareCreator: 50, step: 0,
+    manager: "mai", source: "company_email", type: defaultType, fee: 1000000, shareCompany: 50, shareCreator: 50, step: 0,
   };
   const [f, setF] = useState<Deal>(() => {
     if (deal) return { ...deal };
