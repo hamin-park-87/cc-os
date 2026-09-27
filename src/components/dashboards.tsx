@@ -142,8 +142,10 @@ const cmpNameByCode = (a: string, b: string) => codeRank(creatorCode(a)) - codeR
 
 export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: Bundle; month: string; email?: string; onNav?: (pane: string) => void }) {
   registerCreatorCodes(d.creators);
+  // ah!channel 등 미디어 엔티티는 크리에이터 로스터·인사이트·급여·비용·배정·계정에서 제외(연동 관리에는 노출)
+  const dNM: Bundle = { ...d, creators: d.creators.filter((c) => c.category !== "media") };
   if (pane === "a-matrix") {
-    const active = d.creators.filter((c) => c.status === "active").length;
+    const active = dNM.creators.filter((c) => c.status === "active").length;
     const issues = d.creators.filter((c) => c.ig?.status === "expired" || c.ig?.status === "revoked").length;
     const asg = d.assignments.filter((a) => a.yearMonth === month);
     const totQ = asg.reduce((s, a) => s + a.quota, 0);
@@ -177,21 +179,21 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
       </>
     );
   }
-  if (pane === "a-roster") return <RosterView d={d} month={month} />;
+  if (pane === "a-roster") return <RosterView d={dNM} month={month} />;
   if (pane === "a-brands") return <BrandAdmin d={d} month={month} />;
   if (pane === "a-secondary") return <SecondaryView mode="admin" d={d} />;
   if (pane === "a-schedule") return <ScheduleEditor d={d} includeDeals month={month} />;
   if (pane === "a-orient") return <OrientSheets d={d} mode="admin" month={month} />;
-  if (pane === "a-assign") return <AssignEditor d={d} month={month} />;
+  if (pane === "a-assign") return <AssignEditor d={dNM} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals.filter((x) => x.type !== "ahchannel")} contents={d.contents} creators={d.creators} channel="cc" />;
   if (pane === "a-deals-ah") return <DealList deals={d.deals.filter((x) => x.type === "ahchannel")} contents={d.contents} creators={d.creators} channel="ahchannel" />;
   if (pane === "a-clients") return <ClientsTable d={d} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
-  if (pane === "a-payroll") return <PayrollView d={d} month={month} />;
-  if (pane === "a-cost") return <CostTable creators={d.creators} />;
-  if (pane === "a-insights") return <Insights creators={d.creators} contents={d.contents} onNav={onNav} />;
+  if (pane === "a-payroll") return <PayrollView d={dNM} month={month} />;
+  if (pane === "a-cost") return <CostTable creators={dNM.creators} />;
+  if (pane === "a-insights") return <Insights creators={dNM.creators} contents={d.contents} onNav={onNav} />;
   if (pane === "a-feedback") return <FeedbackView d={d} month={month} />;
-  if (pane === "a-accounts") return <AccountsTable creators={d.creators} brands={d.brands} email={email} />;
+  if (pane === "a-accounts") return <AccountsTable creators={dNM.creators} brands={d.brands} email={email} />;
   if (pane === "a-archive") return <ContentArchive contents={d.contents} strategicBrands={d.brands.map((b) => b.name)} tagBrands={d.brands.length ? d.brands.map((b) => b.name) : ALL_BRANDS} onTag={(c, bn) => tagContentBrand(c.id, bn, d.brands)} />;
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
   if (pane === "a-risk") return <RiskList d={d} />;
