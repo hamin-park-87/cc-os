@@ -4,7 +4,7 @@ import type { Session } from "@/lib/auth/session";
 import { getData } from "@/lib/data";
 import { t, setCurrentLang, type Lang } from "@/lib/i18n";
 import { Avatar } from "./Avatar";
-import { AdminView, BrandView, CreatorView, type Bundle } from "./dashboards";
+import { AdminView, BrandView, CreatorView, AhChannelView, type Bundle } from "./dashboards";
 import { Modal, Field, inp } from "./Modal";
 import { changePassword } from "@/lib/auth/supabaseAuth";
 
@@ -27,6 +27,9 @@ const NAV: Record<string, NavGroup[]> = {
     { group: "", items: [["c-growth", "내 계정 성장"], ["c-profile", "내 프로필 관리"]] },
     { group: "PR", items: [["c-deals", "PR 안건"], ["c-revenue", "PR 정산"]] },
     { group: "콘텐츠", items: [["c-orient", "오리엔시트"], ["c-todo", "제작 일정"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
+  ],
+  ahchannel: [
+    { group: "", items: [["ah-dash", "대시보드"], ["ah-deals", "PR 안건"]] },
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
@@ -53,6 +56,10 @@ const BOT_NAV: Record<string, { key: string; label: string; icon: string }[]> = 
     { key: "c-content", label: "콘텐츠", icon: "🎬" },
     { key: "c-profile", label: "프로필", icon: "👤" },
   ],
+  ahchannel: [
+    { key: "ah-dash", label: "대시보드", icon: "🏠" },
+    { key: "ah-deals", label: "PR 안건", icon: "📥" },
+  ],
 };
 // 코드(BR001/CC001…) 번호순 정렬 — 코드 없으면 뒤로
 const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); return m ? +m[0] : Infinity; };
@@ -73,7 +80,7 @@ function defaultMonth(): string {
   if (MONTHS.includes(m)) return m;
   return m < MONTHS[0] ? MONTHS[0] : MONTHS[MONTHS.length - 1];
 }
-const ROLE_LABEL: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터" };
+const ROLE_LABEL: Record<string, string> = { admin: "관리자", brand: "브랜드", creator: "크리에이터", ahchannel: "ah!channel 에디터" };
 
 export function AppShell({ session, onLogout }: { session: Session; onLogout: () => void }) {
   const [d, setD] = useState<Bundle | null>(null);
@@ -119,6 +126,8 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   const reload = useCallback(async () => {
     setReloading(true);
     try {
+      // ah!channel 에디터는 내부 bundle을 로드하지 않음(전용 API로 격리). 빈 번들로 게이트 통과.
+      if (session.role === "ahchannel") { setD({ brands: [], creators: [], contents: [], deals: [], contracts: [], assignments: [] }); setReloadN((n) => n + 1); return; }
       const api = getData();
       // 통합 페치(bundle)로 중복 조회 제거 + 요청 수 축소. 미지원 provider는 개별 메서드로 폴백.
       if (api.bundle) {
@@ -130,7 +139,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       }
       setReloadN((n) => n + 1);
     } finally { setReloading(false); }
-  }, []);
+  }, [session.role]);
   useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
@@ -213,6 +222,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           {!d ? <div className="placeholder">불러오는 중…</div>
             : effRole === "admin" ? <AdminView key={reloadN} pane={pane} d={d} month={month} email={session.email} onNav={go} />
             : effRole === "brand" ? <BrandView key={reloadN} pane={pane} d={d} scope={effScope} month={month} />
+            : effRole === "ahchannel" ? <AhChannelView key={reloadN} pane={pane} session={{ email: session.email, scope: session.scope }} month={month} onNav={go} />
             : <CreatorView key={reloadN} pane={pane} d={d} scope={effScope} month={month} onNav={go} />}
         </div>
         <nav className="botnav">

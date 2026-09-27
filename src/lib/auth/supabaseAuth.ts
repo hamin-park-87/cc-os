@@ -43,6 +43,8 @@ export async function currentSupabaseSession(): Promise<Session | null> {
   } else if (role === "creator") {
     const { data } = await sb.from("creators").select("name").eq("user_id", user.id).limit(1);
     scope = data?.[0]?.name ?? "—";
+  } else if (role === "ahchannel") {
+    scope = "ah!channel";
   }
   return { email, role, scope };
 }

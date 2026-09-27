@@ -1,6 +1,6 @@
 // 81'DEGREE creator-os · 도메인 타입 (DB 스키마와 1:1)
 
-export type Role = "admin" | "brand" | "creator";
+export type Role = "admin" | "brand" | "creator" | "ahchannel";
 export type AccountStatus = "pending" | "active" | "disabled";
 export type CreatorStatus = "active" | "preparing" | "on_hold"; // 활동중/계약준비/보류
 export type ContentStatus = "planned" | "uploaded" | "canceled";

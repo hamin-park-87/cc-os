@@ -1696,7 +1696,7 @@ function AccountsTable({ creators, brands, email }: { creators: Creator[]; brand
   }, []);
   useEffect(() => { load(); }, [load]);
   const filtered = rows.filter((a) => !fRole || a.role === fRole);
-  const ROLE: Record<string, string> = { admin: T("관리자"), brand: T("브랜드"), creator: T("크리에이터") };
+  const ROLE: Record<string, string> = { admin: T("관리자"), brand: T("브랜드"), creator: T("크리에이터"), ahchannel: T("ah!channel 에디터") };
   const ST: Record<string, [string, string]> = { active: ["p-ok", T("활성")], pending: ["p-warn", T("초대중")], disabled: ["p-plan", T("비활성")] };
   const toggle = (id: string) => setSel((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   async function bulkDelete() {
@@ -1866,7 +1866,7 @@ function genPassword() {
 }
 function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onClose: () => void; onSaved: () => void; creators: Creator[]; brands?: Brand[]; canMakeAdmin?: boolean }) {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "brand" | "creator">("brand");
+  const [role, setRole] = useState<"admin" | "brand" | "creator" | "ahchannel">("brand");
   const [scope, setScope] = useState("abib");
   const [password, setPassword] = useState(genPassword());
   const [busy, setBusy] = useState(false);
@@ -1874,11 +1874,11 @@ function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onC
   const [ok, setOk] = useState(false);
   const creatorNames = creators.map((c) => c.name);
   const brandNames = brands?.length ? brands.map((b) => b.name) : ALL_BRANDS;
-  const scopes = role === "admin" ? ["81degree"] : role === "brand" ? brandNames : (creatorNames.length ? creatorNames : ["hina"]);
-  const finalScope = role === "admin" ? "81degree" : scope;
+  const scopes = role === "admin" ? ["81degree"] : role === "ahchannel" ? ["ah!channel"] : role === "brand" ? brandNames : (creatorNames.length ? creatorNames : ["hina"]);
+  const finalScope = role === "admin" ? "81degree" : role === "ahchannel" ? "ah!channel" : scope;
   async function save() {
     if (!email.trim()) { setErr(T("이메일을 입력해주세요")); return; }
-    if (role !== "admin" && !scope.trim()) { setErr(T("소속을 입력해주세요")); return; }
+    if (role !== "admin" && role !== "ahchannel" && !scope.trim()) { setErr(T("소속을 입력해주세요")); return; }
     if (password.length < 6) { setErr(T("비밀번호는 6자 이상")); return; }
     if (supabaseConfigured()) {
       setBusy(true); setErr("");
@@ -1907,13 +1907,13 @@ function InviteModal({ onClose, onSaved, creators, brands, canMakeAdmin }: { onC
           <div>{T("사이트:")} https://cc-os.81degree.com</div>
           <div>{T("아이디:")} {email}</div>
           <div>{T("비밀번호:")} {password}</div>
-          <div>{T("권한:")} {role === "brand" ? finalScope + T(" 브랜드") : role === "creator" ? finalScope + T(" 크리에이터") : T("관리자")}</div>
+          <div>{T("권한:")} {role === "brand" ? finalScope + T(" 브랜드") : role === "creator" ? finalScope + T(" 크리에이터") : role === "ahchannel" ? T("ah!channel 에디터") : T("관리자")}</div>
         </div>
         <button className="btn sm" style={{ marginTop: 10 }} onClick={() => navigator.clipboard?.writeText(`${T("사이트:")} https://cc-os.81degree.com\n${T("아이디:")} ${email}\n${T("비밀번호:")} ${password}`)}>{T("복사")}</button>
       </div> : <>
         <Field label={T("아이디 또는 이메일")}><input style={inp} type="text" placeholder={T("아이디 (예: abib_kim)")} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-          <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { const r = e.target.value as "admin" | "brand" | "creator"; setRole(r); setScope(r === "brand" ? (brandNames[0] ?? "") : ""); }}>{canMakeAdmin && <option value="admin">{T("관리자")}</option>}<option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option></select></Field>
+          <Field label={T("역할")}><select style={inp} value={role} onChange={(e) => { const r = e.target.value as "admin" | "brand" | "creator" | "ahchannel"; setRole(r); setScope(r === "brand" ? (brandNames[0] ?? "") : ""); }}>{canMakeAdmin && <option value="admin">{T("관리자")}</option>}<option value="brand">{T("브랜드")}</option><option value="creator">{T("크리에이터")}</option><option value="ahchannel">{T("ah!channel 에디터")}</option></select></Field>
           <Field label={T("소속")}>
             {role === "admin"
               ? <input style={inp} value="81degree" disabled />
@@ -3164,6 +3164,92 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   if (pane === "c-calendar") return (<>{remBanner}<CreatorTodo d={d} me={me} month={month} initialView="calendar" /></>);
   if (pane === "c-orient") return <OrientSheets d={d} mode="creator" month={month} />;
   return <Placeholder name={pane} />;
+}
+
+// ah!channel 에디터 전용 뷰 — ah!channel PR 안건 대시보드 + 등록 (우리 관리자와 deals 연동)
+type AhDeal = { id: string; prNo: string | null; title: string; client: string | null; step: number; fee: number | null; tax: number | null; dueDate: string | null; uploadDate: string | null; receivedDate: string | null; createdAt: string | null; brief: string | null; shareUrl: string | null; invoiced: boolean; paidOn: string | null; paymentConfirmed: boolean };
+export function AhChannelView({ pane, month = defaultMonth(), onNav }: { pane: string; session?: { email: string; scope: string }; month?: string; onNav?: (p: string) => void }) {
+  const [deals, setDeals] = useState<AhDeal[] | null>(null);
+  const [reg, setReg] = useState(false);
+  const yen = (n?: number | null) => n == null ? "—" : "¥" + n.toLocaleString();
+  async function authHeader() { const { data } = await getSupabase().auth.getSession(); return { Authorization: "Bearer " + (data.session?.access_token ?? ""), "Content-Type": "application/json" }; }
+  async function load() {
+    try { const r = await fetch("/api/ahchannel/deals", { headers: await authHeader() }); if (r.ok) setDeals((await r.json()).deals); else setDeals([]); }
+    catch { setDeals([]); }
+  }
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const list = deals ?? [];
+  const active = list.filter((d) => d.step < 8);
+  const thisMonthUp = list.filter((d) => (d.uploadDate || d.dueDate || "").slice(0, 7) === month);
+  const unpaid = list.filter((d) => !d.paymentConfirmed);
+  const unpaidSum = unpaid.reduce((s, d) => s + (d.fee || 0), 0);
+
+  if (deals === null) return <div className="placeholder">{T("불러오는 중…")}</div>;
+
+  if (pane === "ah-dash") return (
+    <div className="grid">
+      <div className="kpis">
+        <Kpi lab={T("전체 ah!channel 안건")} val={list.length} unit={T("건")} />
+        <Kpi lab={T("진행중")} val={active.length} unit={T("건")} />
+        <Kpi lab={month + T(" 업로드 예정")} val={thisMonthUp.length} unit={T("건")} />
+        <Kpi lab={T("미입금 합계")} val={yen(unpaidSum)} />
+      </div>
+      <div className="card">
+        <div className="sec-h"><h2>{T("최근 ah!channel 안건")}</h2>{onNav && <button className="btn sm" onClick={() => onNav("ah-deals")}>{T("전체 보기")} →</button>}</div>
+        {!list.length ? <div className="placeholder">{T("아직 등록된 안건이 없어요.")}</div> :
+        <table className="tbl"><thead><tr><th>{T("번호")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th></tr></thead>
+        <tbody>{list.slice(0, 8).map((d) => (<tr key={d.id}>
+          <td><b>{d.prNo ?? "—"}</b></td><td>{d.title}</td><td>{d.client ?? "—"}</td>
+          <td><span className="chip">{DEAL_STEPS[d.step] ?? d.step}</span></td><td className="num">{yen(d.fee)}</td>
+          <td>{d.shareUrl ? <a className="btn sm" href={d.shareUrl} target="_blank" rel="noreferrer">{T("열기")}</a> : "—"}</td>
+        </tr>))}</tbody></table>}
+      </div>
+    </div>
+  );
+
+  if (pane === "ah-deals") return (<>
+    <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("ah!channel PR 안건")}</h2>
+      <button className="btn acc" onClick={() => setReg(true)}>+ {T("안건 등록")}</button></div>
+    <div style={{ fontSize: 12.5, color: "var(--faint)", marginBottom: 12 }}>{T("여기서 등록한 안건은 81degree 관리자 어드민의 ‘ah!channel PR 안건’과 실시간으로 연동됩니다.")}</div>
+    {!list.length ? <div className="placeholder">{T("아직 등록된 안건이 없어요. ‘안건 등록’으로 추가하세요.")}</div> :
+    <table className="tbl"><thead><tr><th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("입금")}</th><th>{T("대시보드")}</th></tr></thead>
+    <tbody>{list.map((d) => (<tr key={d.id}>
+      <td><b>{d.prNo ?? "—"}</b></td><td>{(d.receivedDate || d.createdAt || "").slice(0, 10) || "—"}</td><td>{(d.dueDate || d.uploadDate || "").slice(0, 10) || "—"}</td>
+      <td>{d.title}</td><td>{d.client ?? "—"}</td><td><span className="chip">{DEAL_STEPS[d.step] ?? d.step}</span></td>
+      <td className="num">{yen(d.fee)}</td><td>{d.paymentConfirmed ? "✅" : d.paidOn ? "🔵" : "—"}</td>
+      <td>{d.shareUrl ? <a className="btn sm" href={d.shareUrl} target="_blank" rel="noreferrer">{T("열기")}</a> : "—"}</td>
+    </tr>))}</tbody></table>}
+    {reg && <AhRegisterModal onClose={() => setReg(false)} onSaved={() => { setReg(false); load(); }} authHeader={authHeader} />}
+  </>);
+
+  return <Placeholder name={pane} />;
+}
+
+function AhRegisterModal({ onClose, onSaved, authHeader }: { onClose: () => void; onSaved: () => void; authHeader: () => Promise<Record<string, string>> }) {
+  const [f, setF] = useState({ title: "", client: "", fee: "", dueDate: "", brief: "" });
+  const [busy, setBusy] = useState(false); const [err, setErr] = useState("");
+  const inp: React.CSSProperties = { width: "100%", fontFamily: "var(--body)", fontSize: 14, padding: "9px 11px", borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" };
+  async function save() {
+    if (!f.title.trim()) { setErr(T("안건명을 입력해주세요")); return; }
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch("/api/ahchannel/deals", { method: "POST", headers: await authHeader(), body: JSON.stringify({ ...f, fee: f.fee ? Number(f.fee) : null }) });
+      if (r.ok) onSaved(); else { const j = await r.json().catch(() => ({})); setErr(j.error || T("등록 실패")); }
+    } catch (e) { setErr((e as Error).message); }
+    setBusy(false);
+  }
+  return (
+    <Modal title={T("ah!channel PR 안건 등록")} onClose={onClose} footer={<><button className="btn" onClick={onClose}>{T("취소")}</button><button className="btn acc" onClick={save} disabled={busy}>{busy ? T("등록 중…") : T("등록")}</button></>}>
+      <Field label={T("안건명")}><input style={inp} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field>
+      <div className="grid2">
+        <Field label={T("의뢰사")}><input style={inp} value={f.client} onChange={(e) => setF({ ...f, client: e.target.value })} /></Field>
+        <Field label={T("납기")}><input type="date" style={inp} value={f.dueDate} onChange={(e) => setF({ ...f, dueDate: e.target.value })} /></Field>
+      </div>
+      <Field label={T("PR 비용(¥)")}><input type="number" inputMode="numeric" style={inp} value={f.fee} onChange={(e) => setF({ ...f, fee: e.target.value })} /></Field>
+      <Field label={T("의뢰 내용")}><textarea style={{ ...inp, minHeight: 90, resize: "vertical" }} value={f.brief} onChange={(e) => setF({ ...f, brief: e.target.value })} /></Field>
+      {err && <div style={{ color: "var(--critical)", fontSize: 13 }}>{err}</div>}
+    </Modal>
+  );
 }
 
 function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
