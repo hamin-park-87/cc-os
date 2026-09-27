@@ -43,7 +43,7 @@ export async function patchCreator(id: string, fields: Record<string, unknown>) 
 // 브랜드 CRUD
 function brandRow(b: Brand) {
   return {
-    code: b.code ?? null, name: b.name, color: b.color ?? null, aliases: b.aliases ?? [], domain_allowlist: b.domainAllowlist ?? [],
+    code: b.code ?? null, name: b.name, color: b.color ?? null, logo_url: b.logoUrl ?? null, aliases: b.aliases ?? [], domain_allowlist: b.domainAllowlist ?? [],
     contract_start: b.contractStart ?? null, contract_end: b.contractEnd ?? null,
     monthly_quota: b.monthlyQuota ?? null, monthly_amount: b.monthlyAmount ?? null,
     bill_company: b.billCompany ?? null, bill_address: b.billAddress ?? null, bill_tel: b.billTel ?? null,

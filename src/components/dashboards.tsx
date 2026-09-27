@@ -412,7 +412,9 @@ function CreatorDetailModal({ creator: c, contents, onClose, onEdit }: { creator
 /* 브랜드 로고 아이콘 (색상 + 이니셜) — REQ-001 */
 function BrandBadge({ b, size = 26 }: { b: Brand; size?: number }) {
   const color = b.color ?? BRAND_COLOR[b.name] ?? "#3B7DD8";
-  return <span style={{ width: size, height: size, borderRadius: Math.round(size * 0.28), background: color, color: "#fff", display: "inline-grid", placeItems: "center", fontWeight: 800, fontSize: Math.round(size * 0.42), flexShrink: 0, letterSpacing: "-.02em" }}>{b.name.slice(0, 2).toUpperCase()}</span>;
+  const radius = Math.round(size * 0.28);
+  if (b.logoUrl) return <span style={{ width: size, height: size, borderRadius: radius, background: `center/cover no-repeat url(${b.logoUrl})`, flexShrink: 0, border: "1px solid var(--border)", display: "inline-block" }} />;
+  return <span style={{ width: size, height: size, borderRadius: radius, background: color, color: "#fff", display: "inline-grid", placeItems: "center", fontWeight: 800, fontSize: Math.round(size * 0.42), flexShrink: 0, letterSpacing: "-.02em" }}>{b.name.slice(0, 2).toUpperCase()}</span>;
 }
 
 /* ── 브랜드 관리 ───── */
@@ -619,6 +621,7 @@ function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null;
   const isNew = !brand;
   const nextCode = "BR" + String(Math.max(0, ...all.map((b) => { const m = b.code?.match(/\d+/); return m ? +m[0] : 0; })) + 1).padStart(3, "0");
   const [f, setF] = useState<Brand>(brand ? { ...brand } : { id: "", code: nextCode, name: "", aliases: [], color: "#22B24E", domainAllowlist: [] });
+  const [logoBusy, setLogoBusy] = useState(false);
   const up = (k: keyof Brand, v: unknown) => setF((s) => ({ ...s, [k]: v } as Brand));
   const toList = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
   async function save() {
@@ -645,6 +648,16 @@ function BrandEditModal({ brand, all, onClose, onSaved }: { brand: Brand | null;
         <Field label={T("브랜드명")}><input style={inp} placeholder={T("예: abib")} value={f.name} onChange={(e) => up("name", e.target.value)} /></Field>
         <Field label={T("색상")}><input type="color" style={{ ...inp, width: 56, padding: 4, height: 40 }} value={f.color ?? "#22B24E"} onChange={(e) => up("color", e.target.value)} /></Field>
       </div>
+      <Field label={T("브랜드 로고 (아이콘)")}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 10, border: "1px solid var(--border)", background: f.logoUrl ? `center/cover url(${f.logoUrl})` : (f.color ?? "var(--surface-3)"), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, flex: "none" }}>{!f.logoUrl && (f.name?.[0]?.toUpperCase() ?? "?")}</div>
+          <label className="btn sm" style={{ cursor: logoBusy ? "default" : "pointer", opacity: logoBusy ? .6 : 1 }}>
+            {logoBusy ? T("업로드 중…") : (f.logoUrl ? T("이미지 변경") : T("＋ 이미지 첨부"))}
+            <input type="file" accept="image/*" style={{ display: "none" }} disabled={logoBusy} onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; setLogoBusy(true); try { const url = await uploadAttachment(file, "brand-logo"); up("logoUrl", url); } catch (err) { alert(T("업로드 실패: ") + (err as Error).message); } setLogoBusy(false); e.currentTarget.value = ""; }} />
+          </label>
+          {f.logoUrl && <button type="button" className="btn sm" style={{ color: "var(--critical)" }} onClick={() => up("logoUrl", null)}>{T("제거")}</button>}
+        </div>
+      </Field>
       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "6px 0 8px" }}>{T("계약 정보")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
         <Field label={T("계약 시작월")}><input style={inp} type="month" value={f.contractStart ?? ""} onChange={(e) => up("contractStart", e.target.value)} /></Field>

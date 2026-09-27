@@ -30,7 +30,7 @@ const SNAP_COLS = "content_id,captured_at,views,reach,likes,comments,saved,share
 
 /* 순수 매핑 헬퍼 (row → 도메인 타입). 개별 메서드와 bundle()에서 공용. */
 const mapBrand = (r: Row): Brand => ({
-  id: r.id, code: r.code, name: r.name, aliases: r.aliases ?? [], color: r.color, domainAllowlist: r.domain_allowlist ?? [],
+  id: r.id, code: r.code, name: r.name, aliases: r.aliases ?? [], color: r.color, logoUrl: r.logo_url ?? null, domainAllowlist: r.domain_allowlist ?? [],
   contractStart: r.contract_start, contractEnd: r.contract_end,
   monthlyQuota: r.monthly_quota, monthlyAmount: r.monthly_amount != null ? Number(r.monthly_amount) : null,
   billCompany: r.bill_company, billAddress: r.bill_address, billTel: r.bill_tel, billRep: r.bill_rep, billRegNo: r.bill_reg_no,

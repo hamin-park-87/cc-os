@@ -24,6 +24,7 @@ export interface Brand {
   name: string;
   aliases: string[];
   color?: string;
+  logoUrl?: string | null;         // 브랜드 로고 이미지 URL
   domainAllowlist: string[];
   // 계약
   contractStart?: string | null;   // 계약 시작월 (YYYY-MM)
