@@ -29,7 +29,9 @@ const NAV: Record<string, NavGroup[]> = {
     { group: "콘텐츠", items: [["c-orient", "오리엔시트"], ["c-todo", "제작 일정"], ["c-content", "콘텐츠 아카이브"], ["c-secondary", "2차 활용"]] },
   ],
   ahchannel: [
-    { group: "", items: [["ah-dash", "대시보드"], ["ah-deals", "PR 안건"]] },
+    { group: "", items: [["ah-dash", "대시보드"]] },
+    { group: "미디어 · ah!channel", items: [["ah-audience", "오디언스"], ["ah-content", "콘텐츠"]] },
+    { group: "PR", items: [["ah-deals", "PR 안건"]] },
   ],
 };
 const flatNav = (role: string): NavItem[] => NAV[role].flatMap((g) => g.items);
@@ -58,6 +60,8 @@ const BOT_NAV: Record<string, { key: string; label: string; icon: string }[]> = 
   ],
   ahchannel: [
     { key: "ah-dash", label: "대시보드", icon: "🏠" },
+    { key: "ah-audience", label: "오디언스", icon: "◐" },
+    { key: "ah-content", label: "콘텐츠", icon: "🎬" },
     { key: "ah-deals", label: "PR 안건", icon: "📥" },
   ],
 };

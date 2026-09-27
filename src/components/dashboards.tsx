@@ -3166,18 +3166,106 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   return <Placeholder name={pane} />;
 }
 
-// ah!channel 에디터 전용 뷰 — ah!channel PR 안건 대시보드 + 등록 (우리 관리자와 deals 연동)
+// ah!channel 에디터 전용 뷰 — 미디어(IG) 대시보드 + PR 안건 (우리 관리자와 deals 연동)
 type AhDeal = { id: string; prNo: string | null; title: string; client: string | null; step: number; fee: number | null; tax: number | null; dueDate: string | null; uploadDate: string | null; receivedDate: string | null; createdAt: string | null; brief: string | null; shareUrl: string | null; invoiced: boolean; paidOn: string | null; paymentConfirmed: boolean };
+type AhContent = { id: string; caption: string; permalink: string | null; thumbnailUrl: string | null; publishedAt: string | null; views: number; likes: number; comments: number; saved: number; shares: number; reach: number };
+type AhMedia = { connected: boolean; name: string; handle: string | null; kpi: { followers: number; impressions: number; reach: number; newFollowers: number; contentCount: number }; followerSeries: { date: string; followers: number }[]; weeklyGrowth: { week: string; delta: number; pct: number }[]; audience: { female: number; ages: [string, number][]; countries: [string, number][]; cities: [string, number][] }; contents: AhContent[] };
+const ahNf = (n?: number | null) => n == null ? "—" : n >= 1000000 ? (n / 1000000).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "K" : String(n);
 export function AhChannelView({ pane, month = defaultMonth(), onNav }: { pane: string; session?: { email: string; scope: string }; month?: string; onNav?: (p: string) => void }) {
   const [deals, setDeals] = useState<AhDeal[] | null>(null);
+  const [media, setMedia] = useState<AhMedia | null>(null);
   const [reg, setReg] = useState(false);
+  const [openC, setOpenC] = useState<AhContent | null>(null);
   const yen = (n?: number | null) => n == null ? "—" : "¥" + n.toLocaleString();
   async function authHeader() { const { data } = await getSupabase().auth.getSession(); return { Authorization: "Bearer " + (data.session?.access_token ?? ""), "Content-Type": "application/json" }; }
   async function load() {
     try { const r = await fetch("/api/ahchannel/deals", { headers: await authHeader() }); if (r.ok) setDeals((await r.json()).deals); else setDeals([]); }
     catch { setDeals([]); }
   }
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  async function loadMedia() {
+    try { const r = await fetch("/api/ahchannel/media", { headers: await authHeader() }); if (r.ok) setMedia(await r.json()); }
+    catch { /* noop */ }
+  }
+  useEffect(() => { load(); loadMedia(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  // 미디어(IG) 홈
+  if (pane === "ah-dash") {
+    const m = media;
+    const notConnected = !m || !m.connected;
+    const maxW = Math.max(1, ...(m?.weeklyGrowth || []).map((w) => Math.abs(w.delta)));
+    return (
+      <div className="grid">
+        {notConnected && <div style={{ padding: "12px 14px", marginBottom: 4, borderRadius: 10, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", fontSize: 13 }}>
+          ♪ <b>ah!channel</b> {T("인스타그램 연동 후 실데이터가 표시됩니다. (연동 요청은 81degree 관리자에게 문의)")}</div>}
+        <div className="kpis">
+          <Kpi lab={T("현재 팔로워")} val={ahNf(m?.kpi.followers)} />
+          <Kpi lab={T("총 노출")} val={ahNf(m?.kpi.impressions)} />
+          <Kpi lab={T("총 도달")} val={ahNf(m?.kpi.reach)} />
+          <Kpi lab={T("신규 팔로우")} val={ahNf(m?.kpi.newFollowers)} />
+          <Kpi lab={T("콘텐츠")} val={m?.kpi.contentCount ?? 0} unit={T("개")} />
+        </div>
+        <FollowerTrend points={m?.followerSeries || []} />
+        <div className="card pad">
+          <div className="sec-h" style={{ margin: "0 0 8px" }}><h2>{T("주간 성장")}</h2></div>
+          {!(m?.weeklyGrowth || []).length ? <div className="note">{T("연동 후 표시됩니다.")}</div> :
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {m!.weeklyGrowth.map((w) => (
+              <div key={w.week} style={{ display: "grid", gridTemplateColumns: "56px 1fr 120px", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+                <span style={{ color: "var(--muted)" }}>{w.week.slice(5)}</span>
+                <div style={{ height: 8, background: "var(--surface-3)", borderRadius: 5, overflow: "hidden" }}><div style={{ height: "100%", width: `${Math.abs(w.delta) / maxW * 100}%`, background: "var(--accent)", borderRadius: 5 }} /></div>
+                <span className="num" style={{ textAlign: "right", fontWeight: 700 }}>{w.delta >= 0 ? "+" : ""}{w.delta.toLocaleString()} ({w.pct >= 0 ? "+" : ""}{w.pct}%)</span>
+              </div>
+            ))}
+          </div>}
+        </div>
+      </div>
+    );
+  }
+
+  // 오디언스
+  if (pane === "ah-audience") {
+    const au = media?.audience;
+    const has = au && (au.female > 0 || (au.ages || []).some((a) => a[1] > 0) || (au.countries || []).length);
+    return (
+      <div className="grid">
+        <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("오디언스")}</h2></div>
+        {!has ? <div className="placeholder">{T("Instagram 연동·동기화 후 표시됩니다.")}</div> : <>
+          <div className="card pad">
+            <div className="sec-h" style={{ margin: "0 0 8px" }}><h2>{T("성별")}</h2></div>
+            <div style={{ display: "flex", gap: 16, fontSize: 14 }}>
+              <div>♀ {T("여성")} <b>{au!.female}%</b></div><div>♂ {T("남성")} <b>{100 - au!.female}%</b></div>
+            </div>
+          </div>
+          <GeoList title={T("연령")} items={au!.ages} />
+          <GeoList title={T("국가")} items={au!.countries} />
+          <GeoList title={T("도시")} items={au!.cities} />
+        </>}
+      </div>
+    );
+  }
+
+  // 콘텐츠
+  if (pane === "ah-content") {
+    const cs = media?.contents || [];
+    return (<>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("콘텐츠")}</h2><span style={{ marginLeft: "auto", color: "var(--faint)", fontSize: 12.5 }}>{cs.length}{T("개")}</span></div>
+      {!cs.length ? <div className="placeholder">{T("Instagram 연동·동기화 후 콘텐츠가 표시됩니다.")}</div> :
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 14 }}>
+        {cs.map((c) => (
+          <button key={c.id} onClick={() => setOpenC(c)} style={{ textAlign: "left", cursor: "pointer", border: "1px solid var(--border)", background: "var(--surface)", borderRadius: 12, overflow: "hidden", padding: 0 }}>
+            <div style={{ aspectRatio: "4/5", background: c.thumbnailUrl ? `center/cover url(${c.thumbnailUrl})` : "var(--surface-3)" }} />
+            <div style={{ padding: "10px 12px" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{c.caption || "—"}</div>
+              <div style={{ fontSize: 11, color: "var(--faint)", marginTop: 4 }}>{(c.publishedAt || "").slice(0, 10)}</div>
+              <div style={{ fontSize: 12.5, marginTop: 6 }}>👁 <b>{ahNf(c.views)}</b></div>
+            </div>
+          </button>
+        ))}
+      </div>}
+      {openC && <AhContentModal c={openC} onClose={() => setOpenC(null)} />}
+    </>);
+  }
+
   const list = deals ?? [];
   const active = list.filter((d) => d.step < 8);
   const thisMonthUp = list.filter((d) => (d.uploadDate || d.dueDate || "").slice(0, 7) === month);
@@ -3248,6 +3336,43 @@ function AhRegisterModal({ onClose, onSaved, authHeader }: { onClose: () => void
       <Field label={T("PR 비용(¥)")}><input type="number" inputMode="numeric" style={inp} value={f.fee} onChange={(e) => setF({ ...f, fee: e.target.value })} /></Field>
       <Field label={T("의뢰 내용")}><textarea style={{ ...inp, minHeight: 90, resize: "vertical" }} value={f.brief} onChange={(e) => setF({ ...f, brief: e.target.value })} /></Field>
       {err && <div style={{ color: "var(--critical)", fontSize: 13 }}>{err}</div>}
+    </Modal>
+  );
+}
+
+function AhContentModal({ c, onClose }: { c: AhContent; onClose: () => void }) {
+  const nf = (n: number) => n.toLocaleString();
+  const rate = (a: number, b: number) => b > 0 ? +(a / b).toFixed(3) : 0;
+  const saveRate = rate(c.saved, c.reach || c.views);
+  const engRate = rate(c.likes + c.comments + c.saved + c.shares, c.reach || c.views);
+  const reachRate = c.views > 0 ? rate(c.reach, c.views) : 0;
+  const good: string[] = [], bad: string[] = [], tip: string[] = [];
+  if (c.views >= 300000) good.push(T("높은 조회수 · 高い表示数"));
+  if (saveRate >= 0.01) good.push(T("저장률 높음(정보성 소비) · 保存率高い"));
+  if (engRate >= 0.03) good.push(T("참여율 양호 · エンゲージ良好"));
+  if (c.comments < 10) bad.push(T("댓글 적음 · コメント少なめ"));
+  if (saveRate < 0.005) bad.push(T("저장 유도 약함 · 保存誘導が弱い"));
+  if (!good.length) good.push(T("표준 범위 · 標準範囲"));
+  tip.push(saveRate >= 0.01 ? T("저장 유도 포맷 유지 · 保存型維持") : T("저장 유도 요소 강화 · 保存要素を強化"));
+  const cell = (lab: string, val: string) => (<div style={{ padding: "12px 14px", borderRight: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}><div style={{ fontSize: 11.5, color: "var(--faint)" }}>{lab}</div><div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{val}</div></div>);
+  return (
+    <Modal title={c.caption || T("콘텐츠")} onClose={onClose} width={680}
+      footer={<button className="btn acc" onClick={onClose}>{T("닫기")}</button>}>
+      {c.permalink && <a href={c.permalink} target="_blank" rel="noreferrer" style={{ color: "var(--accent)", fontSize: 13, fontWeight: 600 }}>{T("인스타에서 보기 · Instagramで見る ↗")}</a>}
+      <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+        {cell(T("조회수 表示"), nf(c.views))}{cell(T("도달 リーチ"), nf(c.reach))}{cell(T("좋아요 いいね"), nf(c.likes))}
+        {cell(T("저장 保存"), nf(c.saved))}{cell(T("댓글 コメント"), nf(c.comments))}{cell(T("공유 シェア"), nf(c.shares))}
+        {cell(T("저장률 保存率"), String(saveRate))}{cell(T("참여율 エンゲージ"), String(engRate))}{cell(T("도달률 リーチ率"), String(reachRate))}
+      </div>
+      <div style={{ marginTop: 14, background: "var(--surface-2)", borderRadius: 10, padding: 14 }}>
+        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>✦ {T("AI 자동 분석")} <span style={{ fontSize: 11, color: "var(--faint)", fontWeight: 500 }}>{T("규칙 기반 · ルール")}</span></div>
+        <div style={{ fontSize: 12.5, color: "var(--accent-ink)", fontWeight: 700 }}>{T("잘된 점 · 良い点")}</div>
+        <ul style={{ margin: "4px 0 10px", paddingLeft: 18, fontSize: 12.5 }}>{good.map((x, i) => <li key={i}>{x}</li>)}</ul>
+        {bad.length > 0 && <><div style={{ fontSize: 12.5, color: "var(--critical)", fontWeight: 700 }}>{T("아쉬운 점 · 改善点")}</div>
+        <ul style={{ margin: "4px 0 10px", paddingLeft: 18, fontSize: 12.5 }}>{bad.map((x, i) => <li key={i}>{x}</li>)}</ul></>}
+        <div style={{ fontSize: 12.5, color: "var(--accent)", fontWeight: 700 }}>{T("제안 · 提案")}</div>
+        <ul style={{ margin: "4px 0 0", paddingLeft: 18, fontSize: 12.5 }}>{tip.map((x, i) => <li key={i}>{x}</li>)}</ul>
+      </div>
     </Modal>
   );
 }
