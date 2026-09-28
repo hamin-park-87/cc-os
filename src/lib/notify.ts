@@ -42,4 +42,19 @@ export async function slackPost(channel: string, text: string, threadTs?: string
   } catch (e) { console.warn("[slackPost]", (e as Error).message); return null; }
 }
 
+// 스레드 전체 메시지 읽기 (conversations.replies). 봇이 채널에 있어야 함.
+export async function slackReplies(channel: string, threadTs: string): Promise<{ user?: string; bot_id?: string; text: string; ts: string }[]> {
+  const token = process.env.SLACK_BOT_TOKEN;
+  if (!token) return [];
+  try {
+    const res = await fetch(`https://slack.com/api/conversations.replies?channel=${encodeURIComponent(channel)}&ts=${encodeURIComponent(threadTs)}&limit=200`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const j = await res.json();
+    if (!j.ok) { console.warn("[slackReplies]", j.error); return []; }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (j.messages ?? []).map((m: any) => ({ user: m.user, bot_id: m.bot_id, text: String(m.text ?? ""), ts: String(m.ts ?? "") }));
+  } catch (e) { console.warn("[slackReplies]", (e as Error).message); return []; }
+}
+
 export const notifyConfigured = () => ({ slack: !!process.env.SLACK_WEBHOOK_URL, slackBot: !!process.env.SLACK_BOT_TOKEN, email: !!process.env.RESEND_API_KEY });

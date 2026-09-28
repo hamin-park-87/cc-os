@@ -137,6 +137,23 @@ export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsRe
   return anySent;
 }
 
+// 슬랙 스레드(원 메일 + 매니저·CC 협의) → 합의 요약 + 의뢰사 회신 일본어 이메일 초안.
+export async function composeReplyFromThread(transcript: string): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const prompt = `以下は、あるPR案件に関する社内Slackスレッドの会話です(先頭に取引先からの元メール、続いて担当マネージャーとCC(クリエイター)による金額・条件の協議が含まれます)。\nこの協議で合意した内容を反映し、取引先(依頼社)へ送る丁寧なビジネス日本語の返信メールを作成してください。\n\n出力フォーマット(この2部構成で、余計な説明は不要):\n【合意サマリー】\n- 金額/条件など、スレッドで確定した要点を箇条書き(社内確認用・日本語)\n\n【返信メール(そのまま送信可)】\n(敬語のメール本文。宛名→本文→署名「81degree」。合意した金額・投稿時期・二次利用等を明記。未確定事項があれば確認のお願いを一文。[ ]プレースホルダは使わない)\n\n--- Slackスレッド ---\n${transcript.slice(0, 9000)}`;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1200, messages: [{ role: "user", content: prompt }] }),
+    });
+    const j = await res.json();
+    const text = (j?.content?.[0]?.text ?? "").trim();
+    return text || null;
+  } catch (e) { console.warn("[composeReplyFromThread]", (e as Error).message); return null; }
+}
+
 // 외부 PR 문의 메일 → 정중한 일본어 답장 초안(1차 접수 응대). ANTHROPIC_API_KEY 필요.
 export async function draftReplyWithClaude(m: { subject: string; from: string; body: string }): Promise<string | null> {
   const key = process.env.ANTHROPIC_API_KEY;
