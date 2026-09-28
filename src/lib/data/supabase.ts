@@ -25,7 +25,7 @@ async function q(table: string, cols = "*"): Promise<Row[]> {
 }
 
 // caption 등 UI 미사용 컬럼 제외로 페이로드 축소, 스냅샷은 최신값 계산에 필요한 컬럼만
-const CONTENT_COLS = "id,brand_id,creator_id,deal_id,client,ig_media_id,permalink,thumbnail_url,product,kind,planned_date,published_at,status,match_source,sched,archived_video_url,video_status,year_month,sample_received,sample_courier,sample_tracking";
+const CONTENT_COLS = "id,brand_id,creator_id,deal_id,client,ig_media_id,permalink,thumbnail_url,product,kind,planned_date,published_at,status,match_source,sched,archived_video_url,video_status,year_month,sample_received,sample_status,sample_courier,sample_tracking";
 const SNAP_COLS = "content_id,captured_at,views,reach,likes,comments,saved,shares,avg_watch_time";
 
 /* 순수 매핑 헬퍼 (row → 도메인 타입). 개별 메서드와 bundle()에서 공용. */
@@ -49,7 +49,7 @@ const mapContent = (r: Row, bName: Map<string, string>, cName: Map<string, strin
   id: r.id, brandId: bName.get(r.brand_id) ?? null, brandName: r.client ?? bName.get(r.brand_id) ?? "", creatorId: r.creator_id,
   creatorName: cName.get(r.creator_id) ?? "", dealId: r.deal_id, client: r.client, igMediaId: r.ig_media_id,
   permalink: r.permalink, thumbnailUrl: r.thumbnail_url, caption: r.caption ?? "", product: r.product, kind: r.kind,
-  yearMonth: r.year_month ?? null, sampleReceived: r.sample_received ?? false, sampleCourier: r.sample_courier ?? null, sampleTracking: r.sample_tracking ?? null,
+  yearMonth: r.year_month ?? null, sampleReceived: r.sample_received ?? false, sampleStatus: r.sample_status ?? (r.sample_received ? "received" : null), sampleCourier: r.sample_courier ?? null, sampleTracking: r.sample_tracking ?? null,
   plannedDate: r.planned_date, publishedAt: r.published_at ? String(r.published_at).slice(0, 10) : null,
   status: r.status, matchSource: r.match_source, sched: r.sched ?? {}, videoStatus: r.video_status, archivedVideoUrl: r.archived_video_url,
   views: m.views ?? 0, reach: m.reach ?? 0, likes: m.likes ?? 0, comments: m.comments ?? 0, saves: m.saved ?? 0, shares: m.shares ?? 0, watch: m.avg_watch_time,

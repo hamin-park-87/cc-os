@@ -1348,7 +1348,11 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   });
   // 요약
   const total = items.length, done = items.filter((r) => r.uploaded).length;
-  const delayed = items.filter((r) => !r.uploaded && r.sched.upload && r.sched.upload < today).length;
+  const delayedRows = items.filter((r) => !r.uploaded && r.sched.upload && r.sched.upload < today);
+  const delayed = delayedRows.length;
+  // 샘플 미수령으로 인한 지연(브랜드 사유, 관리자·CC가 '미수령' 지정) — CC 책임 지연과 구분
+  const delayedSample = delayedRows.filter((r) => r.content?.sampleStatus === "waiting").length;
+  const delayedCC = delayed - delayedSample;
   const colSpan = 2 + SCHED_STAGES.length + 2 + (readonly ? 0 : 1);
 
   // 전략 브랜드 진행 현황 (배정 수량 대비) — 선택 월 기준, 일정 없어도 배정 물량 전체 노출
@@ -1399,6 +1403,13 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
     setTick((t) => t + 1);
     updateContentSchedule(r.content.id, r.content.sched as Record<string, string>, st).catch(() => { });
   }
+  // 샘플 상태 지정(관리자·CC 공통): received(수령완료) / waiting(미수령) / "" (미지정)
+  function setSampleStatus(r: ProdRow, v: "" | "received" | "waiting") {
+    if (!r.content) return;
+    r.content.sampleStatus = v || null; r.content.sampleReceived = v === "received";
+    setTick((t) => t + 1);
+    patchContentFields(r.content.id, { sample_status: v || null, sample_received: v === "received" }).catch(() => { });
+  }
   async function del(r: ProdRow) {
     if (!r.content || r.type !== "brand") return;
     if (!confirm(`'${r.label}' ${T("일정을 삭제할까요?")}`)) return;
@@ -1413,7 +1424,8 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       <Kpi lab={T("총 제작")} val={total} unit={T("건")} />
       <Kpi lab={T("업로드 완료")} val={done} unit={T("건")} />
       <Kpi lab={T("진행중")} val={total - done} unit={T("건")} />
-      <Kpi lab={T("지연")} val={delayed} unit={T("건")} dir={delayed ? "down" : undefined} />
+      <Kpi lab={T("지연(CC)")} val={delayedCC} unit={T("건")} dir={delayedCC ? "down" : undefined} />
+      <Kpi lab={T("샘플 미수령 지연")} val={delayedSample} unit={T("건")} />
     </div>
     {/* 필터 */}
     <div className="filterbar">
@@ -1478,7 +1490,13 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Avatar name={r.creatorName} size={22} radius={11} />{withCode(r.creatorName)}</span>
           </td></tr>}
           <tr>
-            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{r.content?.sampleReceived && <span title={T("샘플 수령")} style={{ marginLeft: 6 }}>📦</span>}{isDelay && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>}{noDates && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: "var(--faint)" }}>{T("일정 미정")}</span>}</td>
+            <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{r.content && (canEdit
+              ? <select value={r.content.sampleStatus ?? ""} onChange={(e) => setSampleStatus(r, e.target.value as "" | "received" | "waiting")} title={T("샘플 상태")} style={{ marginLeft: 8, fontSize: 10.5, padding: "1px 4px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)", color: r.content.sampleStatus === "waiting" ? "#d98a4a" : r.content.sampleStatus === "received" ? "var(--accent)" : "var(--faint)" }}>
+                  <option value="">{T("샘플 미지정")}</option><option value="received">📦 {T("샘플 수령 완료")}</option><option value="waiting">📦 {T("샘플 미수령")}</option>
+                </select>
+              : (r.content.sampleStatus === "received" ? <span title={T("샘플 수령 완료")} style={{ marginLeft: 6 }}>📦</span> : r.content.sampleStatus === "waiting" ? <span title={T("샘플 미수령")} style={{ marginLeft: 6, fontSize: 10.5, color: "#d98a4a", fontWeight: 700 }}>📦 {T("샘플 미수령")}</span> : null))}{isDelay && (r.content?.sampleStatus === "waiting"
+              ? <span title={T("브랜드 샘플 미도착으로 지연 — CC 사유 아님")} style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "#d98a4a" }}>📦 {T("샘플 미수령으로 지연")}</span>
+              : <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "var(--critical)" }}>{T("지연")}</span>)}{noDates && <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: "var(--faint)" }}>{T("일정 미정")}</span>}</td>
             <td><span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
               <span className="tag" style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: r.type === "brand" ? "color-mix(in srgb,var(--accent) 18%,transparent)" : "color-mix(in srgb,#c9793a 20%,transparent)", color: r.type === "brand" ? "var(--accent)" : "#d98a4a" }}>{r.type === "brand" ? T("전략") : T("PR")}</span>
               {r.type === "brand" ? <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.target] ?? "var(--surface-3)" }} />{r.target}</span> : <span style={{ fontSize: 12.5 }}>{r.target}</span>}
@@ -3615,6 +3633,7 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
   function setStatus(c: Content, st: string) { c.status = st as Content["status"]; stampPub(c); setTick((t) => t + 1); updateContentSchedule(c.id, c.sched as Record<string, string>, st).catch(() => { }); }
   function setUrl(c: Content, val: string) { c.permalink = val; setTick((t) => t + 1); }
   function setSample(c: Content, v: boolean) { c.sampleReceived = v; setTick((t) => t + 1); patchContentFields(c.id, { sample_received: v }).catch(() => { }); }
+  function setSampleStatus(c: Content, v: "" | "received" | "waiting") { c.sampleStatus = v || null; c.sampleReceived = v === "received"; setTick((t) => t + 1); patchContentFields(c.id, { sample_status: v || null, sample_received: v === "received" }).catch(() => { }); }
   function setSampleShip(c: Content, field: "courier" | "tracking", val: string) {
     if (field === "courier") c.sampleCourier = val; else c.sampleTracking = val;
     setTick((t) => t + 1);
@@ -3686,10 +3705,11 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
                         <input style={{ ...stIn, flex: 1, minWidth: 130 }} placeholder={T("업로드 URL 입력")} value={c.permalink ?? ""} onChange={(e) => setUrl(c, e.target.value)} />
                         <ContentActions c={c} />
                       </div>
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 7, fontSize: 12, fontWeight: 600, color: c.sampleReceived ? "#3fb984" : "var(--muted)", cursor: "pointer" }}>
-                        <input type="checkbox" checked={!!c.sampleReceived} onChange={(e) => setSample(c, e.target.checked)} />
-                        📦 {T("샘플 수령")}{c.sampleReceived ? " ✓" : ""}
-                      </label>
+                      <div style={{ marginTop: 7 }}>
+                        <select value={c.sampleStatus ?? ""} onChange={(e) => setSampleStatus(c, e.target.value as "" | "received" | "waiting")} title={T("샘플 상태")} style={{ fontSize: 12, fontWeight: 600, padding: "3px 6px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: c.sampleStatus === "waiting" ? "#d98a4a" : c.sampleStatus === "received" ? "#3fb984" : "var(--muted)" }}>
+                          <option value="">📦 {T("샘플 상태 미지정")}</option><option value="received">📦 {T("샘플 수령 완료")}</option><option value="waiting">📦 {T("샘플 미수령")}</option>
+                        </select>
+                      </div>
                       {c.sampleReceived && <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                         <input style={{ ...stIn, flex: "1 1 100px", minWidth: 90 }} placeholder={T("택배사")} value={c.sampleCourier ?? ""} onChange={(e) => setSampleShip(c, "courier", e.target.value)} />
                         <input style={{ ...stIn, flex: "1 1 130px", minWidth: 110 }} placeholder={T("송장번호")} value={c.sampleTracking ?? ""} onChange={(e) => setSampleShip(c, "tracking", e.target.value)} />

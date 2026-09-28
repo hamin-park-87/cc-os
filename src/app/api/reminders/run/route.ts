@@ -22,12 +22,12 @@ export async function GET(req: NextRequest) {
   const [{ data: creators }, { data: deals }, { data: contents }] = await Promise.all([
     admin.from("creators").select("id, name, email"),
     admin.from("deals").select("title, client, creator_id, due_date, step, manager"),
-    admin.from("contents").select("product, creator_id, status, sched, brand_id, kind"),
+    admin.from("contents").select("product, creator_id, status, sched, brand_id, kind, sample_status"),
   ]);
   const cById = new Map((creators ?? []).map((c) => [c.id, c]));
 
   // 크리에이터별 위험 항목 수집 (납기 3일 이내 또는 경과)
-  type Item = { label: string; du: number; title: string };
+  type Item = { label: string; du: number; title: string; sampleWaiting?: boolean };
   const byCreator = new Map<string, Item[]>();
   const push = (cid: string, it: Item) => { const a = byCreator.get(cid) ?? []; a.push(it); byCreator.set(cid, a); };
   // REQ-009: 외부 PR 업로드 기일 리마인드 — 담당자(manager)별 그룹 (PR 채널 알림용)
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     if (c.status !== "planned" || c.kind !== "pr") continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const up = (c.sched as any)?.upload; const du = dU(up);
-    if (du != null && du <= 3) push(c.creator_id, { label: `콘텐츠: ${c.product} 업로드`, du, title: c.product });
+    if (du != null && du <= 3) push(c.creator_id, { label: `콘텐츠: ${c.product} 업로드`, du, title: c.product, sampleWaiting: c.sample_status === "waiting" });
   }
 
   // Slack 요약
@@ -76,17 +76,18 @@ export async function GET(req: NextRequest) {
   let creatorSlackSent = false;
   if (byCreator.size) {
     const jp = (t: string) => t.replace(/콘텐츠/g, "コンテンツ"); // 상품명 잔여 한국어 치환
-    const gtag = (du: number) => du < 0 ? `⚠️ 未アップロード・締切${-du}日超過`
-      : du === 0 ? "📌 本日締切" : `⏰ あと${du}日`;
-    let overdueCnt = 0, soonCnt = 0;
+    const gtag = (i: Item) => i.sampleWaiting && i.du <= 0 ? `📦 サンプル未着（ブランド待ち・CC都合ではありません）`
+      : i.du < 0 ? `⚠️ 未アップロード・締切${-i.du}日超過`
+      : i.du === 0 ? "📌 本日締切" : `⏰ あと${i.du}日`;
+    let overdueCnt = 0, soonCnt = 0, sampleCnt = 0;
     const blocks: string[] = [];
     for (const [cid, items] of byCreator) {
       const c = cById.get(cid); if (!c) continue;
       items.sort((a, b) => a.du - b.du); // 경과(음수) → 임박 순
-      items.forEach((i) => { if (i.du < 0) overdueCnt++; else soonCnt++; });
-      blocks.push(`*${c.name}*\n` + items.map((i) => `  • ${jp(i.title)} — ${gtag(i.du)}`).join("\n"));
+      items.forEach((i) => { if (i.sampleWaiting && i.du <= 0) sampleCnt++; else if (i.du < 0) overdueCnt++; else soonCnt++; });
+      blocks.push(`*${c.name}*\n` + items.map((i) => `  • ${jp(i.title)} — ${gtag(i)}`).join("\n"));
     }
-    const summary = [overdueCnt ? `⚠️ 未アップロード ${overdueCnt}件` : "", soonCnt ? `⏰ 締切間近 ${soonCnt}件` : ""].filter(Boolean).join(" · ");
+    const summary = [overdueCnt ? `⚠️ 未アップロード ${overdueCnt}件` : "", soonCnt ? `⏰ 締切間近 ${soonCnt}件` : "", sampleCnt ? `📦 サンプル未着 ${sampleCnt}件` : ""].filter(Boolean).join(" · ");
     const msg = `🌱 アップロード リマインド ${now.toISOString().slice(0, 10)}\n`
       + `締切が過ぎて未アップロードの投稿・締切間近の投稿のご案内です。ご確認をお願いいたします🙏\n`
       + (summary ? `(${summary})\n` : "")
