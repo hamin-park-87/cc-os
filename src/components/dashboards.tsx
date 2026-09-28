@@ -1518,9 +1518,19 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
 }
 
 /* REQ-013: 급여명세서 — 크리에이터 정산 자동 + 스태프 CSV 업로드, 개별 명세서 PDF (이메일 발송은 연동 후) */
-type PaySlip = { kind: "creator" | "staff"; name: string; code?: string | null; email?: string | null; bank?: string | null; items: { label: string; amt: number }[]; deduction: number };
+type PaySlip = { kind: "creator" | "staff"; name: string; code?: string | null; email?: string | null; bank?: string | null; nameKanji?: string | null; phone?: string | null; invoiceRegNo?: string | null; withholding?: boolean; items: { label: string; amt: number }[]; deduction: number };
 const payGross = (s: PaySlip) => s.items.reduce((a, b) => a + b.amt, 0);
-const payNet = (s: PaySlip) => payGross(s) - s.deduction;
+// 請求書 세금 계산: 항목금액=税抜. 크리에이터만 소비세 부과, 원천징수(10.21%)는 withholding 대상.
+function payInvoice(s: PaySlip) {
+  const sub = payGross(s);                                   // 小計(税抜)
+  const taxable = s.kind === "creator";
+  const shohi = taxable ? Math.round(sub * 0.1) : 0;         // 消費税(10%)
+  const goukei = sub + shohi;                                // 合計(税込)
+  const genzen = s.withholding ? Math.round(sub * 0.1021) : 0; // 源泉徴収(10.21%)
+  const jitsu = goukei - genzen - (s.deduction || 0);        // 実振込金額
+  return { sub, shohi, goukei, genzen, jitsu };
+}
+const payNet = (s: PaySlip) => payInvoice(s).jitsu;
 
 function PayrollView({ d, month }: { d: Bundle; month: string }) {
   const [fMonth, setFMonth] = useState(month);
@@ -1532,7 +1542,7 @@ function PayrollView({ d, month }: { d: Bundle; month: string }) {
     const prNet = d.deals.filter((x) => x.creatorName === c.name && dealMonth(x) === fMonth)
       .reduce((s, x) => s + Math.round((x.fee + (x.secondaryFee ?? 0)) * x.shareCreator / 100), 0);
     const items = [{ label: T("기본 보수"), amt: base }, { label: T("PR 정산"), amt: prNet }].filter((i) => i.amt);
-    return { kind: "creator" as const, name: c.name, code: c.code, email: c.email, bank: c.bankAccount, items, deduction: 0 };
+    return { kind: "creator" as const, name: c.name, code: c.code, email: c.email, bank: c.bankAccount, nameKanji: c.nameKanji, phone: c.phone, invoiceRegNo: c.invoiceRegNo, withholding: c.withholding ?? (c.entityType ? c.entityType !== "corporation" : true), items, deduction: 0 };
   }).filter((s) => payGross(s) > 0);
   const slips = [...creatorSlips, ...staff];
   const totalNet = slips.reduce((a, s) => a + payNet(s), 0);
@@ -1592,25 +1602,88 @@ function PayrollView({ d, month }: { d: Bundle; month: string }) {
 }
 
 function PayrollSlipModal({ slip, month, onClose }: { slip: PaySlip; month: string; onClose: () => void }) {
-  const net = payNet(slip);
-  return (<Modal title={T("급여명세서")} onClose={onClose} width={520}
+  const inv = payInvoice(slip);
+  const [yy, mm] = month.split("-").map(Number);
+  const ymd = (dt: Date) => `${dt.getFullYear()}/${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getDate()).padStart(2, "0")}`;
+  const issueDate = ymd(new Date(yy, mm, 0));        // 請求日 = 해당월 말일
+  const payDue = ymd(new Date(yy, mm + 2, 0));       // 支払期日 = 翌々月末
+  const invNo = `${(slip.code || "").replace(/[^0-9A-Za-z]/g, "") || "INV"}-${month.replace("-", "")}`;
+  const taxable = slip.kind === "creator";
+  const L = "#5b5b5b";
+  const line: React.CSSProperties = { borderBottom: "1px solid #bbb", minHeight: 18, flex: 1 };
+  const kv = (label: string, val?: string | null) => (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 8, fontSize: 12 }}>
+      <span style={{ color: L, whiteSpace: "nowrap" }}>{label}</span>
+      <span style={{ ...line, fontWeight: 600, color: "#111" }}>{val || ""}</span>
+    </div>
+  );
+  const rowR: React.CSSProperties = { textAlign: "right", padding: "6px 10px", fontVariantNumeric: "tabular-nums" };
+  return (<Modal title={T("급여명세서 (請求書)")} onClose={onClose} width={720}
     footer={<><button className="btn" onClick={onClose}>{T("닫기")}</button><button className="btn acc" onClick={() => window.print()}>{T("인쇄 / PDF 저장")}</button></>}>
-    <div id="invoice" style={{ border: "1px solid var(--border)", borderRadius: 8, padding: 28, background: "#fff", color: "#111" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <div><div style={{ fontFamily: "var(--display)", fontWeight: 700, fontSize: 22, color: "#111" }}>81&apos;DEGREE</div><div style={{ fontSize: 12, color: "#666" }}>81degree.inc</div></div>
-        <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 18 }}>{T("급여명세서")}</div><div className="num" style={{ fontSize: 12, color: "#666" }}>{month}</div></div>
+    <div id="invoice" style={{ padding: 28, background: "#fff", color: "#111", fontSize: 13, lineHeight: 1.5 }}>
+      {/* 헤더: 제목 + 발행자 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24 }}>
+        <div style={{ fontWeight: 800, fontSize: 30, letterSpacing: "0.3em" }}>請　求　書</div>
+        <div style={{ width: 300, display: "flex", flexDirection: "column", gap: 5 }}>
+          <div style={{ textAlign: "right", fontWeight: 700, fontSize: 12 }}>【発行者】</div>
+          {kv("氏名：", slip.nameKanji || slip.name)}
+          {kv("TEL：", slip.phone)}
+          {kv("Mail：", slip.email)}
+          {kv("インボイス登録番号：", slip.invoiceRegNo)}
+        </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13, marginBottom: 18 }}>
-        <div><span style={{ color: "#666" }}>{T("수급자")}</span><div style={{ fontWeight: 600 }}>{slip.kind === "creator" ? withCode(slip.name) : slip.name}</div></div>
-        <div><span style={{ color: "#666" }}>{T("이메일")}</span><div>{slip.email || "—"}</div></div>
-        {slip.bank && <div style={{ gridColumn: "1/3" }}><span style={{ color: "#666" }}>{T("입금 계좌")}</span><div>{slip.bank}</div></div>}
+      <div style={{ borderBottom: "2px solid #111", margin: "12px 0 18px" }} />
+      {/* 청구처 + 청구 정보 */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 24, marginBottom: 16 }}>
+        <div>
+          <div style={{ color: L, fontSize: 12 }}>請求先</div>
+          <div style={{ fontWeight: 800, fontSize: 16, marginTop: 2 }}>株式会社　81degree　御中</div>
+          <div style={{ color: "#333", fontSize: 12, marginTop: 4 }}>〒150-0044　東京都渋谷区円山町５番３号<br />ＭＩＥＵＸ渋谷ビル８階</div>
+        </div>
+        <div style={{ width: 240, display: "flex", flexDirection: "column", gap: 5 }}>
+          {kv("請求番号：", invNo)}
+          {kv("請求日：", issueDate)}
+          {kv("支払期日：", payDue)}
+        </div>
       </div>
-      <table style={{ minWidth: 0 }}><thead><tr><th>{T("항목")}</th><th style={{ textAlign: "right" }}>{T("금액")}</th></tr></thead><tbody>
-        {slip.items.map((it, i) => (<tr key={i}><td>{it.label}</td><td className="num" style={{ textAlign: "right" }}>{yen(it.amt)}</td></tr>))}
-        {slip.deduction > 0 && <tr><td>{T("공제")}</td><td className="num" style={{ textAlign: "right" }}>-{yen(slip.deduction)}</td></tr>}
-      </tbody></table>
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTop: "2px solid #111" }}><b>{T("실수령액")}</b><b className="num">{yen(net)}</b></div>
-      <div style={{ marginTop: 18, fontSize: 11.5, color: "#666" }}>{T("본 명세서는 81'DEGREE에서 발행되었습니다.")} · {month}</div>
+      {/* 청구금액(세込) 배너 */}
+      <div style={{ background: "#111", color: "#fff", fontWeight: 700, padding: "8px 14px", fontSize: 13 }}>ご請求金額（税込）</div>
+      <div style={{ border: "1px solid #ddd", borderTop: 0, padding: "14px 16px 18px" }}>
+        <div style={{ fontWeight: 800, fontSize: 26, borderBottom: "1px solid #bbb", display: "inline-block", minWidth: 260, paddingBottom: 4 }}>{yen(inv.goukei)}</div>
+      </div>
+      {/* 명세 테이블 */}
+      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 18, fontSize: 12.5 }}>
+        <thead><tr style={{ borderBottom: "2px solid #111" }}>
+          <th style={{ textAlign: "left", padding: "6px 10px" }}>業務内容・品目</th>
+          <th style={{ ...rowR, width: 60 }}>数量</th><th style={{ ...rowR, width: 110 }}>単価（税抜）</th>
+          <th style={{ ...rowR, width: 60 }}>税率</th><th style={{ ...rowR, width: 120 }}>金額（税抜）</th>
+        </tr></thead>
+        <tbody>
+          {slip.items.map((it, i) => (<tr key={i} style={{ borderBottom: "1px solid #eee" }}>
+            <td style={{ padding: "6px 10px" }}>{it.label}</td>
+            <td style={rowR}>1</td><td style={rowR}>{yen(it.amt)}</td>
+            <td style={rowR}>{taxable ? "10%" : "—"}</td><td style={rowR}>{yen(it.amt)}</td>
+          </tr>))}
+        </tbody>
+      </table>
+      {/* 합계부 */}
+      <div style={{ marginTop: 10, marginLeft: "auto", width: 320 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 10px", borderBottom: "1px solid #eee" }}><span>小計（税抜）</span><b style={{ fontVariantNumeric: "tabular-nums" }}>{yen(inv.sub)}</b></div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 10px", borderBottom: "1px solid #eee" }}><span>消費税（10%）</span><b style={{ fontVariantNumeric: "tabular-nums" }}>{yen(inv.shohi)}</b></div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 10px", background: "#111", color: "#fff", fontWeight: 700 }}><span>合計（税込）</span><b style={{ fontVariantNumeric: "tabular-nums" }}>{yen(inv.goukei)}</b></div>
+        {slip.deduction > 0 && <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 10px", borderBottom: "1px solid #eee" }}><span>その他控除</span><b style={{ fontVariantNumeric: "tabular-nums" }}>-{yen(slip.deduction)}</b></div>}
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 10px", borderBottom: "1px solid #eee", color: "#333" }}><span>源泉徴収税額（10.21%）</span><b style={{ fontVariantNumeric: "tabular-nums" }}>{inv.genzen ? "-" + yen(inv.genzen) : yen(0)}</b></div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 10px", background: "#d7ecdd", fontWeight: 800 }}><span>実振込金額</span><b style={{ fontVariantNumeric: "tabular-nums" }}>{yen(inv.jitsu)}</b></div>
+      </div>
+      {/* 振込先口座 */}
+      <div style={{ border: "1px solid #ddd", borderRadius: 4, padding: 16, marginTop: 22 }}>
+        <div style={{ fontWeight: 700, marginBottom: 10 }}>【振込先口座】</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {kv("銀行名 / 口座：", slip.bank)}
+          {kv("口座名義（カナ）：", slip.nameKanji || slip.name)}
+        </div>
+        <div style={{ fontSize: 11, color: L, marginTop: 12 }}>※振込手数料は貴社にてご負担いただきますようお願い申し上げます。</div>
+      </div>
     </div>
   </Modal>);
 }
