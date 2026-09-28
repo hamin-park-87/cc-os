@@ -113,7 +113,31 @@ export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsRe
   const detail = (sumBlock ? sumBlock + "\n\n" : "") + L.join("\n")
     + `\n\n🔗 OS에서 확인 / OSで確認: ${OS_URL}${str(p.from, 250) ? `\n✉️ 출처 / 送信元: ${str(p.from, 250)}` : ""}`;
   await slackPost(PR_CHANNEL, detail, ts);
+  // AI 답장 초안(일본어) — 매니저가 검토 후 contact@에서 회신 (1단계: 초안만)
+  try {
+    const draft = await draftReplyWithClaude({ subject: str(p.subject, 300), from: str(p.from, 250), body: str(p.body, 6000) });
+    if (draft) {
+      await slackPost(PR_CHANNEL, `🤖 *AI 답장 초안 / AI返信ドラフト*\n(매니저: 검토·수정 후 contact@에서 회신해주세요 / ご確認後 contact@ より返信ください)\n\n\`\`\`\n${draft}\n\`\`\``, ts);
+    }
+  } catch { /* 초안 실패해도 알림은 유지 */ }
   return true;
+}
+
+// 외부 PR 문의 메일 → 정중한 일본어 답장 초안(1차 접수 응대). ANTHROPIC_API_KEY 필요.
+export async function draftReplyWithClaude(m: { subject: string; from: string; body: string }): Promise<string | null> {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return null;
+  const prompt = `あなたはインフルエンサーPRキャスティング代行会社「81degree」の担当マネージャーです。以下は取引先(ブランド/代理店)から届いたPR案件のお問い合わせメールです。これに対する丁寧なビジネス日本語の返信メール本文を作成してください。\n要件:\n- 敬語で、簡潔に(200〜350字程度)。\n- お問い合わせへの感謝と受領確認、前向きな関心を伝える。\n- クリエイターの空き状況・条件を確認のうえ、追ってご連絡する旨を伝える。\n- 不足している重要情報(投稿時期・二次利用・ギャランティ等)があれば、簡潔に確認をお願いする一文を入れる。\n- 署名は「81degree」。宛名は分かる場合のみ会社名/担当者名を使い、無ければ「ご担当者様」。\n- 本文のみを出力(件名や説明文は不要、[ ]プレースホルダは使わない)。\n\n【受信メール】\nFrom: ${m.from}\nSubject: ${m.subject}\nBody:\n${m.body.slice(0, 5000)}`;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 800, messages: [{ role: "user", content: prompt }] }),
+    });
+    const j = await res.json();
+    const text = (j?.content?.[0]?.text ?? "").trim();
+    return text || null;
+  } catch (e) { console.warn("[draftReplyWithClaude]", (e as Error).message); return null; }
 }
 
 // Claude로 원본 메일 → 구조화 PR 안건 파싱 (ANTHROPIC_API_KEY 필요)
