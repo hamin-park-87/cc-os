@@ -89,20 +89,22 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
 
 // 슬랙 알림: [제목] 메인 + 스레드에 세부 내용
 export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsReview?: boolean; title?: string; prNo?: string; creatorId?: string | null }): Promise<boolean> {
-  const tk = str(p.titleKo, 120).trim(); const tj = str(p.titleJa, 120).trim();
-  const titleLine = (tk && tj) ? `${tk} / ${tj}` : (tk || str(p.subject, 200).trim() || res.title || str(p.summary, 120).trim() || "PR 안건 / PR案件");
-  const noPrefix = res.prNo ? `${res.prNo} · ` : ""; // REQ-014: 구분번호 병기
-  const head = `${res.needsReview ? "🔎 [확인필요 / 要確認] " : ""}[${noPrefix}${titleLine}]`;
-  // 매칭된 크리에이터의 전용 채널로 라우팅(있으면) + 팀 채널(#cc_pr_gmail). 대시보드 알림과 동일 방식.
+  const admin = getAdminClient();
+  const client = str(p.client, 120).trim() || str(p.brand, 120).trim() || str(p.fromName, 120).trim() || "PR";
+  // 매니저 수기 패턴과 동일: 【의뢰사】PR-0XX
+  const head = `${res.needsReview ? "🔎 " : ""}【${client}】${res.prNo || ""}`.trim();
+  // 매칭된 크리에이터의 전용 채널로 라우팅(있으면) + 팀 채널(#cc_pr_gmail).
   let ccChannel = "";
   if (res.creatorId) {
-    try { const admin = getAdminClient(); const { data: cr } = await admin.from("creators").select("slack_channel").eq("id", res.creatorId).maybeSingle(); ccChannel = (cr?.slack_channel as string) || ""; } catch { /* noop */ }
+    try { const { data: cr } = await admin.from("creators").select("slack_channel").eq("id", res.creatorId).maybeSingle(); ccChannel = (cr?.slack_channel as string) || ""; } catch { /* noop */ }
   }
   const targets = [...new Set([PR_CHANNEL, ...(ccChannel ? [ccChannel] : [])])];
+  // 수신 메일 원문(스레드에 남김)
+  const rawBody = str(p.body, 2500).trim();
+  const emailMsg = `✉️ *수신 메일 / 受信メール*\nFrom: ${str(p.from, 250) || "-"}${str(p.subject, 300) ? `\nSubject: ${str(p.subject, 300)}` : ""}${rawBody ? `\n\n${rawBody}` : ""}`;
   const L: string[] = [];
   if (res.prNo) L.push(`• 구분번호 / 識別番号: ${res.prNo}`);
-  const client = str(p.client, 120).trim() || str(p.fromName, 120).trim();
-  if (client) L.push(`• 의뢰사 / 依頼社: ${client}`);
+  if (client && client !== "PR") L.push(`• 의뢰사 / 依頼社: ${client}`);
   if (str(p.brand, 120).trim()) L.push(`• 브랜드 / ブランド: ${str(p.brand, 120).trim()}`);
   if (str(p.creator, 120).trim()) L.push(`• 크리에이터 / クリエイター: ${str(p.creator, 120).trim()}`);
   if (str(p.manager, 60).trim()) L.push(`• 담당자 / 担当者: ${str(p.manager, 60).trim()}`);
@@ -120,14 +122,18 @@ export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsRe
   let draft: string | null = null;
   try { draft = await draftReplyWithClaude({ subject: str(p.subject, 300), from: str(p.from, 250), body: str(p.body, 6000) }); } catch { /* noop */ }
   const draftMsg = draft ? `🤖 *AI 답장 초안 / AI返信ドラフト*\n(매니저: 검토·수정 후 contact@에서 회신해주세요 / ご確認後 contact@ より返信ください)\n\n\`\`\`\n${draft}\n\`\`\`` : "";
+  // 안건별 루트 스레드 ts를 deals.slack_threads에 저장 → 대시보드 댓글·비용·입금 알림도 같은 스레드에 누적
+  const threads: Record<string, string> = {};
   let anySent = false;
   for (const ch of targets) {
-    const ts = await slackPost(ch, head);
+    const ts = await slackPost(ch, head);           // 루트: 【의뢰사】PR-0XX (매니저 패턴)
     if (!ts) continue;
-    anySent = true;
-    await slackPost(ch, detail, ts);
-    if (draftMsg) await slackPost(ch, draftMsg, ts);
+    anySent = true; threads[ch] = ts;
+    await slackPost(ch, emailMsg, ts);              // ① 수신 메일 원문
+    await slackPost(ch, detail, ts);               // ② 파싱 요약·정보
+    if (draftMsg) await slackPost(ch, draftMsg, ts); // ③ AI 답장 초안
   }
+  if (res.id && anySent) { try { await admin.from("deals").update({ slack_threads: threads }).eq("id", res.id); } catch { /* noop */ } }
   return anySent;
 }
 
