@@ -10,7 +10,7 @@ export type ParsedDeal = Record<string, any>;
 const str = (v: unknown, max = 4000) => (typeof v === "string" ? v : v == null ? "" : String(v)).slice(0, max);
 
 // PR 안건 등록 (중복 방지 · 크리에이터 자동 매칭 · 확인필요 판정)
-export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: string; deduped?: boolean; skipped?: boolean; needsReview?: boolean; title?: string; prNo?: string; error?: string }> {
+export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: string; deduped?: boolean; skipped?: boolean; needsReview?: boolean; title?: string; prNo?: string; error?: string; creatorId?: string | null }> {
   const subject = str(p.subject, 250).trim();
   const summary = str(p.summary).trim();
   const body = str(p.body).trim();
@@ -84,17 +84,21 @@ export async function ingestDeal(p: ParsedDeal): Promise<{ ok: boolean; id?: str
   if (error) return { ok: false, error: error.message };
 
   const prNo = prSeq ? "PR-" + String(prSeq).padStart(3, "0") : "";
-  return { ok: true, id: data.id, needsReview, title: title0, prNo };
+  return { ok: true, id: data.id, needsReview, title: title0, prNo, creatorId: creator_id };
 }
 
 // 슬랙 알림: [제목] 메인 + 스레드에 세부 내용
-export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsReview?: boolean; title?: string; prNo?: string }): Promise<boolean> {
+export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsReview?: boolean; title?: string; prNo?: string; creatorId?: string | null }): Promise<boolean> {
   const tk = str(p.titleKo, 120).trim(); const tj = str(p.titleJa, 120).trim();
   const titleLine = (tk && tj) ? `${tk} / ${tj}` : (tk || str(p.subject, 200).trim() || res.title || str(p.summary, 120).trim() || "PR 안건 / PR案件");
   const noPrefix = res.prNo ? `${res.prNo} · ` : ""; // REQ-014: 구분번호 병기
   const head = `${res.needsReview ? "🔎 [확인필요 / 要確認] " : ""}[${noPrefix}${titleLine}]`;
-  const ts = await slackPost(PR_CHANNEL, head);
-  if (!ts) return false;
+  // 매칭된 크리에이터의 전용 채널로 라우팅(있으면) + 팀 채널(#cc_pr_gmail). 대시보드 알림과 동일 방식.
+  let ccChannel = "";
+  if (res.creatorId) {
+    try { const admin = getAdminClient(); const { data: cr } = await admin.from("creators").select("slack_channel").eq("id", res.creatorId).maybeSingle(); ccChannel = (cr?.slack_channel as string) || ""; } catch { /* noop */ }
+  }
+  const targets = [...new Set([PR_CHANNEL, ...(ccChannel ? [ccChannel] : [])])];
   const L: string[] = [];
   if (res.prNo) L.push(`• 구분번호 / 識別番号: ${res.prNo}`);
   const client = str(p.client, 120).trim() || str(p.fromName, 120).trim();
@@ -112,15 +116,19 @@ export async function notifyDealSlack(p: ParsedDeal, res: { id?: string; needsRe
   const sumBlock = [summary && `📝 ${summary}`, summaryJa && `📝 ${summaryJa}`].filter(Boolean).join("\n");
   const detail = (sumBlock ? sumBlock + "\n\n" : "") + L.join("\n")
     + `\n\n🔗 OS에서 확인 / OSで確認: ${OS_URL}${str(p.from, 250) ? `\n✉️ 출처 / 送信元: ${str(p.from, 250)}` : ""}`;
-  await slackPost(PR_CHANNEL, detail, ts);
-  // AI 답장 초안(일본어) — 매니저가 검토 후 contact@에서 회신 (1단계: 초안만)
-  try {
-    const draft = await draftReplyWithClaude({ subject: str(p.subject, 300), from: str(p.from, 250), body: str(p.body, 6000) });
-    if (draft) {
-      await slackPost(PR_CHANNEL, `🤖 *AI 답장 초안 / AI返信ドラフト*\n(매니저: 검토·수정 후 contact@에서 회신해주세요 / ご確認後 contact@ より返信ください)\n\n\`\`\`\n${draft}\n\`\`\``, ts);
-    }
-  } catch { /* 초안 실패해도 알림은 유지 */ }
-  return true;
+  // AI 답장 초안(일본어) — 한 번 생성해 각 채널 스레드에 동일 게시 (1단계: 초안만, 발송은 매니저가 수동)
+  let draft: string | null = null;
+  try { draft = await draftReplyWithClaude({ subject: str(p.subject, 300), from: str(p.from, 250), body: str(p.body, 6000) }); } catch { /* noop */ }
+  const draftMsg = draft ? `🤖 *AI 답장 초안 / AI返信ドラフト*\n(매니저: 검토·수정 후 contact@에서 회신해주세요 / ご確認後 contact@ より返信ください)\n\n\`\`\`\n${draft}\n\`\`\`` : "";
+  let anySent = false;
+  for (const ch of targets) {
+    const ts = await slackPost(ch, head);
+    if (!ts) continue;
+    anySent = true;
+    await slackPost(ch, detail, ts);
+    if (draftMsg) await slackPost(ch, draftMsg, ts);
+  }
+  return anySent;
 }
 
 // 외부 PR 문의 메일 → 정중한 일본어 답장 초안(1차 접수 응대). ANTHROPIC_API_KEY 필요.
