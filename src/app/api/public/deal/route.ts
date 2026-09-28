@@ -22,10 +22,11 @@ export async function GET(req: NextRequest) {
   }
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  // 협업 스레드(수정요청·피드백·초안) — parent_id 컬럼 없으면 폴백
-  let comments = null as { id: string; parent_id?: string | null; role: string; author: string | null; kind: string; body: string | null; url: string | null; created_at: string }[] | null;
+  // 협업 스레드(수정요청·피드백·초안) — parent_id/status 컬럼 없으면 폴백
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let comments = null as any[] | null;
   {
-    const r = await admin.from("deal_comments").select("id, parent_id, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true });
+    const r = await admin.from("deal_comments").select("id, parent_id, status, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true });
     if (r.error) { const b = await admin.from("deal_comments").select("id, role, author, kind, body, url, created_at").eq("deal_id", deal.id).order("created_at", { ascending: true }); comments = b.data; }
     else comments = r.data;
   }
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     creator: creator ? { name: creator.name, nameEn: creator.name_en ?? null, handle: creator.handle ?? null, photoUrl: creator.photo_url ?? null } : null,
     content: content ? { permalink: content.permalink ?? null, thumbnailUrl: content.thumbnail_url ?? null, publishedAt: content.published_at ?? null, metrics } : null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    comments: (comments ?? []).map((c: any) => ({ id: c.id, parentId: c.parent_id, role: c.role, author: c.author, kind: c.kind, body: c.body, url: c.url, createdAt: c.created_at })),
+    comments: (comments ?? []).map((c: any) => ({ id: c.id, parentId: c.parent_id, status: c.status ?? null, role: c.role, author: c.author, kind: c.kind, body: c.body, url: c.url, createdAt: c.created_at })),
     stepDates,
   }, { headers: { "Cache-Control": "no-store" } });
 }
