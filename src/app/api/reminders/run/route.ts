@@ -8,7 +8,7 @@ const CREATOR_CHANNEL = process.env.CREATOR_SLACK_CHANNEL || "C0B2VEM6SAF"; // #
 
 export const maxDuration = 60;
 
-// 마감 임박/지연 리마인드: 매일 실행. Slack 요약 + 크리에이터별 이메일.
+// 마감 임박/지연 리마인드: 매일 실행(팀·PR 알림). 단 크리에이터 채널(#05_cc) 안내는 주 1회(월요일)만 발송.
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret) { if (req.headers.get("authorization") !== `Bearer ${secret}`) return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
@@ -72,9 +72,11 @@ export async function GET(req: NextRequest) {
     if (ts) { await slackPost(ch, lines.join("\n\n"), ts); slackSent = true; }
   }
 
-  // 크리에이터 채널(#05_cc) 안내 — 크리에이터는 일본인이므로 일본어 전용
+  // 크리에이터 채널(#05_cc) 안내 — 주 1회(월요일)만 발송. 09:00 JST(월) = 00:00 UTC(월) → getUTCDay()===1
+  // 수동 테스트용: ?force=1 이면 요일 무관 발송
+  const isMonday = now.getUTCDay() === 1 || req.nextUrl.searchParams.get("force") === "1";
   let creatorSlackSent = false;
-  if (byCreator.size) {
+  if (byCreator.size && isMonday) {
     const jp = (t: string) => t.replace(/콘텐츠/g, "コンテンツ"); // 상품명 잔여 한국어 치환
     const gtag = (i: Item) => i.sampleWaiting && i.du <= 0 ? `📦 サンプル未着（ブランド待ち・CC都合ではありません）`
       : i.du < 0 ? `⚠️ 未アップロード・締切${-i.du}日超過`
