@@ -8,7 +8,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 // 회신 초안 트리거 이모지(관리자가 스레드에 이 반응을 달면 협의 요약→회신 이메일 초안 생성)
-const TRIGGERS = new Set([process.env.SLACK_REPLY_EMOJI || "email", "email", "envelope", "incoming_envelope", "e-mail"]);
+// 기본 👌(ok_hand). SLACK_REPLY_EMOJI 로 변경 가능.
+const TRIGGERS = new Set([process.env.SLACK_REPLY_EMOJI || "ok_hand", "ok_hand"]);
 
 // Slack 서명 검증 (SLACK_SIGNING_SECRET 설정 시)
 function verify(req: NextRequest, raw: string): boolean {
