@@ -24,16 +24,20 @@ export async function POST(req: NextRequest) {
   if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
 
   let notify = "";
+  let extra: Record<string, unknown> = {};
   if (action === "propose") {
     const by = ["creator", "manager", "client"].includes(b.by) ? b.by : "creator";
     const amount = Math.round(Number(b.amount) || 0);
     const note = String(b.note || "").slice(0, 500).trim();
     if (amount <= 0) return NextResponse.json({ error: "금액을 입력해주세요" }, { status: 400 });
-    const { error } = await admin.from("fee_proposals").insert({ deal_id: deal.id, by, author: author || ROLE_LABEL[by], amount, note: note || null });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const editKey = ((globalThis.crypto as any)?.randomUUID?.() ?? (Math.random().toString(36).slice(2) + Date.now().toString(36))).replace(/-/g, "");
+    const { data: row, error } = await admin.from("fee_proposals").insert({ deal_id: deal.id, by, author: author || ROLE_LABEL[by], amount, note: note || null, edit_key: editKey }).select("id").single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     // 새 제안이 들어오면 이전 합의는 해제(재협의)
     if (deal.fee_agreed) await admin.from("deals").update({ fee_agreed: false }).eq("id", deal.id);
     notify = `💰 *희망 비용 제안* (${ROLE_LABEL[by]} ${author || ""})\n> ${yen(amount)}${note ? `\n${note}` : ""}`;
+    extra = { id: row.id, editKey };
   } else if (action === "agree") {
     const proposalId = String(b.proposalId || "");
     const { data: p } = await admin.from("fee_proposals").select("id, amount, by, author").eq("id", proposalId).eq("deal_id", deal.id).maybeSingle();
@@ -66,5 +70,42 @@ export async function POST(req: NextRequest) {
     if (changed) await admin.from("deals").update({ slack_threads: threads }).eq("id", deal.id);
   } catch { /* 알림 실패해도 협의는 유지 */ }
 
+  return NextResponse.json({ ok: true, ...extra });
+}
+
+// 비용 제안 수정 — 작성자 본인(editKey), 합의 전만
+export async function PATCH(req: NextRequest) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let b: any = {}; try { b = await req.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
+  const token = String(b.token || ""), id = String(b.id || ""), editKey = String(b.editKey || "");
+  const amount = Math.round(Number(b.amount) || 0);
+  const note = String(b.note || "").slice(0, 500).trim();
+  if (!token || !id || !editKey) return NextResponse.json({ error: "bad request" }, { status: 400 });
+  if (amount <= 0) return NextResponse.json({ error: "금액을 입력해주세요" }, { status: 400 });
+  const admin = getAdminClient();
+  const { data: deal } = await admin.from("deals").select("id").eq("share_token", token).maybeSingle();
+  if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const { data: p } = await admin.from("fee_proposals").select("id, edit_key, status").eq("id", id).eq("deal_id", deal.id).maybeSingle();
+  if (!p || p.edit_key !== editKey) return NextResponse.json({ error: "권한 없음" }, { status: 403 });
+  if (p.status === "agreed") return NextResponse.json({ error: "합의된 제안은 수정할 수 없어요" }, { status: 400 });
+  const { error } = await admin.from("fee_proposals").update({ amount, note: note || null }).eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ ok: true });
+}
+
+// 비용 제안 삭제 — 작성자 본인(editKey), 합의 전만
+export async function DELETE(req: NextRequest) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let b: any = {}; try { b = await req.json(); } catch { return NextResponse.json({ error: "invalid json" }, { status: 400 }); }
+  const token = String(b.token || ""), id = String(b.id || ""), editKey = String(b.editKey || "");
+  if (!token || !id || !editKey) return NextResponse.json({ error: "bad request" }, { status: 400 });
+  const admin = getAdminClient();
+  const { data: deal } = await admin.from("deals").select("id").eq("share_token", token).maybeSingle();
+  if (!deal) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const { data: p } = await admin.from("fee_proposals").select("id, edit_key, status").eq("id", id).eq("deal_id", deal.id).maybeSingle();
+  if (!p || p.edit_key !== editKey) return NextResponse.json({ error: "권한 없음" }, { status: 403 });
+  if (p.status === "agreed") return NextResponse.json({ error: "합의된 제안은 삭제할 수 없어요" }, { status: 400 });
+  const { error } = await admin.from("fee_proposals").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

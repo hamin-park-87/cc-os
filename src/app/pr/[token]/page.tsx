@@ -86,7 +86,7 @@ export default function PublicDealPage() {
     setFeeBusy(true);
     try {
       const res = await fetch("/api/public/deal/fee", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, action: "propose", by: feeForm.by, author: feeForm.author, amount, note: feeForm.note }) });
-      if (res.ok) { setFeeForm((f) => ({ ...f, amount: "", note: "" })); await load(); }
+      if (res.ok) { const j = await res.json().catch(() => ({})); if (j.id && j.editKey) saveFeeKey(j.id, j.editKey); setFeeForm((f) => ({ ...f, amount: "", note: "" })); await load(); setMyFeeKeys(readFeeKeys()); }
     } catch { /* noop */ }
     setFeeBusy(false);
   }
@@ -97,6 +97,28 @@ export default function PublicDealPage() {
       const res = await fetch("/api/public/deal/fee", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, action: "agree", proposalId, author }) });
       if (res.ok) await load();
     } catch { /* noop */ }
+    setFeeBusy(false);
+  }
+  const FEK = "cc-os.pr.fee.editkeys";
+  const readFeeKeys = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(FEK) || "{}"); } catch { return {}; } };
+  const saveFeeKey = (id: string, key: string) => { try { const m = readFeeKeys(); m[id] = key; localStorage.setItem(FEK, JSON.stringify(m)); } catch { /* noop */ } };
+  const [myFeeKeys, setMyFeeKeys] = useState<Record<string, string>>({});
+  useEffect(() => { setMyFeeKeys(readFeeKeys()); }, [deal]);
+  const [feeEditId, setFeeEditId] = useState(""); const [feeEditVal, setFeeEditVal] = useState({ amount: "", note: "" });
+  async function saveFeeEdit(id: string) {
+    const editKey = readFeeKeys()[id]; if (!editKey || feeBusy) return;
+    const amount = Number(feeEditVal.amount); if (!(amount > 0)) return;
+    setFeeBusy(true);
+    try { const res = await fetch("/api/public/deal/fee", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, id, editKey, amount, note: feeEditVal.note }) }); if (res.ok) { setFeeEditId(""); await load(); } else { const j = await res.json().catch(() => ({})); if (j.error) alert(j.error); } }
+    catch { /* noop */ }
+    setFeeBusy(false);
+  }
+  async function removeFee(id: string) {
+    const editKey = readFeeKeys()[id]; if (!editKey || feeBusy) return;
+    if (!confirm(lang === "ja" ? "この提案を削除しますか？" : "이 제안을 삭제할까요?")) return;
+    setFeeBusy(true);
+    try { const res = await fetch("/api/public/deal/fee", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, id, editKey }) }); if (res.ok) await load(); else { const j = await res.json().catch(() => ({})); if (j.error) alert(j.error); } }
+    catch { /* noop */ }
     setFeeBusy(false);
   }
   const [billBusy, setBillBusy] = useState(""); const [payAuthor, setPayAuthor] = useState(""); const [paidOn, setPaidOn] = useState("");
@@ -283,7 +305,24 @@ export default function PublicDealPage() {
                           {p.status === "agreed" && <span style={{ fontSize: 11, fontWeight: 800, color: "#3fb984" }}>✓ {t.feeAgreed}</span>}
                           {canAgree && <button onClick={() => { const a = prompt(lang === "ja" ? "承認者のお名前" : "승인자 이름", feeForm.author || "") || feeForm.author; agreeFee(p.id, a); }} disabled={feeBusy} style={{ marginLeft: "auto", cursor: "pointer", border: 0, borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 800, background: "#3fb984", color: "#04120c", opacity: feeBusy ? .6 : 1 }}>{t.feeAgree}</button>}
                         </div>
-                        {p.note && <div style={{ fontSize: 12.5, color: "#a7afa9", marginTop: 5, whiteSpace: "pre-wrap" }}>{p.note}</div>}
+                        {feeEditId === p.id ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                            <input type="number" inputMode="numeric" value={feeEditVal.amount} onChange={(e) => setFeeEditVal((v) => ({ ...v, amount: e.target.value }))} placeholder={t.feeAmount} style={selSt} />
+                            <input value={feeEditVal.note} onChange={(e) => setFeeEditVal((v) => ({ ...v, note: e.target.value }))} placeholder={t.feeNote} style={selSt} />
+                            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                              <button onClick={() => setFeeEditId("")} style={{ cursor: "pointer", border: "1px solid #2a322e", background: "transparent", color: "#8a938d", borderRadius: 7, padding: "5px 12px", fontSize: 12 }}>{t.cancel}</button>
+                              <button onClick={() => saveFeeEdit(p.id)} disabled={feeBusy || !(Number(feeEditVal.amount) > 0)} style={{ cursor: "pointer", border: 0, background: "#3fb984", color: "#04120c", borderRadius: 7, padding: "5px 12px", fontSize: 12, fontWeight: 700, opacity: (feeBusy || !(Number(feeEditVal.amount) > 0)) ? .6 : 1 }}>{t.save}</button>
+                            </div>
+                          </div>
+                        ) : (<>
+                          {p.note && <div style={{ fontSize: 12.5, color: "#a7afa9", marginTop: 5, whiteSpace: "pre-wrap" }}>{p.note}</div>}
+                          {myFeeKeys[p.id] && p.status !== "agreed" && !deal.feeAgreed && (
+                            <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                              <button onClick={() => { setFeeEditId(p.id); setFeeEditVal({ amount: String(p.amount), note: p.note || "" }); }} style={{ cursor: "pointer", border: 0, background: "none", color: "#6b746e", fontSize: 11.5, padding: 0 }}>{t.edit}</button>
+                              <button onClick={() => removeFee(p.id)} style={{ cursor: "pointer", border: 0, background: "none", color: "#e0785a", fontSize: 11.5, padding: 0 }}>{t.del}</button>
+                            </div>
+                          )}
+                        </>)}
                       </div>
                     );
                   })}
