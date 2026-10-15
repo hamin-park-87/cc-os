@@ -187,6 +187,7 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-assign") return <AssignEditor d={dNM} month={month} />;
   if (pane === "a-deals") return <DealList deals={d.deals.filter((x) => x.type !== "ahchannel")} contents={d.contents} creators={d.creators} channel="cc" />;
   if (pane === "a-deals-ah") return <DealList deals={d.deals.filter((x) => x.type === "ahchannel")} contents={d.contents} creators={d.creators} channel="ahchannel" />;
+  if (pane === "a-pr-inbox") return <PrInboxView />;
   if (pane === "a-clients") return <ClientsTable d={d} />;
   if (pane === "a-revenue") return <RevenueTable d={d} month={month} />;
   if (pane === "a-payroll") return <PayrollView d={dNM} month={month} />;
@@ -198,6 +199,112 @@ export function AdminView({ pane, d, month, email, onNav }: { pane: string; d: B
   if (pane === "a-conn") return <ConnTable creators={d.creators} />;
   if (pane === "a-risk") return <RiskList d={d} />;
   return <Placeholder name={pane} />;
+}
+
+// ── PR Inbox (ah!channel DM 제안) ──────────────────────────────────────────
+const PR_CAT_LABEL: Record<string, string> = { ad_pr: "광고·PR", seeding: "제품시딩", event: "이벤트", casting: "출연의뢰", application: "지원", fan: "팬", spam: "스팸" };
+const PR_STATUS: { k: string; l: string }[] = [
+  { k: "new", l: "신규" }, { k: "reviewing", l: "검토중" }, { k: "negotiating", l: "협상" },
+  { k: "won", l: "수주" }, { k: "rejected", l: "거절" }, { k: "archived", l: "보관" },
+];
+const PR_GRADE_CLS: Record<string, string> = { A: "p-ok", B: "p-acc", C: "p-warn", X: "p-plan" };
+
+interface PrProposal {
+  id: string; pr_id: string; message_id: string | null; extracted_at: string;
+  category: string; proposal_type: string | null; brand_name: string | null; org_type: string | null;
+  contact_email: string | null; brand_country: string | null; industry: string | null; deliverables: string | null;
+  product_offer: boolean | null; budget_mentioned: boolean | null; budget_amount: number | null; schedule: string | null;
+  ko_summary: string | null; missing: string[]; score: number | null; grade: string | null; status: string; assignee: string | null; replied_at: string | null;
+}
+
+function PrInboxView() {
+  const [rows, setRows] = useState<PrProposal[] | null>(null);
+  const [q, setQ] = useState("");
+  const [fStatus, setFStatus] = useState("all");
+  const [open, setOpen] = useState<string | null>(null);
+  const [orig, setOrig] = useState<Record<string, string>>({});
+
+  async function authHeader() { const { data } = await getSupabase().auth.getSession(); return { Authorization: "Bearer " + (data.session?.access_token ?? ""), "Content-Type": "application/json" }; }
+  const load = useCallback(async () => {
+    try { const r = await fetch("/api/pr-inbox/admin", { headers: await authHeader() }); setRows(r.ok ? (await r.json()).proposals : []); }
+    catch { setRows([]); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function setStatus(id: string, status: string) {
+    setRows((rs) => rs ? rs.map((x) => x.id === id ? { ...x, status } : x) : rs);
+    try { await fetch("/api/pr-inbox/admin", { method: "PATCH", headers: await authHeader(), body: JSON.stringify({ id, status }) }); } catch { /* noop */ }
+  }
+  async function toggleDetail(p: PrProposal) {
+    const next = open === p.id ? null : p.id;
+    setOpen(next);
+    if (next && p.message_id && !orig[p.message_id]) {
+      const mid = p.message_id;
+      try { const r = await fetch(`/api/pr-inbox/admin?msg=${mid}`, { headers: await authHeader() }); if (r.ok) { const j = await r.json(); setOrig((o) => ({ ...o, [mid]: j.message?.text_original || T("원문 없음") })); } } catch { /* noop */ }
+    }
+  }
+
+  if (rows === null) return <div className="placeholder">{T("불러오는 중…")}</div>;
+  const cnt = (k: string) => rows.filter((r) => r.status === k).length;
+  const list = rows.filter((r) => {
+    if (fStatus !== "all" && r.status !== fStatus) return false;
+    if (q) { const s = `${r.brand_name || ""}${r.ko_summary || ""}${r.pr_id}${r.industry || ""}`.toLowerCase(); if (!s.includes(q.toLowerCase())) return false; }
+    return true;
+  });
+
+  return (
+    <>
+      <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("PR 인박스")} <small style={{ color: "var(--faint)", fontWeight: 400 }}>({rows.length})</small></h2></div>
+      <div style={{ padding: "10px 12px", marginBottom: 12, borderRadius: 10, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", fontSize: 12.5 }}>
+        📥 {T("ah!channel로 들어온 협업 제안을 AI가 분류·추출한 목록입니다. 상태를 바꿔 진행 상황을 관리하세요. (실시간 DM 수신은 Meta 승인 후 연결)")}
+      </div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        <button className={`chip ${fStatus === "all" ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setFStatus("all")}>{T("전체")} {rows.length}</button>
+        {PR_STATUS.map((s) => (<button key={s.k} className={`chip ${fStatus === s.k ? "p-acc" : ""}`} style={{ cursor: "pointer", border: 0 }} onClick={() => setFStatus(fStatus === s.k ? "all" : s.k)}>{T(s.l)} {cnt(s.k)}</button>))}
+      </div>
+      <div className="filterbar">
+        <input placeholder={T("브랜드·요약·PR번호 검색")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <span className="count">{list.length}{T("건")}</span>
+      </div>
+      {!list.length ? <div className="placeholder">{T("조건에 맞는 제안이 없어요.")}</div> :
+      <div className="tablewrap"><table><thead><tr>
+        <th>{T("번호")}</th><th>{T("브랜드")}</th><th>{T("분류")}</th><th>{T("유형")}</th><th>{T("예산")}</th><th>{T("등급")}</th><th>{T("상태")}</th><th></th>
+      </tr></thead><tbody>
+        {list.map((p) => (
+          <Fragment key={p.id}>
+            <tr>
+              <td className="num" style={{ color: "var(--faint)", whiteSpace: "nowrap", fontWeight: 600 }}>{p.pr_id}</td>
+              <td><b>{p.brand_name || "—"}</b>{p.org_type === "agency" && <small style={{ color: "var(--faint)" }}> ({T("대행사")})</small>}</td>
+              <td style={{ color: "var(--muted)" }}>{PR_CAT_LABEL[p.category] || p.category}</td>
+              <td>{p.proposal_type || "—"}</td>
+              <td className="num">{p.budget_amount != null ? "¥" + Number(p.budget_amount).toLocaleString() : (p.budget_mentioned ? "?" : "—")}</td>
+              <td>{p.grade ? <span className={`pill ${PR_GRADE_CLS[p.grade] || "p-plan"}`}><span className="d" />{p.grade}</span> : <small style={{ color: "var(--faint)" }}>—</small>}</td>
+              <td><select value={p.status} onChange={(e) => setStatus(p.id, e.target.value)} style={{ fontSize: 12 }}>{PR_STATUS.map((s) => <option key={s.k} value={s.k}>{T(s.l)}</option>)}</select></td>
+              <td><button className="btn" style={{ padding: "3px 8px", fontSize: 12 }} onClick={() => toggleDetail(p)}>{open === p.id ? T("접기") : T("상세")}</button></td>
+            </tr>
+            {open === p.id && <tr><td colSpan={8} style={{ background: "var(--surface-2)", padding: 0 }}>
+              <div style={{ padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
+                {p.ko_summary && <div style={{ whiteSpace: "pre-wrap" }}>{p.ko_summary}</div>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", color: "var(--muted)", fontSize: 12 }}>
+                  {p.industry && <span>{T("업종")}: {p.industry}</span>}
+                  {p.deliverables && <span>{T("산출물")}: {p.deliverables}</span>}
+                  {p.schedule && <span>{T("일정")}: {p.schedule}</span>}
+                  {p.contact_email && <span>{T("연락처")}: {p.contact_email}</span>}
+                  {p.brand_country && <span>{T("국적")}: {p.brand_country}</span>}
+                  {p.product_offer && <span>· {T("제품제공")}</span>}
+                </div>
+                {!!(p.missing && p.missing.length) && <div style={{ fontSize: 12 }}><b style={{ color: "var(--warning)" }}>⚠ {T("확인 필요")}</b> : {p.missing.join(" · ")}</div>}
+                {p.message_id && <div>
+                  <div style={{ fontSize: 11, color: "var(--faint)", marginBottom: 3 }}>{T("원문")}</div>
+                  <div style={{ whiteSpace: "pre-wrap", padding: 8, background: "var(--surface-3)", borderRadius: 8, fontSize: 12.5, color: "var(--muted)" }}>{orig[p.message_id] ?? T("불러오는 중…")}</div>
+                </div>}
+              </div>
+            </td></tr>}
+          </Fragment>
+        ))}
+      </tbody></table></div>}
+    </>
+  );
 }
 
 function RosterTable({ creators, full, contents }: { creators: Creator[]; full?: boolean; contents?: Content[] }) {
