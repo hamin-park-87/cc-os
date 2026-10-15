@@ -7,6 +7,7 @@ import { analyzeDM, PROPOSAL_CATEGORIES, type DmCategory, type ExtractedProposal
 
 export interface DmInput {
   text: string;
+  mid?: string | null; // Instagram 메시지 ID(웹훅 중복 방지)
   ig_account?: string | null;
   thread_id?: string | null;
   sender_id?: string | null;
@@ -41,6 +42,7 @@ export async function ingestDM(input: DmInput): Promise<IngestResult> {
   const { data: msg, error: mErr } = await admin
     .from("pr_inbox_messages")
     .insert({
+      mid: input.mid ?? null,
       ig_account: input.ig_account ?? null,
       thread_id: input.thread_id ?? null,
       sender_id: input.sender_id ?? null,

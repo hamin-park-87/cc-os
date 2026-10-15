@@ -20,9 +20,12 @@ export function igConfig() {
 }
 
 // 1) 사용자 동의 URL (연동 시작)
-export function authorizeUrl(state: string) {
+// opts.messaging=true 일 때만 DM 메시징 스코프 추가(ah!channel PR Inbox 전용).
+// 기본은 꺼짐 — 크리에이터 인사이트 연동에는 영향 없음(미승인 스코프로 연동 깨짐 방지).
+export function authorizeUrl(state: string, opts?: { messaging?: boolean }) {
   const { appId, redirectUri } = igConfig();
-  const scope = "instagram_business_basic,instagram_business_manage_insights";
+  const scope = "instagram_business_basic,instagram_business_manage_insights"
+    + (opts?.messaging ? ",instagram_business_manage_messages" : "");
   const p = new URLSearchParams({ client_id: appId, redirect_uri: redirectUri, response_type: "code", scope, state });
   return `https://www.instagram.com/oauth/authorize?${p.toString()}`;
 }
