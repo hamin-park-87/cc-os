@@ -65,6 +65,12 @@ const BOT_NAV: Record<string, { key: string; label: string; icon: string }[]> = 
     { key: "ah-deals", label: "PR 안건", icon: "📥" },
   ],
 };
+// 외부 링크 탭 — 내부 뷰(pane)가 아니라 새 탭으로 여는 바로가기. 역할별로 노출.
+const AH_DASHBOARD_URL = "https://script.google.com/a/macros/81degree.com/s/AKfycbx--gbEAOE_ggageEJi7m4exIP_cAt6BBj9WtqkU5EBazPpJua5vxjhP26_QrVtFbzn0w/exec";
+const EXTERNAL_NAV: Record<string, { label: string; url: string }[]> = {
+  admin: [{ label: "ah!channel 대시보드 ↗", url: AH_DASHBOARD_URL }],
+  ahchannel: [{ label: "ah!channel 대시보드 ↗", url: AH_DASHBOARD_URL }],
+};
 // 코드(BR001/CC001…) 번호순 정렬 — 코드 없으면 뒤로
 const codeRank = (code?: string | null) => { const m = code?.match(/\d+/); return m ? +m[0] : Infinity; };
 const byCode = (a: { code?: string | null; name: string }, b: { code?: string | null; name: string }) => codeRank(a.code) - codeRank(b.code) || a.name.localeCompare(b.name);
@@ -184,6 +190,16 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             ))}
           </div>
         ))}
+        {(EXTERNAL_NAV[effRole] ?? []).length > 0 && (
+          <div className="navgroup">
+            <div className="navgroup-h">{t("바로가기", lang)}</div>
+            {EXTERNAL_NAV[effRole].map((x) => (
+              <a key={x.url} className="navitem sub" href={x.url} target="_blank" rel="noopener noreferrer" onClick={() => setNavOpen(false)}>
+                {t(x.label, lang)}
+              </a>
+            ))}
+          </div>
+        )}
         <div className="sidebar-foot">
           <Avatar name={session.role === "creator" ? session.scope : session.scope[0]} size={32} radius={8} />
           <div className="who"><b>{session.role === "admin" ? "81degree" : session.scope}</b>
