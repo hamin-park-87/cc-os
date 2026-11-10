@@ -8,7 +8,7 @@ import { Spark, MiniSpark, Donut, Bars } from "./charts";
 import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, registerCreatorCodes, withCode, creatorCode, localDT, canonicalIgUrl } from "@/lib/format";
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { saveCreator, deleteCreator, patchCreator, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience, exportDealsXlsx, getDealShareUrl } from "@/lib/data/writes";
+import { saveCreator, deleteCreator, patchCreator, setCreatorDormant, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, summarizeOrient, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience, exportDealsXlsx, getDealShareUrl } from "@/lib/data/writes";
 import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
@@ -314,8 +314,9 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
   const [bulk, setBulk] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<"code" | "followers" | "name" | "status">("code");
+  const [showDormant, setShowDormant] = useState(false); // 휴면 포함 보기
   const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
-  const list = [...creators].sort((a, b) => {
+  const list = creators.filter((c) => showDormant || !c.dormant).sort((a, b) => {
     if (sortBy === "followers") return (b.followers ?? 0) - (a.followers ?? 0);
     if (sortBy === "name") return a.name.localeCompare(b.name);
     if (sortBy === "status") return (a.status === "active" ? 0 : 1) - (b.status === "active" ? 0 : 1) || codeNum(a) - codeNum(b);
@@ -333,9 +334,17 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
       setSel(new Set()); setTick((t) => t + 1);
     } catch (e) { alert(T("삭제 실패: ") + (e as Error).message); setTick((t) => t + 1); }
   }
-  const nActive = creators.filter((c) => c.status === "active").length;
-  const nPreparing = creators.filter((c) => c.status === "preparing").length;
-  const nHold = creators.filter((c) => c.status === "on_hold").length;
+  async function toggleDormant(c: Creator) {
+    const to = !c.dormant;
+    if (!confirm(`'${c.name}' ${to ? T("크리에이터를 휴면 처리할까요? 제작 일정 등 연동 데이터는 그대로 유지됩니다.") : T("크리에이터의 휴면을 해제할까요?")}`)) return;
+    try { c.dormantAt = await setCreatorDormant(c.id, to); c.dormant = to; setTick((t) => t + 1); }
+    catch (e) { alert(T("저장 실패: ") + (e as Error).message); }
+  }
+  const live = creators.filter((c) => !c.dormant);
+  const nActive = live.filter((c) => c.status === "active").length;
+  const nPreparing = live.filter((c) => c.status === "preparing").length;
+  const nHold = live.filter((c) => c.status === "on_hold").length;
+  const nDormant = creators.length - live.length;
   return (<>
     {full && <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("크리에이터 관리")}</h2>
       <span style={{ display: "flex", gap: 8 }}>
@@ -344,10 +353,11 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
         <button className="btn acc" onClick={() => setEdit(null)}>+ {T("크리에이터 추가")}</button>
       </span></div>}
     {full && <div className="grid-kpi" style={{ marginBottom: 16 }}>
-      <Kpi lab={T("전체")} val={String(creators.length)} />
+      <Kpi lab={T("전체")} val={String(live.length)} />
       <Kpi lab={T("활동중")} val={String(nActive)} />
       <Kpi lab={T("계약준비")} val={String(nPreparing)} />
       <Kpi lab={T("보류")} val={String(nHold)} />
+      <Kpi lab={T("휴면")} val={String(nDormant)} />
     </div>}
     {full && <div className="filterbar">
       <select value={sortBy} onChange={(e) => setSortBy(e.target.value as typeof sortBy)}>
@@ -356,6 +366,7 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
         <option value="name">{T("이름순")}</option>
         <option value="status">{T("상태순")}</option>
       </select>
+      <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, cursor: "pointer" }}><input type="checkbox" checked={showDormant} onChange={(e) => setShowDormant(e.target.checked)} />{T("휴면 포함 보기")}</label>
       <span className="count">{list.length}{T("명")}</span>
     </div>}
     <div className="tablewrap"><table><thead><tr>
@@ -363,19 +374,20 @@ function RosterTable({ creators, full, contents }: { creators: Creator[]; full?:
       <th>{T("번호")}</th><th>{T("크리에이터")}</th><th>SNS</th><th>{T("팔로워")}</th><th>{T("상태")}</th><th>{T("카테고리")}</th>{full && <><th>{T("월 계약수량")}</th><th></th></>}
     </tr></thead><tbody>
       {list.map((c) => (
-        <tr key={c.id} style={full && sel.has(c.id) ? { background: "var(--accent-weak)" } : undefined}>
+        <tr key={c.id} style={{ ...(full && sel.has(c.id) ? { background: "var(--accent-weak)" } : {}), ...(c.dormant ? { opacity: 0.5 } : {}) }}>
           {full && <td><input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} aria-label={`${c.name} ${T("선택")}`} /></td>}
           <td className="num" style={{ color: "var(--faint)", fontWeight: 600 }}>{c.code ?? "—"}</td>
           <td><span style={{ display: "flex", alignItems: "center", gap: 9 }}><Avatar creator={c} size={28} radius={8} />
             {full ? <b style={{ cursor: "pointer", color: "var(--accent-ink)", textDecoration: "underline", textUnderlineOffset: 2 }} onClick={() => setDetail(c)}>{c.name}</b> : <b>{c.name}</b>}</span></td>
           <td><SnsBadges c={c} /></td>
           <td className="num">{fmt(c.followers)}</td>
-          <td>{statusPill(c.status)}</td>
+          <td>{c.dormant ? <span className="pill p-plan"><span className="d" />{T("휴면")}{c.dormantAt ? ` (${c.dormantAt.slice(0, 10)})` : ""}</span> : statusPill(c.status)}</td>
           <td>{c.category ?? "—"}</td>
           {full && <><td className="num">{c.monthlyQuota ?? "—"}</td>
             <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
               <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginRight: 6 }} onClick={() => setDetail(c)}>{T("상세")}</button>
-              <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(c)}>{T("수정")}</button></td></>}
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12 }} onClick={() => setEdit(c)}>{T("수정")}</button>
+              <button className="btn" style={{ padding: "6px 11px", fontSize: 12, marginLeft: 6 }} onClick={() => toggleDormant(c)}>{c.dormant ? T("휴면 해제") : T("휴면 처리")}</button></td></>}
         </tr>
       ))}
     </tbody></table></div>
@@ -1129,7 +1141,7 @@ function AssignEditor({ d, month }: { d: Bundle; month: string }) {
   const [pa, setPa] = useState<Record<string, number>>({}); // `${productId}|${creatorName}` → qty
   const codeNum = (c: Creator) => { const m = c.code?.match(/\d+/); return m ? +m[0] : Infinity; };
   const qOf = (name: string) => d.assignments.find((a) => a.brandId === brand && a.creatorId === name && a.yearMonth === month)?.quota ?? 0;
-  const actives = d.creators.filter((c) => c.status === "active").sort((a, b) => {
+  const actives = d.creators.filter((c) => c.status === "active" && !c.dormant).sort((a, b) => {
     if (sortBy === "name") return a.name.localeCompare(b.name);
     if (sortBy === "assigned") return qOf(b.name) - qOf(a.name);
     return codeNum(a) - codeNum(b); // code
@@ -2426,7 +2438,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved, defa
   const isNew = !deal;
   const DRAFT_KEY = "cc-os.draft.deal.new"; // REQ-019: 입력 자동저장(신규 안건)
   const defaults: Deal = {
-    id: "D-" + (100 + deals.length + 1), title: "", client: "", creatorName: creators[0]?.name ?? "hina",
+    id: "D-" + (100 + deals.length + 1), title: "", client: "", creatorName: creators.find((c) => !c.dormant)?.name ?? "hina",
     manager: "mai", source: "company_email", type: defaultType, fee: 1000000, shareCompany: 50, shareCreator: 50, step: 0,
   };
   const [f, setF] = useState<Deal>(() => {
@@ -2449,7 +2461,8 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved, defa
       try { await navigator.clipboard?.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 2000); } catch { /* noop */ }
     } catch (e) { alert(T("공유 링크 생성 실패: ") + (e as Error).message); }
   }
-  const sortedCreators = [...creators].sort(cmpCreatorByCode);
+  // 신규 등록 선택 목록에서 휴면 제외 (기존 안건의 현재 크리에이터는 유지)
+  const sortedCreators = creators.filter((c) => !c.dormant || c.name === f.creatorName).sort(cmpCreatorByCode);
   const up = (k: keyof Deal, v: unknown) => setF((s) => { const n = { ...s, [k]: v } as Deal; if (isNew) { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(n)); } catch { /* noop */ } } return n; });
   async function save() {
     try {

@@ -65,6 +65,8 @@ export interface Creator {
   photoUrl?: string | null;
   followers: number;
   status: CreatorStatus;
+  dormant?: boolean;              // 휴면 여부 (계약 종료 보관, 연동 데이터는 유지)
+  dormantAt?: string | null;      // 휴면 처리일
   category?: string;
   tone?: string;
   intro?: string;
