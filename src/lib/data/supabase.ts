@@ -37,7 +37,7 @@ const mapBrand = (r: Row): Brand => ({
 });
 const mapCreator = (r: Row, ig?: Row): Creator => ({
   id: r.id, code: r.code, pic: r.pic, name: r.name, nameKanji: r.name_kanji, nameEn: r.name_en, addressEn: r.address_en, aliases: r.aliases ?? [], handle: r.handle, photoUrl: r.photo_url,
-  followers: r.followers ?? 0, status: r.status, category: r.category, tone: r.tone, intro: r.intro,
+  followers: r.followers ?? 0, status: r.status, dormant: r.dormant ?? false, dormantAt: r.dormant_at ?? null, category: r.category, tone: r.tone, intro: r.intro,
   monthlyQuota: r.monthly_quota, fixedCost: Number(r.fixed_cost ?? 0), contractDate: r.contract_date, startDate: r.start_date,
   email: r.email, phone: r.phone, address: r.address, bankAccount: r.bank_account, invoiceRegNo: r.invoice_reg_no,
   entityType: r.entity_type, withholding: r.withholding, contractEnd: r.contract_end,

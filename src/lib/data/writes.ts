@@ -35,6 +35,12 @@ export async function saveCreator(c: Creator, isNew: boolean): Promise<Creator> 
 export async function deleteCreator(id: string) {
   if (!isDb()) return; const { error } = await getSupabase().from("creators").delete().eq("id", id); if (error) throw error;
 }
+// 휴면 처리/해제 — 행·연동 데이터는 그대로 두고 플래그만 변경
+export async function setCreatorDormant(id: string, dormant: boolean): Promise<string | null> {
+  const at = dormant ? new Date().toISOString() : null;
+  await patchCreator(id, { dormant, dormant_at: at });
+  return at;
+}
 // 비용/고정비 등 부분 업데이트
 export async function patchCreator(id: string, fields: Record<string, unknown>) {
   if (!isDb()) return; const { error } = await getSupabase().from("creators").update(fields).eq("id", id); if (error) throw error;
