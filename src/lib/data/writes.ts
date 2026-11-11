@@ -39,6 +39,10 @@ export async function deleteCreator(id: string) {
 export async function patchCreator(id: string, fields: Record<string, unknown>) {
   if (!isDb()) return; const { error } = await getSupabase().from("creators").update(fields).eq("id", id); if (error) throw error;
 }
+// 휴면 처리/해제 — 상태(status)는 그대로 두고 dormant 플래그만 토글. 이력·연동 데이터는 보존.
+export async function setCreatorDormant(id: string, dormant: boolean) {
+  await patchCreator(id, { dormant, dormant_at: dormant ? new Date().toISOString() : null });
+}
 
 // 브랜드 CRUD
 function brandRow(b: Brand) {
