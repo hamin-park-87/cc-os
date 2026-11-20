@@ -9,7 +9,7 @@ import { fmt, kfmt, yen, engRate, monthOf, contentMonth, CREATOR_STATUS_LABEL, r
 import { UNIT_PRICE, ALL_BRANDS, BRAND_COLOR, accounts as ACCOUNTS } from "@/lib/data/seed";
 import { supabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { saveCreator, deleteCreator, patchCreator, setCreatorDormant, saveDeal, deleteDeal, setDealStep, setAssignment, createDealContent, saveBrand, deleteBrand, getBrandProducts, addBrandProduct, deleteBrandProduct, getProductAssignments, setProductAssignment, getSecondaryRequests, createSecondaryRequest, setSecondaryStatus, setSecondaryAdCode, setCreatorConsent, tagContentBrand, getAccounts, type AccountRow, setBrandMonthly, createPlannedContent, updateContentSchedule, updateDealSchedule, deleteContent, uploadAttachment, patchContentFields, getOrientSheets, addOrientSheet, deleteOrientSheet, getFeedback, getFeedbackFull, saveFeedback, type FeedbackAttachment, bulkShip, getAccountSeries, getAudience, exportDealsXlsx, getDealShareUrl } from "@/lib/data/writes";
-import type { SecondaryReq, SecondaryScope, OrientSheet, Client } from "@/lib/types";
+import type { SecondaryReq, SecondaryScope, OrientSheet, Client, BestWork } from "@/lib/types";
 import { getClients, saveClient, deleteClient } from "@/lib/data/writes";
 import { SECONDARY_SCOPE_LABEL } from "@/lib/types";
 import { isMaster, displayId } from "@/lib/roles";
@@ -3551,7 +3551,7 @@ function AhContentModal({ c, onClose }: { c: AhContent; onClose: () => void }) {
 
 function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
   const creator = d.creators.find((c) => c.name === me);
-  const [f, setF] = useState<Creator | null>(creator ? { ...creator, sns: { ...creator.sns }, rates: { ...creator.rates } } : null);
+  const [f, setF] = useState<Creator | null>(creator ? { ...creator, sns: { ...creator.sns }, rates: { ...creator.rates }, bestWorks: (creator.bestWorks ?? []).map((w) => ({ ...w })) } : null);
   const [busy, setBusy] = useState(false); const [ok, setOk] = useState(false); const [err, setErr] = useState("");
   if (!f || !creator) return <div className="placeholder">{T("연결된 크리에이터 정보가 없습니다.")}</div>;
   const up = (k: keyof Creator, v: unknown) => { setF((s) => ({ ...s!, [k]: v })); setOk(false); };
@@ -3559,6 +3559,10 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
     const file = e.target.files?.[0]; if (!file) return;
     const rd = new FileReader(); rd.onload = () => up("photoUrl", rd.result as string); rd.readAsDataURL(file);
   }
+  const works = f.bestWorks ?? [];
+  const setWorks = (w: BestWork[]) => up("bestWorks", w);
+  const editWork = (i: number, k: keyof BestWork, v: string) => setWorks(works.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const moveWork = (i: number, dir: number) => { const j = i + dir; if (j < 0 || j >= works.length) return; const a = [...works]; [a[i], a[j]] = [a[j], a[i]]; setWorks(a); };
   async function save() {
     setBusy(true); setErr("");
     try {
@@ -3567,6 +3571,7 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
       const payload = {
         name_kanji: f!.nameKanji, name_en: f!.nameEn, handle: f!.handle, photo_url: f!.photoUrl ?? null,
         category: f!.category, tone: f!.tone, intro: f!.intro, sns: f!.sns,
+        about_me: f!.aboutMe ?? null, my_goal: f!.myGoal ?? null, best_works: f!.bestWorks ?? [],
         email: f!.email, phone: f!.phone, address: f!.address, address_en: f!.addressEn,
         bank_account: f!.bankAccount, invoice_reg_no: f!.invoiceRegNo, entity_type: f!.entityType,
       };
@@ -3606,6 +3611,32 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
           <Field key={k} label={k === "x" ? "X" : k}><input style={inp} value={f.sns[k] ?? ""} onChange={(e) => setF((s) => ({ ...s!, sns: { ...s!.sns, [k]: e.target.value } }))} /></Field>
         ))}
       </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 8px" }}>About Me</div>
+      <Field label={T("어떤 스타일로 발신하고 있는가 / 투고할 때 소중히 하는 것·양보할 수 없는 것 / 팔로워가 내 어떤 부분을 좋아해 주는가")}>
+        <textarea style={{ ...inp, minHeight: 140 }} value={f.aboutMe ?? ""} onChange={(e) => up("aboutMe", e.target.value)} placeholder={T("마크다운(줄바꿈·글머리표·링크) 그대로 입력할 수 있어요")} />
+      </Field>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 8px" }}>My Goal</div>
+      <Field label={T("롤모델 / 인스피레이션을 받는 곳 / 콘텐츠를 통해 어떤 사람이 되고 싶은가")}>
+        <textarea style={{ ...inp, minHeight: 140 }} value={f.myGoal ?? ""} onChange={(e) => up("myGoal", e.target.value)} placeholder={T("마크다운(줄바꿈·글머리표·링크) 그대로 입력할 수 있어요")} />
+      </Field>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 4px" }}>My Best Works</div>
+      <div style={{ fontSize: 12, color: "var(--faint)", marginBottom: 8 }}>{T("가장 재생수가 좋은 영상 / 지금까지 올린 콘텐츠 중 자랑스러운 영상")}</div>
+      {works.map((w, i) => (
+        <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, marginBottom: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0 10px" }}>
+            <Field label={T("릴스 URL")}><input style={inp} value={w.url} onChange={(e) => editWork(i, "url", e.target.value)} placeholder="https://www.instagram.com/reel/…" /></Field>
+            <Field label={T("재생수 표기")}><input style={inp} value={w.views} onChange={(e) => editWork(i, "views", e.target.value)} placeholder={T("예: 99만 재생")} /></Field>
+            <Field label={T("좋아요 표기")}><input style={inp} value={w.likes} onChange={(e) => editWork(i, "likes", e.target.value)} /></Field>
+          </div>
+          <Field label={T("메모")}><textarea style={{ ...inp, minHeight: 44 }} value={w.memo} onChange={(e) => editWork(i, "memo", e.target.value)} /></Field>
+          <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+            <button className="btn" disabled={i === 0} onClick={() => moveWork(i, -1)}>↑</button>
+            <button className="btn" disabled={i === works.length - 1} onClick={() => moveWork(i, 1)}>↓</button>
+            <button className="btn" onClick={() => setWorks(works.filter((_, j) => j !== i))}>{T("삭제")}</button>
+          </div>
+        </div>
+      ))}
+      <button className="btn" onClick={() => setWorks([...works, { url: "", views: "", likes: "", memo: "" }])}>{T("+ 행 추가")}</button>
       <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 8px" }}>{T("연락처·정산 (본인 입력)")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
         <Field label={T("이메일")}><input style={inp} type="email" value={f.email ?? ""} onChange={(e) => up("email", e.target.value)} /></Field>
