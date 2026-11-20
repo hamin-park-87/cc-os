@@ -6,6 +6,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 const ALLOWED = new Set([
   "name_kanji", "name_en", "handle", "photo_url", "category", "tone", "intro",
   "sns", "email", "phone", "address", "address_en", "bank_account", "invoice_reg_no", "entity_type",
+  "about_me", "my_goal", "best_works",
 ]);
 
 export async function POST(req: NextRequest) {
@@ -26,6 +27,13 @@ export async function POST(req: NextRequest) {
 
   const patch: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) if (ALLOWED.has(k)) patch[k] = v;
+  if ("best_works" in patch) {
+    const arr = Array.isArray(patch.best_works) ? patch.best_works : null;
+    if (!arr || arr.length > 50) return NextResponse.json({ error: "best_works 형식 오류" }, { status: 400 });
+    const s = (v: unknown) => (typeof v === "string" ? v : "");
+    patch.best_works = arr.map((w) => ({ url: s(w?.url), views: s(w?.views), likes: s(w?.likes), memo: s(w?.memo) }));
+  }
+  for (const k of ["about_me", "my_goal"]) if (k in patch && patch[k] != null && typeof patch[k] !== "string") return NextResponse.json({ error: `${k} 형식 오류` }, { status: 400 });
   if (!Object.keys(patch).length) return NextResponse.json({ error: "수정할 항목 없음" }, { status: 400 });
 
   const { error } = await admin.from("creators").update(patch).eq("id", creator.id);
