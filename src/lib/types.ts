@@ -49,6 +49,7 @@ export interface BrandProduct {
 }
 
 export interface CreatorSns { youtube?: string; tiktok?: string; x?: string; line?: string }
+export interface BestWork { url?: string; views?: string; likes?: string; memo?: string } // 대표 콘텐츠(릴스 URL·재생수·좋아요·메모, 표기는 텍스트 원문)
 export interface CreatorRates { reels: number; secondary: number; offline: number; etc: number }
 export type EntityType = "individual" | "corporation"; // 개인/법인
 
@@ -70,6 +71,9 @@ export interface Creator {
   category?: string;
   tone?: string;
   intro?: string;
+  aboutMe?: string | null;        // About Me(나의 소개/세계관) — 마크다운 원문 그대로
+  myGoal?: string | null;         // My Goal(나의 목표) — 마크다운 원문 그대로
+  bestWorks?: BestWork[];         // My Best Works(대표 콘텐츠, 여러 건)
   monthlyQuota?: number | null;
   fixedCost: number;
   contractDate?: string | null;   // 계약시작일

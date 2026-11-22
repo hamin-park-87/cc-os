@@ -5,6 +5,7 @@ import { getAdminClient } from "@/lib/supabase/admin";
 // 크리에이터가 본인 프로필(허용 필드)을 직접 수정. 회사 통제 항목(보수·수량·단가·상태·번호)은 제외.
 const ALLOWED = new Set([
   "name_kanji", "name_en", "handle", "photo_url", "category", "tone", "intro",
+  "about_me", "my_goal", "best_works",
   "sns", "email", "phone", "address", "address_en", "bank_account", "invoice_reg_no", "entity_type",
 ]);
 
