@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, Fragment } from "react";
-import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, DealType, Contract, Assignment } from "@/lib/types";
+import type { Brand, BrandProduct, Creator, Content, ContentSched, Deal, DealType, Contract, Assignment, BestWork } from "@/lib/types";
 import { Avatar } from "./Avatar";
 import { Modal, Field, inp } from "./Modal";
 import { ContentArchive } from "./ContentArchive";
@@ -3567,6 +3567,7 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
       const payload = {
         name_kanji: f!.nameKanji, name_en: f!.nameEn, handle: f!.handle, photo_url: f!.photoUrl ?? null,
         category: f!.category, tone: f!.tone, intro: f!.intro, sns: f!.sns,
+        about_me: f!.aboutMe ?? null, my_goal: f!.myGoal ?? null, best_works: f!.bestWorks ?? [],
         email: f!.email, phone: f!.phone, address: f!.address, address_en: f!.addressEn,
         bank_account: f!.bankAccount, invoice_reg_no: f!.invoiceRegNo, entity_type: f!.entityType,
       };
@@ -3578,6 +3579,12 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
     } catch (e) { setErr((e as Error).message); setBusy(false); }
   }
   const ro = (label: string, val: React.ReactNode) => <Field label={label}><div style={{ padding: "9px 11px", background: "var(--surface-2)", borderRadius: 9, fontSize: 13, color: "var(--muted)" }}>{val ?? "—"}</div></Field>;
+  const works = f.bestWorks ?? [];
+  const setWorks = (w: BestWork[]) => up("bestWorks", w);
+  const addWork = () => setWorks([...works, { url: "", views: "", likes: "", memo: "" }]);
+  const upWork = (i: number, k: keyof BestWork, v: string) => setWorks(works.map((w, j) => (j === i ? { ...w, [k]: v } : w)));
+  const rmWork = (i: number) => setWorks(works.filter((_, j) => j !== i));
+  const moveWork = (i: number, dir: -1 | 1) => { const j = i + dir; if (j < 0 || j >= works.length) return; const w = [...works]; [w[i], w[j]] = [w[j], w[i]]; setWorks(w); };
   return (<div style={{ maxWidth: 680 }}>
     <div className="sec-h" style={{ marginTop: 0 }}><h2>{T("내 프로필 관리")}</h2>
       <button className="btn acc" disabled={busy} onClick={save}>{busy ? T("저장 중…") : ok ? T("저장됨 ✓") : T("저장")}</button></div>
@@ -3606,7 +3613,39 @@ function CreatorProfile({ d, me }: { d: Bundle; me: string }) {
           <Field key={k} label={k === "x" ? "X" : k}><input style={inp} value={f.sns[k] ?? ""} onChange={(e) => setF((s) => ({ ...s!, sns: { ...s!.sns, [k]: e.target.value } }))} /></Field>
         ))}
       </div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "8px 0 8px" }}>{T("연락처·정산 (본인 입력)")}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--accent-ink)", margin: "12px 0 8px" }}>{T("나의 세계관")}</div>
+      <Field label={T("About Me (나의 소개)")}>
+        <textarea style={{ ...inp, minHeight: 120 }} value={f.aboutMe ?? ""} onChange={(e) => up("aboutMe", e.target.value)}
+          placeholder={T("· 어떤 스타일로 발신하고 있나요?\n· 투고할 때 소중히 하는 것·양보할 수 없는 것은?\n· 팔로워가 내 어떤 부분을 좋아해 주나요?")} />
+      </Field>
+      <Field label={T("My Goal (나의 목표)")}>
+        <textarea style={{ ...inp, minHeight: 120 }} value={f.myGoal ?? ""} onChange={(e) => up("myGoal", e.target.value)}
+          placeholder={T("· 롤모델은 누구인가요?\n· 인스피레이션을 받는 곳은?\n· 콘텐츠를 통해 어떤 사람이 되고 싶나요?")} />
+      </Field>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "10px 0 2px" }}>{T("My Best Works (대표 콘텐츠)")}</div>
+      <div style={{ fontSize: 11.5, color: "var(--faint)", marginBottom: 8 }}>{T("가장 재생수가 좋은 영상 / 지금까지 올린 콘텐츠 중 자랑스러운 영상")}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {works.map((w, i) => (
+          <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 10, padding: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)" }}>#{i + 1}</span>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+                <button className="btn" style={{ padding: "3px 8px", fontSize: 12 }} disabled={i === 0} onClick={() => moveWork(i, -1)}>↑</button>
+                <button className="btn" style={{ padding: "3px 8px", fontSize: 12 }} disabled={i === works.length - 1} onClick={() => moveWork(i, 1)}>↓</button>
+                <button className="btn" style={{ padding: "3px 8px", fontSize: 12, color: "var(--critical)" }} onClick={() => rmWork(i)}>{T("삭제")}</button>
+              </div>
+            </div>
+            <input style={inp} value={w.url ?? ""} onChange={(e) => upWork(i, "url", e.target.value)} placeholder={T("릴스 URL")} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 8px" }}>
+              <input style={inp} value={w.views ?? ""} onChange={(e) => upWork(i, "views", e.target.value)} placeholder={T("조회수 (예: 99만 재생)")} />
+              <input style={inp} value={w.likes ?? ""} onChange={(e) => upWork(i, "likes", e.target.value)} placeholder={T("좋아요 (예: 12만)")} />
+            </div>
+            <input style={inp} value={w.memo ?? ""} onChange={(e) => upWork(i, "memo", e.target.value)} placeholder={T("메모")} />
+          </div>
+        ))}
+        <button className="btn" style={{ alignSelf: "flex-start" }} onClick={addWork}>+ {T("대표 콘텐츠 추가")}</button>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", margin: "12px 0 8px" }}>{T("연락처·정산 (본인 입력)")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
         <Field label={T("이메일")}><input style={inp} type="email" value={f.email ?? ""} onChange={(e) => up("email", e.target.value)} /></Field>
         <Field label={T("전화번호")}><input style={inp} value={f.phone ?? ""} onChange={(e) => up("phone", e.target.value)} /></Field>

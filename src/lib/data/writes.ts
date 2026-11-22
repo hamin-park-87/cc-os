@@ -11,7 +11,7 @@ function creatorRow(c: Creator) {
   return {
     code: c.code ?? null, pic: c.pic ?? null, name: c.name, name_kanji: c.nameKanji ?? null, name_en: c.nameEn ?? null, address_en: c.addressEn ?? null, handle: c.handle ?? null, photo_url: c.photoUrl ?? null,
     followers: c.followers, status: c.status, category: c.category ?? null, tone: c.tone ?? null,
-    intro: c.intro ?? null, monthly_quota: c.monthlyQuota ?? null, fixed_cost: c.fixedCost,
+    intro: c.intro ?? null, about_me: c.aboutMe ?? null, my_goal: c.myGoal ?? null, best_works: c.bestWorks ?? [], monthly_quota: c.monthlyQuota ?? null, fixed_cost: c.fixedCost,
     contract_date: c.contractDate ?? null, start_date: c.startDate ?? null, sns: c.sns, rates: c.rates,
     email: c.email ?? null, phone: c.phone ?? null, address: c.address ?? null, bank_account: c.bankAccount ?? null,
     invoice_reg_no: c.invoiceRegNo ?? null, entity_type: c.entityType ?? null, withholding: c.withholding ?? null,
