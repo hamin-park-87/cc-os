@@ -2315,29 +2315,29 @@ export function DealList({ deals, contents, readonly, creators, channel = "cc" }
       )}
       {!list.length ? <div className="placeholder">{T("조건에 맞는 PR 안건이 없어요.")}</div> :
        view === "list" ? (
-        <div className="tablewrap"><table><thead><tr>
+        <div className="tablewrap"><table className="m-cards deal-cards"><thead><tr>
           {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label={T("전체 선택")} /></th>}
           <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th>{!readonly && <th></th>}
         </tr></thead><tbody>
           {list.map((dl) => (
             <tr key={dl.id} style={!readonly && sel.has(dl.id) ? { background: "var(--accent-weak)" } : undefined}>
               {!readonly && <td><input type="checkbox" checked={sel.has(dl.id)} onChange={() => toggle(dl.id)} aria-label={`${dl.title} ${T("선택")}`} /></td>}
-              <td className="num" style={{ color: "var(--faint)", whiteSpace: "nowrap", fontWeight: 600 }}>{prNo(dl)}</td>
-              <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.receivedDate)}</td>
-              <td className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.dueDate)}</td>
-              <td style={{ maxWidth: 340, cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)} title={dl.title}>
+              <td data-l={T("번호")} className="num" style={{ color: "var(--faint)", whiteSpace: "nowrap", fontWeight: 600 }}>{prNo(dl)}</td>
+              <td data-l={T("인입일")} className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.receivedDate)}</td>
+              <td data-l={T("납기")} className="num" style={{ color: "var(--muted)", whiteSpace: "nowrap" }}>{ymd(dl.dueDate)}</td>
+              <td className="mc-title" style={{ maxWidth: 340, cursor: readonly ? "default" : "pointer" }} onClick={() => !readonly && setEdit(dl)} title={dl.title}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
                   {isDone(dl) && <span className="pill p-ok" style={{ fontSize: 10, flex: "none" }}><span className="d" />{T("완료")}</span>}
-                  <b style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{dl.title}</b>
+                  <b className="mc-name" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{dl.title}</b>
                   <span className={`chip ${dl.type === "ahchannel" ? "p-acc" : ""}`} style={{ flex: "none" }}>{dl.type === "ahchannel" ? "ah!channel" : T("개별")}</span>
                 </div>
               </td>
-              <td style={{ color: "var(--muted)", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={dl.client}>{dl.client}</td>
-              <td>{withCode(dl.creatorName)}</td>
-              <td style={{ color: "var(--muted)" }}>{dl.manager}</td>
-              <td><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
-              <td className="num">{yen(dl.fee)}</td>
-              <td style={{ whiteSpace: "nowrap" }}><DashBtn dl={dl} /></td>
+              <td data-l={T("의뢰사")} style={{ color: "var(--muted)", maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={dl.client}>{dl.client}</td>
+              <td data-l={T("크리에이터")}>{withCode(dl.creatorName)}</td>
+              <td data-l={T("담당")} style={{ color: "var(--muted)" }}>{dl.manager}</td>
+              <td data-l={T("단계")}><span className={`pill ${dl.step >= 4 ? "p-ok" : "p-plan"}`}><span className="d" />{STEPS[dl.step]}</span></td>
+              <td data-l={T("PR 비용")} className="num">{yen(dl.fee)}</td>
+              <td data-l={T("대시보드")} style={{ whiteSpace: "nowrap" }}><DashBtn dl={dl} /></td>
               {!readonly && <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 {dl.step < 8 && <button className="btn sm" style={{ marginRight: 6 }} onClick={() => { dl.step++; setTick((t) => t + 1); setDealStep(dl.id, dl.step).catch(() => { }); }}>{T("다음")} →</button>}
                 <button className="btn sm" onClick={() => setEdit(dl)}>{T("수정")}</button>
@@ -3872,12 +3872,12 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
               </span>
             </div>
             {!isOpen ? null : !items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 등록’으로 시작하세요.")}</div> :
-              <div className="tablewrap"><table><thead><tr>
+              <div className="tablewrap"><table className="m-cards todo-cards"><thead><tr>
                 <th>{T("콘텐츠")}</th>{SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th></th>
               </tr></thead><tbody>
                 {items.map((c) => (
                   <tr key={c.id}>
-                    <td style={{ minWidth: 200 }}>
+                    <td className="mc-title" style={{ minWidth: 200 }}>
                       <b style={{ fontSize: 13 }}>{c.product}</b>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 5 }}>
                         <input style={{ ...stIn, flex: 1, minWidth: 130 }} placeholder={T("업로드 URL 입력")} value={c.permalink ?? ""} onChange={(e) => setUrl(c, e.target.value)} />
@@ -3893,8 +3893,8 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
                         <input style={{ ...stIn, flex: "1 1 130px", minWidth: 110 }} placeholder={T("송장번호")} value={c.sampleTracking ?? ""} onChange={(e) => setSampleShip(c, "tracking", e.target.value)} />
                       </div>}
                     </td>
-                    {SCHED_STAGES.map((s) => <td key={s.k}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
-                    <td><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
+                    {SCHED_STAGES.map((s) => <td key={s.k} data-l={T(s.label)}><input type="date" style={{ ...stIn, cursor: "pointer" }} value={c.sched[s.k as keyof typeof c.sched] ?? ""} onClick={openCal} onChange={(e) => setDate(c, s.k, e.target.value)} /></td>)}
+                    <td data-l={T("상태")}><select style={stIn} value={c.status} onChange={(e) => setStatus(c, e.target.value)}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select></td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <button className="btn acc sm" style={{ padding: "5px 10px", fontSize: 11.5, marginRight: 6, minWidth: 62 }} onClick={() => saveRow(c, brand)}>{T("저장")}</button>
                       <button className="btn" style={{ padding: "5px 9px", fontSize: 11.5, color: "var(--critical)", borderColor: "var(--critical)" }} onClick={() => del(c)}>{T("삭제")}</button>

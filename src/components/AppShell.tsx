@@ -235,7 +235,7 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
           </div>
         </div>
         <div className="content">
-          {viewAs && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 14, borderRadius: 10, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", fontSize: 13 }}>
+          {viewAs && <div className="viewas-banner" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 14, borderRadius: 10, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", fontSize: 13 }}>
             <span>🔎 <b>{t(ROLE_LABEL[effRole], lang)}</b> {t("어드민으로 보는 중", lang)}: <b>{viewAs.scope}</b></span>
             <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => enterViewAs(null)}>← {t("관리자로 돌아가기", lang)}</button>
           </div>}

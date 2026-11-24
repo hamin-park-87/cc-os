@@ -353,15 +353,21 @@
     .iconbtn.nav-close{display:grid; margin-left:auto}
     .brandmark{justify-content:space-between}
 
-    .topbar{padding:10px 12px; gap:8px; flex-wrap:wrap}
-    .topbar h1{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .topbar .sub{font-size:11px}
+    /* 상단바: 한 줄 고정(제목 축약 + 컨트롤 가로 스크롤) → 헤더 높이 최소화 */
+    .topbar{padding:8px 10px; gap:8px; flex-wrap:nowrap}
+    .topbar h1{font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .topbar .sub{display:none}
     .topbar .spacer{display:none}
-    /* 상단바: 제목은 첫 줄, 컨트롤은 다음 줄 전체폭 우측 정렬 → 제목 잘림 방지 */
-    .tb-title{flex:1 1 auto}
-    .tb-controls{flex:1 1 100%; justify-content:flex-end; gap:8px; flex-wrap:wrap}
+    .tb-title{flex:0 1 84px; min-width:0}
+    .tb-controls{flex:1 1 0; min-width:0; justify-content:flex-start; gap:6px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch}
+    .tb-controls::-webkit-scrollbar{display:none}
+    .tb-controls > *{flex:none}
     .topbar select{font-size:12px !important; height:32px !important; max-width:120px !important}
     .topbar .iconbtn{width:32px; height:32px}
+    .topbar .iconbtn[style*="width: auto"]{padding:0 8px !important; white-space:nowrap}
+    /* 스크롤 이동(앵커) 시 sticky 헤더 밑에 배너가 가려지지 않도록 */
+    html{scroll-padding-top:60px}
+    .viewas-banner{flex-wrap:wrap}
     /* 하단 고정 네비바 */
     .botnav{
       display:flex; position:fixed; left:0; right:0; bottom:0; z-index:50;
@@ -398,6 +404,19 @@
     .tablewrap{ -webkit-overflow-scrolling:touch }
     th,td{padding:9px 10px; font-size:12.5px}
     table{min-width:0}
+    /* 표 → 카드: 행을 카드로, 셀은 data-l 라벨 + 값 (PR 안건·제작 일정). 줄바꿈 허용 */
+    .tablewrap:has(.m-cards){overflow:visible; border:0; background:none; box-shadow:none}
+    .m-cards, .m-cards tbody{display:block; width:100%}
+    .m-cards thead{display:none}
+    .m-cards tbody tr{display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; padding:12px; margin-bottom:10px; border:1px solid var(--border); border-radius:var(--r); background:var(--surface); box-shadow:var(--shadow)}
+    .m-cards tbody tr:hover{background:var(--surface)}
+    .m-cards td{display:flex; flex-direction:column; gap:2px; padding:0; border:0; white-space:normal !important; min-width:0 !important; max-width:none !important; overflow:visible !important}
+    .m-cards td[data-l]::before{content:attr(data-l); font-size:10.5px; color:var(--faint); font-weight:600}
+    .m-cards td.mc-title{grid-column:1 / -1}
+    .m-cards .mc-name{white-space:normal !important; overflow:visible !important; text-overflow:clip !important}
+    .m-cards td:not([data-l]):not(.mc-title){grid-column:1 / -1; flex-direction:row; justify-content:flex-end}
+    .m-cards input[type="date"], .m-cards select{width:100%; min-width:0}
+    .deal-cards td.mc-title{order:-1}
     input[type="date"]{font-size:12px}
   }
   @media (max-width:440px){
