@@ -353,15 +353,16 @@
     .iconbtn.nav-close{display:grid; margin-left:auto}
     .brandmark{justify-content:space-between}
 
-    .topbar{padding:10px 12px; gap:8px; flex-wrap:wrap}
-    .topbar h1{font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .topbar{padding:8px 12px; gap:8px; flex-wrap:nowrap}
+    .topbar h1{font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .topbar .sub{font-size:11px}
     .topbar .spacer{display:none}
-    /* 상단바: 제목은 첫 줄, 컨트롤은 다음 줄 전체폭 우측 정렬 → 제목 잘림 방지 */
-    .tb-title{flex:1 1 auto}
-    .tb-controls{flex:1 1 100%; justify-content:flex-end; gap:8px; flex-wrap:wrap}
-    .topbar select{font-size:12px !important; height:32px !important; max-width:120px !important}
-    .topbar .iconbtn{width:32px; height:32px}
+    /* 상단바: 제목+컨트롤을 한 줄로. 컨트롤이 넘치면 가로 스크롤(두세 줄로 커지지 않게 → 헤더 높이 축소) */
+    .tb-title{flex:1 1 auto; min-width:0}
+    .tb-controls{flex:0 1 auto; justify-content:flex-end; gap:6px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; min-width:0; scrollbar-width:none}
+    .tb-controls::-webkit-scrollbar{display:none}
+    .topbar select{font-size:12px !important; height:30px !important; max-width:104px !important; flex:none}
+    .topbar .iconbtn{width:30px; height:30px; flex:none}
     /* 하단 고정 네비바 */
     .botnav{
       display:flex; position:fixed; left:0; right:0; bottom:0; z-index:50;
@@ -399,6 +400,11 @@
     th,td{padding:9px 10px; font-size:12.5px}
     table{min-width:0}
     input[type="date"]{font-size:12px}
+    /* PR 안건 카드(모바일 강제): 단계 스테퍼·요약 행이 좁은 폭에서 줄바꿈 */
+    .srow .stepper{flex-wrap:wrap; gap:6px 4px}
+    .srow .row{gap:8px 14px; flex-wrap:wrap}
+    /* 제작 스케줄 보드: 입력칸을 뭉개지 않고 가로 스크롤로 접근(잘림 방지) */
+    .sched-board{min-width:640px}
   }
   @media (max-width:440px){
     .grid-kpi{grid-template-columns:1fr 1fr; gap:8px}

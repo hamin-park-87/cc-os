@@ -2219,6 +2219,18 @@ function RegBadge({ by }: { by?: string | null }) {
   return <span className={`chip ${isAI ? "p-acc" : ""}`} title={by} style={{ gap: 4 }}>{isAI ? "🤖" : "👤"} {isAI ? T("AI") : name}</span>;
 }
 
+// 모바일 폭 감지(860px 이하 = CSS 브레이크포인트와 일치). PC에는 영향 없음.
+function useIsMobile(maxWidth = 860) {
+  const [m, setM] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width:${maxWidth}px)`);
+    const on = () => setM(mq.matches); on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [maxWidth]);
+  return m;
+}
+
 export function DealList({ deals, contents, readonly, creators, channel = "cc" }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[]; channel?: "cc" | "ahchannel" }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
@@ -2226,6 +2238,8 @@ export function DealList({ deals, contents, readonly, creators, channel = "cc" }
   const [fStep, setFStep] = useState(""); const [fManager, setFManager] = useState(""); const [fCreator, setFCreator] = useState(""); const [q, setQ] = useState("");
   const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"recv_asc" | "recv_desc" | "due_desc" | "due_asc" | "step">("recv_desc");
   const [view, setView] = useState<"list" | "card">("list");
+  const mobile = useIsMobile();
+  const effView = mobile ? "card" : view; // 모바일에서는 카드뷰 강제(표 가로 잘림 방지)
   const [sel, setSel] = useState<Set<string>>(new Set());
   const STEPS = DEAL_STEPS;
   const recvDate = (d: Deal) => d.receivedDate || d.createdAt || "";
@@ -2277,7 +2291,7 @@ export function DealList({ deals, contents, readonly, creators, channel = "cc" }
       {!readonly && <div className="sec-h" style={{ marginTop: 0 }}><h2>{channel === "ahchannel" ? T("ah!channel PR 안건 관리") : T("PR 안건 관리")}</h2>
         <span style={{ display: "flex", gap: 8 }}>
           {sel.size > 0 && <button className="btn" style={{ color: "var(--critical)", borderColor: "var(--critical)" }} onClick={bulkDelete}>{T("선택 삭제")} ({sel.size})</button>}
-          <button className="btn" onClick={() => setView(view === "list" ? "card" : "list")}>{view === "list" ? T("카드 보기") : T("목록 보기")}</button>
+          {!mobile && <button className="btn" onClick={() => setView(view === "list" ? "card" : "list")}>{view === "list" ? T("카드 보기") : T("목록 보기")}</button>}
           <button className="btn" onClick={async () => { try { await exportDealsXlsx(); } catch (e) { alert(T("엑셀 출력 실패: ") + (e as Error).message); } }}>⬇ {T("엑셀 출력")}</button>
           <button className="btn acc" onClick={() => setEdit(null)}>+ {T("안건 추가")}</button>
         </span></div>}
@@ -2314,7 +2328,7 @@ export function DealList({ deals, contents, readonly, creators, channel = "cc" }
         </div>
       )}
       {!list.length ? <div className="placeholder">{T("조건에 맞는 PR 안건이 없어요.")}</div> :
-       view === "list" ? (
+       effView === "list" ? (
         <div className="tablewrap"><table><thead><tr>
           {!readonly && <th style={{ width: 34 }}><input type="checkbox" checked={allChecked} onChange={() => setSel(allChecked ? new Set() : new Set(list.map((dl) => dl.id)))} aria-label={T("전체 선택")} /></th>}
           <th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("크리에이터")}</th><th>{T("담당")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th>{!readonly && <th></th>}
