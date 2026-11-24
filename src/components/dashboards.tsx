@@ -107,7 +107,7 @@ function Ring({ p, label }: { p: number; label: string }) {
   return <div className="ring" style={{ ["--p" as string]: p }}><b>{label}</b></div>;
 }
 
-const STAGES: [keyof Content["sched"], string][] = [["plan", T("기획")], ["shoot", T("촬영")], ["edit", T("편집")], ["upload", T("업로드")]];
+const STAGES: [keyof Content["sched"], string][] = [["plan", "기획"], ["shoot", "촬영"], ["edit", "편집"], ["upload", "업로드"]]; // 라벨=한국어 원문(키), 표시 시 T()로 번역(freeze 방지)
 function ScheduleRows({ items }: { items: Content[] }) {
   if (!items.length) return <div className="placeholder">{T("예정된 제작 일정이 없어요.")}</div>;
   return (<>{items.map((c) => {
@@ -126,7 +126,7 @@ function ScheduleRows({ items }: { items: Content[] }) {
             if (c.status === "uploaded") cls = "done";
             else if (dt && dt < "2026-08-23") cls = "done";
             else if (!currentSet && dt) { cls = "now"; currentSet = true; }
-            return <span key={k} className={`sgstage ${cls}`}><span className="sgk">{cls === "done" ? "✓ " : ""}{label}</span><span className="sgd">{md(dt)}</span></span>;
+            return <span key={k} className={`sgstage ${cls}`}><span className="sgk">{cls === "done" ? "✓ " : ""}{T(label)}</span><span className="sgd">{md(dt)}</span></span>;
           })}
         </div>
       </div>
@@ -2210,7 +2210,13 @@ function RiskList({ d }: { d: Bundle }) {
 }
 
 /* ── DEAL LIST (admin & creator 공용) ───── */
-const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드"), T("청구서 발행"), T("입금 확인"), T("CC 입금 완료")];
+// 단계 라벨(키=한국어 원문). 모듈 로드 시 T()를 부르면 언어가 'ko'로 굳어(freeze) JA모드에서 한국어가 남으므로,
+// Proxy로 "접근(렌더) 시점"에 번역한다. deal.step은 정수 인덱스라 필터·정렬·저장에는 영향 없음.
+const DEAL_STEPS_KO = ["인입", "매니저 검토", "크리에이터 협의", "의뢰사 전달", "계약 성사", "제작·업로드", "청구서 발행", "입금 확인", "CC 입금 완료"];
+const DEAL_STEPS: readonly string[] = new Proxy(DEAL_STEPS_KO, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  get(target: any, prop) { const v = target[prop]; return typeof v === "string" ? T(v) : v; },
+});
 // PR 안건 등록자 배지 — AI/메일 자동등록은 🤖, 사람은 👤+이름
 function RegBadge({ by }: { by?: string | null }) {
   if (!by) return <span style={{ color: "var(--faint)" }}>—</span>;
