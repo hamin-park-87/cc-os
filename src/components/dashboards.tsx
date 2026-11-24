@@ -1453,7 +1453,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       const sched: ContentSched = { ...(dl.sched ?? {}) };
       if (!sched.upload && dl.uploadDate) sched.upload = dl.uploadDate;
       const dm = (dl.uploadDate || dl.dueDate || sched.upload || "").slice(0, 7) || null;
-      rows.push({ key: "deal-" + dl.id, type: "pr", creatorName: dl.creatorName, label: dl.title, target: dl.client, sched, uploaded: up, permalink: linked?.permalink ?? null, stepLabel: DEAL_STEPS[dl.step], month: dm, content: linked, deal: dl });
+      rows.push({ key: "deal-" + dl.id, type: "pr", creatorName: dl.creatorName, label: dl.title, target: dl.client, sched, uploaded: up, permalink: linked?.permalink ?? null, stepLabel: dealSteps()[dl.step], month: dm, content: linked, deal: dl });
     }
   }
   // 필터 — 선택 월에 귀속된 항목만 (귀속 월 없는 항목은 '전체 기간'에서만)
@@ -1612,7 +1612,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
           <tr>
             <td style={{ paddingLeft: 22 }}><b style={{ fontSize: 13 }}>{r.label}</b>{r.content && (canEdit
               ? <select value={r.content.sampleStatus ?? ""} onChange={(e) => setSampleStatus(r, e.target.value as "" | "received" | "waiting")} title={T("샘플 상태")} style={{ marginLeft: 8, fontSize: 10.5, padding: "1px 4px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--surface)", color: r.content.sampleStatus === "waiting" ? "#d98a4a" : r.content.sampleStatus === "received" ? "var(--accent)" : "var(--faint)" }}>
-                  <option value="">{T("샘플 미지정")}</option><option value="received">📦 {T("샘플 수령 완료")}</option><option value="waiting">📦 {T("샘플 미수령")}</option>
+                  <option value="">{T("샘플 상태 미지정")}</option><option value="received">📦 {T("샘플 수령 완료")}</option><option value="waiting">📦 {T("샘플 미수령")}</option>
                 </select>
               : (r.content.sampleStatus === "received" ? <span title={T("샘플 수령 완료")} style={{ marginLeft: 6 }}>📦</span> : r.content.sampleStatus === "waiting" ? <span title={T("샘플 미수령")} style={{ marginLeft: 6, fontSize: 10.5, color: "#d98a4a", fontWeight: 700 }}>📦 {T("샘플 미수령")}</span> : null))}{isDelay && (r.content?.sampleStatus === "waiting"
               ? <span title={T("브랜드 샘플 미도착으로 지연 — CC 사유 아님")} style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, color: "#d98a4a" }}>📦 {T("샘플 미수령으로 지연")}</span>
@@ -2186,7 +2186,7 @@ export function computeRisks(d: Bundle): RiskItem[] {
     if (assigned < b.monthlyQuota) risks.push({ level: "warning", t: `${b.name} — ${+todayMonth.slice(5)}${T("월 배정 미달")} (${assigned}/${b.monthlyQuota})`, s: `${b.monthlyQuota - assigned}${T("건 미배정. 배정 관리에서 채워주세요.")}` });
   }
   // 5) 납기 임박·경과 PR 안건
-  for (const dl of d.deals) { if (dl.step >= 5) continue; const du = daysUntil(dl.dueDate); if (du != null && du <= 3) risks.push({ level: du < 0 ? "critical" : "warning", t: `${dl.title} · ${withCode(dl.creatorName)} — ${T("납기")} ${du < 0 ? T("경과") : `D-${du}`}`, s: `${dl.client} · ${T("현재 단계:")} ${DEAL_STEPS[dl.step]}` }); }
+  for (const dl of d.deals) { if (dl.step >= 5) continue; const du = daysUntil(dl.dueDate); if (du != null && du <= 3) risks.push({ level: du < 0 ? "critical" : "warning", t: `${dl.title} · ${withCode(dl.creatorName)} — ${T("납기")} ${du < 0 ? T("경과") : `D-${du}`}`, s: `${dl.client} · ${T("현재 단계:")} ${dealSteps()[dl.step]}` }); }
   const order = { critical: 0, warning: 1, info: 2 };
   return risks.sort((a, b) => order[a.level] - order[b.level]);
 }
@@ -2210,7 +2210,9 @@ function RiskList({ d }: { d: Bundle }) {
 }
 
 /* ── DEAL LIST (admin & creator 공용) ───── */
-const DEAL_STEPS = [T("인입"), T("매니저 검토"), T("크리에이터 협의"), T("의뢰사 전달"), T("계약 성사"), T("제작·업로드"), T("청구서 발행"), T("입금 확인"), T("CC 입금 완료")];
+// DB 저장값(step 인덱스)은 그대로 두고, 표시 시점에 T()로 번역 (모듈 로드 시점엔 언어가 아직 ko라 상수에서 번역하면 안 됨)
+const DEAL_STEPS_KO = ["인입", "매니저 검토", "크리에이터 협의", "의뢰사 전달", "계약 성사", "제작·업로드", "청구서 발행", "입금 확인", "CC 입금 완료"];
+const dealSteps = () => DEAL_STEPS_KO.map((s) => T(s));
 // PR 안건 등록자 배지 — AI/메일 자동등록은 🤖, 사람은 👤+이름
 function RegBadge({ by }: { by?: string | null }) {
   if (!by) return <span style={{ color: "var(--faint)" }}>—</span>;
@@ -2227,7 +2229,7 @@ export function DealList({ deals, contents, readonly, creators, channel = "cc" }
   const [fMonth, setFMonth] = useState(""); const [sortBy, setSortBy] = useState<"recv_asc" | "recv_desc" | "due_desc" | "due_asc" | "step">("recv_desc");
   const [view, setView] = useState<"list" | "card">("list");
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const STEPS = DEAL_STEPS;
+  const STEPS = dealSteps();
   const recvDate = (d: Deal) => d.receivedDate || d.createdAt || "";
   const dueDateOf = (d: Deal) => d.dueDate || d.uploadDate || "";
   const dealDate = (d: Deal) => d.uploadDate || d.dueDate || "";
@@ -2513,7 +2515,7 @@ function DealEditModal({ deal, deals, contents, creators, onClose, onSaved, defa
         <Field label={T("소비세 (¥)")}><input style={inp} type="number" placeholder={T("예: 부가세 10%")} value={f.tax ?? ""} onChange={(e) => up("tax", e.target.value === "" ? null : +e.target.value)} /></Field>
         <Field label={T("회사 쉐어 (%)")}><input style={inp} type="number" value={f.shareCompany} onChange={(e) => up("shareCompany", +e.target.value)} /></Field>
         <Field label={T("크리에이터 쉐어 (%)")}><input style={inp} type="number" value={f.shareCreator} onChange={(e) => up("shareCreator", +e.target.value)} /></Field>
-        <Field label={T("진행 단계")}><select style={inp} value={f.step} onChange={(e) => up("step", +e.target.value)}>{DEAL_STEPS.map((s, i) => <option key={i} value={i}>{i + 1}. {s}</option>)}</select></Field>
+        <Field label={T("진행 단계")}><select style={inp} value={f.step} onChange={(e) => up("step", +e.target.value)}>{dealSteps().map((s, i) => <option key={i} value={i}>{i + 1}. {s}</option>)}</select></Field>
         <Field label={T("수주일 (최초 수신)")}><input style={inp} type="date" value={f.receivedDate ?? ""} onChange={(e) => up("receivedDate", e.target.value)} /></Field>
         <Field label={T("납기일")}><input style={inp} type="date" value={f.dueDate ?? ""} onChange={(e) => up("dueDate", e.target.value)} /></Field>
         <Field label={T("업로드 일자")}><input style={inp} type="date" value={f.uploadDate ?? ""} onChange={(e) => up("uploadDate", e.target.value)} /></Field>
@@ -3460,7 +3462,7 @@ export function AhChannelView({ pane, month = defaultMonth(), onNav }: { pane: s
         <table className="tbl"><thead><tr><th>{T("번호")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("대시보드")}</th></tr></thead>
         <tbody>{list.slice(0, 8).map((d) => (<tr key={d.id}>
           <td><b>{d.prNo ?? "—"}</b></td><td>{d.title}</td><td>{d.client ?? "—"}</td>
-          <td><span className="chip">{DEAL_STEPS[d.step] ?? d.step}</span></td><td className="num">{yen(d.fee)}</td>
+          <td><span className="chip">{dealSteps()[d.step] ?? d.step}</span></td><td className="num">{yen(d.fee)}</td>
           <td>{d.shareUrl ? <a className="btn sm" href={d.shareUrl} target="_blank" rel="noreferrer">{T("열기")}</a> : "—"}</td>
         </tr>))}</tbody></table>}
       </div>
@@ -3475,7 +3477,7 @@ export function AhChannelView({ pane, month = defaultMonth(), onNav }: { pane: s
     <table className="tbl"><thead><tr><th>{T("번호")}</th><th>{T("인입일")}</th><th>{T("납기")}</th><th>{T("안건")}</th><th>{T("의뢰사")}</th><th>{T("단계")}</th><th>{T("PR 비용")}</th><th>{T("입금")}</th><th>{T("대시보드")}</th></tr></thead>
     <tbody>{list.map((d) => (<tr key={d.id}>
       <td><b>{d.prNo ?? "—"}</b></td><td>{(d.receivedDate || d.createdAt || "").slice(0, 10) || "—"}</td><td>{(d.dueDate || d.uploadDate || "").slice(0, 10) || "—"}</td>
-      <td>{d.title}</td><td>{d.client ?? "—"}</td><td><span className="chip">{DEAL_STEPS[d.step] ?? d.step}</span></td>
+      <td>{d.title}</td><td>{d.client ?? "—"}</td><td><span className="chip">{dealSteps()[d.step] ?? d.step}</span></td>
       <td className="num">{yen(d.fee)}</td><td>{d.paymentConfirmed ? "✅" : d.paidOn ? "🔵" : "—"}</td>
       <td>{d.shareUrl ? <a className="btn sm" href={d.shareUrl} target="_blank" rel="noreferrer">{T("열기")}</a> : "—"}</td>
     </tr>))}</tbody></table>}
