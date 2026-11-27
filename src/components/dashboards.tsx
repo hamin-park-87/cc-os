@@ -2334,6 +2334,23 @@ function useIsMobile(maxWidth = 860) {
   return m;
 }
 
+// 화면 위쪽 알림 상자: PC는 지금처럼 펼친 그대로, 휴대폰(860px 이하)은 한 줄 요약으로 접고 누르면 펼침/접힘.
+function FoldBox({ style, title, summary, color, children }: { style: React.CSSProperties; title: React.ReactNode; summary: React.ReactNode; color: string; children: React.ReactNode }) {
+  const mobile = useIsMobile();
+  const [open, setOpen] = useState(false);
+  if (!mobile) return <div style={style}>{title}{children}</div>;
+  return (
+    <div style={style}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%", padding: 0, margin: open ? "0 0 8px" : 0, border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", fontWeight: 700, fontSize: 13, color, textAlign: "left", whiteSpace: "normal", overflowWrap: "anywhere" }}>
+        <span>{summary}</span>
+        <span aria-hidden style={{ flexShrink: 0 }}>{open ? "▾" : "▸"}</span>
+      </button>
+      {open && children}
+    </div>
+  );
+}
+
 export function DealList({ deals, contents, readonly, creators, channel = "cc" }: { deals: Deal[]; contents: Content[]; readonly?: boolean; creators?: Creator[]; channel?: "cc" | "ahchannel" }) {
   const [, setTick] = useState(0);
   const [edit, setEdit] = useState<Deal | null | undefined>(undefined);
@@ -2730,8 +2747,10 @@ function OrientBanner({ month, brandName }: { month: string; brandName?: string 
   const list = (rows ?? []).filter((r) => r.yearMonth === month && (!brandName || r.brandName === brandName));
   if (!list.length) return null;
   return (
-    <div style={{ padding: "12px 14px", borderRadius: 11, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", marginBottom: 16 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-ink)", marginBottom: 8 }}>📋 {month.slice(0, 4)}. {+month.slice(5)}{T("월 오리엔시트")} ({list.length})</div>
+    <FoldBox style={{ padding: "12px 14px", borderRadius: 11, background: "var(--accent-weak)", borderLeft: "3px solid var(--accent)", marginBottom: 16 }}
+      color="var(--accent-ink)"
+      title={<div style={{ fontWeight: 700, fontSize: 13, color: "var(--accent-ink)", marginBottom: 8 }}>📋 {month.slice(0, 4)}. {+month.slice(5)}{T("월 오리엔시트")} ({list.length})</div>}
+      summary={<>📋 {+month.slice(5)}{T("월 오리엔시트")} {list.length}{T("건")}</>}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {list.slice(0, 5).map((r) => (
           <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, flexWrap: "wrap" }}>
@@ -2743,7 +2762,7 @@ function OrientBanner({ month, brandName }: { month: string; brandName?: string 
         ))}
       </div>
       <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘오리엔시트’ 탭에서 전체 내용을 확인하세요.")}</div>
-    </div>
+    </FoldBox>
   );
 }
 
@@ -3370,8 +3389,10 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
   }
   const warnCount = rem.length + quotaWarn.length;
   const remBanner = warnCount ? (
-    <div style={{ padding: "12px 14px", borderRadius: 11, background: "var(--critical-weak)", borderLeft: "3px solid var(--critical)", marginBottom: 18 }}>
-      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--critical)", marginBottom: 6 }}>⏰ {T("마감 임박·지연 알림")} ({warnCount})</div>
+    <FoldBox style={{ padding: "12px 14px", borderRadius: 11, background: "var(--critical-weak)", borderLeft: "3px solid var(--critical)", marginBottom: 18 }}
+      color="var(--critical)"
+      title={<div style={{ fontWeight: 700, fontSize: 13, color: "var(--critical)", marginBottom: 6 }}>⏰ {T("마감 임박·지연 알림")} ({warnCount})</div>}
+      summary={<>⏰ {T("마감 임박·지연")} {warnCount}{T("건")}</>}>
       {quotaWarn.length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: rem.length ? 8 : 0 }}>
         <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--warning)" }}>📌 {T("이번 달 마감")} {daysLeft <= 0 ? T("오늘") : `D-${daysLeft}`} · {T("배정 미완료")}</div>
         {quotaWarn.map((q, i) => <div key={"q" + i} style={{ fontSize: 12.5, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -3386,7 +3407,7 @@ export function CreatorView({ pane, d, scope, month = defaultMonth(), onNav }: {
         </div>)}
       </div>}
       <div style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 6 }}>{T("‘제작 일정’에서 일정을 확인하고 업로드를 완료하세요.")}</div>
-    </div>
+    </FoldBox>
   ) : null;
   if (pane === "c-growth") {
     const cr = d.creators.find((x) => x.name === me)!;
