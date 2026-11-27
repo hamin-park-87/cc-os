@@ -160,6 +160,22 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
   setCurrentLang(lang); // 렌더 시 전역 언어 반영 → 하위 트리의 T()가 현재 언어로 동작
   const groups = NAV[effRole];
   const currentLabel = flatNav(effRole).find((n) => n[0] === pane)?.[1] ?? "";
+  const titleText = t(currentLabel, lang);
+  // 모바일: 긴 제목(일본어 등)은 글자를 조금 줄이고 2줄까지 허용 (PC에는 영향 없음 — CSS가 모바일 폭에서만 적용)
+  const titleLong = titleText.length > 8;
+  // 모바일 월 선택: ◀ ▶ 로 한 달씩 이동 + 짧은 라벨 (올해면 "11월", 다른 해면 "2027. 1월")
+  const monthIdx = MONTHS.indexOf(month);
+  const thisYear = new Date().getFullYear();
+  const shortMonth = (m: string) => (+m.slice(0, 4) === thisYear ? "" : `${m.slice(0, 4)}. `) + `${+m.slice(5)}${t("월", lang)}`;
+  // 관리자 전용 '어드민 전환' 선택 — PC 헤더와 모바일 ☰ 메뉴에서 같이 씀
+  const viewAsSelect = (className: string) => session.role === "admin" && !viewAs && d ? (
+    <select className={className} value="" onChange={(e) => { const v = e.target.value; if (!v) return; const i = v.indexOf(":"); enterViewAs({ role: v.slice(0, i) as "brand" | "creator", scope: v.slice(i + 1) }); }}
+      style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", maxWidth: 180 }} title={t("다른 어드민으로 보기", lang)}>
+      <option value="">🔀 {t("어드민 전환", lang)}</option>
+      <optgroup label={t("브랜드", lang)}>{[...d.brands].sort(byCode).map((b) => <option key={b.id} value={"brand:" + b.name}>{b.code ? b.code + " · " : ""}{b.name}</option>)}</optgroup>
+      <optgroup label={t("크리에이터", lang)}>{[...d.creators].sort(byCode).map((c) => <option key={c.id} value={"creator:" + c.name}>{c.code ? c.code + " · " : ""}{c.name}</option>)}</optgroup>
+    </select>
+  ) : null;
 
   function toggleTheme() {
     const cur = document.documentElement.getAttribute("data-theme");
@@ -200,6 +216,17 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
             ))}
           </div>
         )}
+        {/* 모바일 전용: 헤더에서 옮겨온 화면 설정 버튼들 (PC에선 숨김 — PC는 헤더에 그대로 있음) */}
+        <div className="drawer-tools">
+          <div className="navgroup-h">{t("화면 설정", lang)}</div>
+          {viewAsSelect("dt-select")}
+          <div className="dt-grid">
+            <button className="dt-btn" onClick={() => { setNavOpen(false); reload(); }} disabled={reloading}>{reloading ? "⏳" : "🔄"} {t("데이터 새로고침", lang)}</button>
+            <button className="dt-btn" onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크 복사", lang)}</button>
+            <button className="dt-btn" onClick={toggleLang}>🌐 {lang === "ko" ? "日本語" : "한국어"}</button>
+            <button className="dt-btn" onClick={toggleTheme}>◐ {t("테마 바꾸기", lang)}</button>
+          </div>
+        </div>
         <div className="sidebar-foot">
           <Avatar name={session.role === "creator" ? session.scope : session.scope[0]} size={32} radius={8} />
           <div className="who"><b>{session.role === "admin" ? "81degree" : session.scope}</b>
@@ -211,27 +238,31 @@ export function AppShell({ session, onLogout }: { session: Session; onLogout: ()
       {pwOpen && <PasswordModal lang={lang} onClose={() => setPwOpen(false)} />}
 
       <div className="main">
-        <div className="topbar">
-          <button className="iconbtn nav-open" title="메뉴" onClick={() => setNavOpen(true)}>☰</button>
-          <div className="tb-title" style={{ minWidth: 0 }}><h1>{t(currentLabel, lang)}</h1><div className="sub">{month} · {effRole === "admin" ? "81degree" : effScope}</div></div>
+        <div className={viewAs ? "topbar tb-viewas" : "topbar"}>
+          <button className="iconbtn nav-open" title={t("메뉴", lang)} onClick={() => setNavOpen(true)}>☰</button>
+          <div className="tb-title" style={{ minWidth: 0 }}><h1 className={`${titleLong ? "tb-long" : ""} ${lang === "ko" ? "tb-ko" : ""}`.trim() || undefined}>{titleText}</h1><div className="sub">{month} · {effRole === "admin" ? "81degree" : effScope}</div></div>
           <div className="spacer" />
           <div className="tb-controls">
-          {/* 관리자 전용: 다른 어드민으로 전환 / 복귀 */}
-          {session.role === "admin" && !viewAs && d && <select value="" onChange={(e) => { const v = e.target.value; if (!v) return; const i = v.indexOf(":"); enterViewAs({ role: v.slice(0, i) as "brand" | "creator", scope: v.slice(i + 1) }); }}
-            style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)", maxWidth: 180 }} title={t("다른 어드민으로 보기", lang)}>
-            <option value="">🔀 {t("어드민 전환", lang)}</option>
-            <optgroup label={t("브랜드", lang)}>{[...d.brands].sort(byCode).map((b) => <option key={b.id} value={"brand:" + b.name}>{b.code ? b.code + " · " : ""}{b.name}</option>)}</optgroup>
-            <optgroup label={t("크리에이터", lang)}>{[...d.creators].sort(byCode).map((c) => <option key={c.id} value={"creator:" + c.name}>{c.code ? c.code + " · " : ""}{c.name}</option>)}</optgroup>
-          </select>}
-          {viewAs && <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 700, background: "var(--accent-weak)", color: "var(--accent-ink)" }} onClick={() => enterViewAs(null)}>← {t("관리자로", lang)}</button>}
-          <select value={month} onChange={(e) => setMonth(e.target.value)} title={t("기준 월", lang)}
+          {/* 관리자 전용: 다른 어드민으로 전환 (모바일에선 ☰ 메뉴 안으로) / 복귀 (모바일에서도 헤더에 그대로) */}
+          {viewAsSelect("tb-pc")}
+          {viewAs && <button className="iconbtn tb-back" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 700, background: "var(--accent-weak)", color: "var(--accent-ink)" }} onClick={() => enterViewAs(null)}>← {t("관리자로", lang)}</button>}
+          {/* PC용 월 선택 (모바일에선 아래 tb-mob 으로 대체) */}
+          <select className="tb-pc" value={month} onChange={(e) => setMonth(e.target.value)} title={t("기준 월", lang)}
             style={{ fontFamily: "var(--body)", fontSize: 12.5, fontWeight: 600, padding: "0 10px", height: 34, borderRadius: 9, border: "1px solid var(--border-strong)", background: "var(--surface)", color: "var(--ink)" }}>
             {MONTHS.map((m) => <option key={m} value={m}>{m.slice(0, 4)}. {+m.slice(5)}{t("월", lang)}</option>)}
           </select>
-          <button className="iconbtn" title={t("데이터 새로고침", lang)} onClick={reload} disabled={reloading}>{reloading ? "⏳" : "🔄"}</button>
-          <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} title={t("이 화면 링크 복사", lang)} onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크", lang)}</button>
-          <button className="iconbtn" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
-          <button className="iconbtn" title="테마" onClick={toggleTheme}>◐</button>
+          {/* 모바일용 월 선택: ◀ 11월 ▶ (PC에선 숨김) */}
+          <div className="tb-mob tb-month">
+            <button className="iconbtn" title={t("이전 달", lang)} disabled={monthIdx <= 0} onClick={() => setMonth(MONTHS[monthIdx - 1])}>◀</button>
+            <select value={month} onChange={(e) => setMonth(e.target.value)} title={t("기준 월", lang)}>
+              {MONTHS.map((m) => <option key={m} value={m}>{shortMonth(m)}</option>)}
+            </select>
+            <button className="iconbtn" title={t("다음 달", lang)} disabled={monthIdx < 0 || monthIdx >= MONTHS.length - 1} onClick={() => setMonth(MONTHS[monthIdx + 1])}>▶</button>
+          </div>
+          <button className="iconbtn tb-pc" title={t("데이터 새로고침", lang)} onClick={reload} disabled={reloading}>{reloading ? "⏳" : "🔄"}</button>
+          <button className="iconbtn tb-pc" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} title={t("이 화면 링크 복사", lang)} onClick={copyLink}>{copied ? "✓ " + t("복사됨", lang) : "🔗 " + t("링크", lang)}</button>
+          <button className="iconbtn tb-pc" style={{ width: "auto", padding: "0 12px", fontSize: 12.5, fontWeight: 600 }} onClick={toggleLang}>{lang === "ko" ? "日本語" : "KO"}</button>
+          <button className="iconbtn tb-pc" title="테마" onClick={toggleTheme}>◐</button>
           </div>
         </div>
         <div className="content">
