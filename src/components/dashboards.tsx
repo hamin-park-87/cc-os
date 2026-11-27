@@ -1328,6 +1328,60 @@ function localToday(): string {
   try { return new Date().toLocaleDateString("sv-SE"); } catch { return "9999-12-31"; }
 }
 
+/* ── 휴대폰(860px 이하) 카드형 제작 일정 공용 부품 — PC 표에는 쓰지 않음. 저장 로직은 각 화면의 기존 함수를 그대로 받아 씀 ── */
+const schedMD = (s?: string | null) => (s ? `${+s.slice(5, 7)}/${+s.slice(8, 10)}` : "");
+const schedDayDiff = (a: string, b: string) => Math.round((Date.parse(a.slice(0, 10) + "T00:00:00") - Date.parse(b.slice(0, 10) + "T00:00:00")) / 86400000);
+const openDatePicker = (e: React.MouseEvent<HTMLInputElement>) => { try { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } catch { /* noop */ } };
+// ② 다음에 할 일 한 줄 (지연이면 빨간색, 샘플 미수령 지연이면 주황색)
+function SchedNextLine({ sched, uploaded, sampleWaiting }: { sched: ContentSched; uploaded: boolean; sampleWaiting?: boolean }) {
+  const today = localToday();
+  const get = (k: string) => (sched[k as keyof ContentSched] ?? "").slice(0, 10);
+  const up = get("upload");
+  let text: string; let color = "var(--ink)";
+  if (uploaded) { text = `✓ ${T("업로드 완료")}${up ? " · " + schedMD(up) : ""}`; color = "#3fb984"; }
+  else if (up && up < today) {
+    if (sampleWaiting) { text = `📦 ${T("샘플 미수령으로 지연")} · ${T("업로드")} ${schedMD(up)}`; color = "#d98a4a"; }
+    else { text = `${T("지연:")} ${T("업로드")} · ${schedMD(up)} (${schedDayDiff(today, up)}${T("일 지남")})`; color = "var(--critical)"; }
+  } else {
+    const nx = SCHED_STAGES.find((s) => { const v = get(s.k); return !!v && v >= today; });
+    if (nx) { const v = get(nx.k); const n = schedDayDiff(v, today); text = `${T("다음:")} ${T(nx.label)} · ${schedMD(v)} (${n === 0 ? T("오늘") : "D-" + n})`; }
+    else {
+      const empty = SCHED_STAGES.find((s) => !get(s.k));
+      if (!SCHED_STAGES.some((s) => get(s.k)) || !empty) { text = T("일정 미정"); color = "var(--faint)"; }
+      else text = `${T("다음:")} ${T(empty.label)} · ${T("날짜 미정")}`;
+    }
+  }
+  return <div className="sc-next" style={{ color }}>{text}</div>;
+}
+// ③ 날짜 4개 2칸×2줄 (기획·촬영 / 편집·업로드). onChange가 없으면 보기 전용
+function SchedDates({ sched, onChange }: { sched: ContentSched; onChange?: (k: string, v: string) => void }) {
+  return (<div className="sc-dates">
+    {SCHED_STAGES.map((s) => {
+      const v = sched[s.k as keyof ContentSched] ?? "";
+      return (<div key={s.k} className="sc-date">
+        <span className="sc-lab">{T(s.label)}</span>
+        {onChange ? <input type="date" className="sc-in" value={v} onClick={openDatePicker} onChange={(e) => onChange(s.k, e.target.value)} aria-label={T(s.label)} />
+          : <span className="num" style={{ fontSize: 14, fontWeight: 600, color: v ? "var(--ink)" : "var(--faint)" }}>{v || "—"}</span>}
+      </div>);
+    })}
+  </div>);
+}
+// 카드 1장. 업로드 끝난 콘텐츠는 처음에 한 줄로 접혀 있고 누르면 펼쳐짐
+function SchedCard({ title, uploaded, uploadDate, children }: { title: string; uploaded: boolean; uploadDate?: string; children: React.ReactNode }) {
+  const [folded, setFolded] = useState(uploaded);
+  if (folded) return (
+    <button type="button" className="sc-fold" onClick={() => setFolded(false)} aria-expanded={false}>
+      <span style={{ color: "#3fb984", fontWeight: 800 }}>✓</span>
+      <span className="sc-title">{title}</span>
+      {uploadDate && <span className="num" style={{ fontSize: 12.5, color: "var(--muted)", flex: "none" }}>{schedMD(uploadDate)}</span>}
+      <span style={{ color: "var(--muted)", flex: "none" }}>▾</span>
+    </button>);
+  return (<div className="sc-card">
+    {uploaded && <button type="button" className="sc-foldbtn" onClick={() => setFolded(true)} aria-expanded={true}>▴ {T("접기")}</button>}
+    {children}
+  </div>);
+}
+
 /* 공통: 업로드 영상 보기 + 인게이지먼트 확인 (관리자/브랜드/크리에이터 공용) */
 function ContentActions({ c }: { c?: Content | null }) {
   const [open, setOpen] = useState(false);
@@ -1429,6 +1483,7 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
   const [fBrand, setFBrand] = useState(""); const [fCreator, setFCreator] = useState("");
   const [fType, setFType] = useState<"" | "brand" | "pr">(""); const [fStatus, setFStatus] = useState<"" | "up" | "plan">("");
   const [schedView, setSchedView] = useState<"board" | "calendar">("board"); // REQ-018: 보드/캘린더 전환
+  const mobile = useIsMobile(); // 휴대폰 폭이면 표 대신 카드 (PC는 표 그대로)
   const groupByCreator = !creatorName;
   const today = localToday();
   const curMonth = today.slice(0, 7);
@@ -1596,6 +1651,48 @@ function ScheduleEditor({ d, creatorName, brandName, readonly, includeDeals, mon
       return ev;
     })()} /> :
     !items.length ? <div className="placeholder">{T("등록된 제작 일정이 없어요. 위 ‘전략 브랜드 진행 현황’에서 배정 물량을 확인하고 ‘일정 생성’으로 만들 수 있어요.")}</div> :
+    mobile ? (
+      /* 휴대폰: 콘텐츠 1개 = 카드 1장 (표와 같은 내용·같은 저장 함수) */
+      <div className="sc-list">
+        {items.map((r, i) => {
+          const newGroup = groupByCreator && r.creatorName !== (i > 0 ? items[i - 1].creatorName : null);
+          const canEdit = !readonly;
+          return (<Fragment key={r.key}>
+            {newGroup && <div className="sc-group"><Avatar name={r.creatorName} size={22} radius={11} />{withCode(r.creatorName)}</div>}
+            <SchedCard title={r.label} uploaded={r.uploaded} uploadDate={r.sched.upload}>
+              {/* ① 콘텐츠 이름 + 상태 */}
+              <div className="sc-head">
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="sc-title">{r.label}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                    <span className="tag" style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: r.type === "brand" ? "color-mix(in srgb,var(--accent) 18%,transparent)" : "color-mix(in srgb,#c9793a 20%,transparent)", color: r.type === "brand" ? "var(--accent)" : "#d98a4a" }}>{r.type === "brand" ? T("전략") : T("PR")}</span>
+                    {r.type === "brand" ? <span className="chip"><span className="sw" style={{ background: BRAND_COLOR[r.target] ?? "var(--surface-3)" }} />{r.target}</span> : <span style={{ fontSize: 12.5 }}>{r.target}</span>}
+                  </div>
+                </div>
+                {(canEdit && r.type === "brand") ? <select className="sc-in sc-status" value={r.uploaded ? "uploaded" : "planned"} onChange={(e) => setStatus(r, e.target.value)} aria-label={T("상태")}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>
+                  : <span className={`pill ${r.uploaded ? "p-ok" : "p-plan"}`} style={{ flex: "none" }}><span className="d" />{r.uploaded ? T("업로드") : (r.type === "pr" ? (r.stepLabel ?? T("예정")) : T("예정"))}</span>}
+              </div>
+              {/* ② 다음에 할 일 */}
+              <SchedNextLine sched={r.sched} uploaded={r.uploaded} sampleWaiting={r.content?.sampleStatus === "waiting"} />
+              {/* ③ 날짜 4개 */}
+              <SchedDates sched={r.sched} onChange={canEdit ? (k, v) => setDate(r, k, v) : undefined} />
+              {/* ④ 샘플 상태 */}
+              {r.content && (canEdit
+                ? <select className="sc-in" value={r.content.sampleStatus ?? ""} onChange={(e) => setSampleStatus(r, e.target.value as "" | "received" | "waiting")} aria-label={T("샘플 상태")} style={{ color: r.content.sampleStatus === "waiting" ? "#d98a4a" : r.content.sampleStatus === "received" ? "var(--accent)" : "var(--muted)" }}>
+                    <option value="">{T("샘플 미지정")}</option><option value="received">📦 {T("샘플 수령 완료")}</option><option value="waiting">📦 {T("샘플 미수령")}</option>
+                  </select>
+                : r.content.sampleStatus === "received" ? <div style={{ fontSize: 12.5, color: "var(--accent)", fontWeight: 600 }}>📦 {T("샘플 수령 완료")}</div>
+                : r.content.sampleStatus === "waiting" ? <div style={{ fontSize: 12.5, color: "#d98a4a", fontWeight: 700 }}>📦 {T("샘플 미수령")}</div> : null)}
+              {/* 영상·지표 보기 + 삭제(작게) */}
+              {(!!r.content?.permalink || (r.content?.views ?? 0) > 0 || (r.content?.likes ?? 0) > 0 || (r.content?.comments ?? 0) > 0 || (!readonly && r.type === "brand")) && <div className="sc-actions">
+                <span style={{ flex: 1, minWidth: 0 }}><ContentActions c={r.content} /></span>
+                {!readonly && r.type === "brand" && <button className="btn sc-del" onClick={() => del(r)}>{T("삭제")}</button>}
+              </div>}
+            </SchedCard>
+          </Fragment>);
+        })}
+      </div>
+    ) :
       <div className="tablewrap"><table className="sched-board"><thead><tr>
         <th>{T("콘텐츠")}</th><th>{T("구분")}</th>
         {SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th>{T("콘텐츠")}</th>{!readonly && <th></th>}
@@ -3805,6 +3902,9 @@ function ProductionCalendar({ events }: { events: CalEvent[] }) {
 function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { d: Bundle; me: string; month?: string; initialView?: "list" | "calendar" }) {
   const [, setTick] = useState(0);
   const [view, setView] = useState<"list" | "calendar">(initialView);
+  const mobile = useIsMobile(); // 휴대폰 폭이면 표 대신 카드 (PC는 표 그대로)
+  const [shipOpen, setShipOpen] = useState<Set<string>>(new Set()); // 카드의 택배 정보 펼침 여부
+  const toggleShip = (id: string) => setShipOpen((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   // 캘린더 이벤트: 내 콘텐츠 단계 일정 + PR 안건 일정 (전 기간, 캘린더가 월 이동)
   const calEvents: CalEvent[] = [];
   for (const c of d.contents) {
@@ -3892,6 +3992,50 @@ function CreatorTodo({ d, me, month = defaultMonth(), initialView = "list" }: { 
               </span>
             </div>
             {!isOpen ? null : !items.length ? <div className="note">{T("아직 콘텐츠가 없어요. ‘일정 등록’으로 시작하세요.")}</div> :
+              mobile ? (
+              /* 휴대폰: 콘텐츠 1개 = 카드 1장 (표와 같은 입력칸·같은 저장 함수) */
+              <div className="sc-list">
+                {items.map((c) => (
+                  <SchedCard key={c.id} title={c.product} uploaded={c.status === "uploaded"} uploadDate={c.sched.upload}>
+                    {/* ① 콘텐츠 이름 + 상태 (고르면 바로 저장) */}
+                    <div className="sc-head">
+                      <div className="sc-title" style={{ flex: 1 }}>{c.product}</div>
+                      <select className="sc-in sc-status" value={c.status} onChange={(e) => setStatus(c, e.target.value)} aria-label={T("상태")}><option value="planned">{T("예정")}</option><option value="uploaded">{T("업로드")}</option></select>
+                    </div>
+                    {/* ② 다음에 할 일 */}
+                    <SchedNextLine sched={c.sched} uploaded={c.status === "uploaded"} sampleWaiting={c.sampleStatus === "waiting"} />
+                    {/* ③ 날짜 4개 (고르면 바로 저장) */}
+                    <SchedDates sched={c.sched} onChange={(k, v) => setDate(c, k, v)} />
+                    {/* ④ 샘플 상태 (고르면 바로 저장) + 택배 정보는 눌러서 펼치기 */}
+                    <div>
+                      <select className="sc-in" value={c.sampleStatus ?? ""} onChange={(e) => setSampleStatus(c, e.target.value as "" | "received" | "waiting")} aria-label={T("샘플 상태")} style={{ fontWeight: 600, color: c.sampleStatus === "waiting" ? "#d98a4a" : c.sampleStatus === "received" ? "#3fb984" : "var(--muted)" }}>
+                        <option value="">📦 {T("샘플 상태 미지정")}</option><option value="received">📦 {T("샘플 수령 완료")}</option><option value="waiting">📦 {T("샘플 미수령")}</option>
+                      </select>
+                      {c.sampleReceived && <>
+                        <button type="button" className="sc-foldbtn" style={{ display: "block", marginTop: 8, textAlign: "left" }} onClick={() => toggleShip(c.id)} aria-expanded={shipOpen.has(c.id)}>
+                          {shipOpen.has(c.id) ? "▾" : "▸"} {T("택배 정보")}{!shipOpen.has(c.id) && (c.sampleCourier || c.sampleTracking) ? ` (${[c.sampleCourier, c.sampleTracking].filter(Boolean).join(" · ")})` : ""}
+                        </button>
+                        {shipOpen.has(c.id) && <div className="sc-dates" style={{ marginTop: 6 }}>
+                          <input className="sc-in" placeholder={T("택배사")} value={c.sampleCourier ?? ""} onChange={(e) => setSampleShip(c, "courier", e.target.value)} aria-label={T("택배사")} />
+                          <input className="sc-in" placeholder={T("송장번호")} value={c.sampleTracking ?? ""} onChange={(e) => setSampleShip(c, "tracking", e.target.value)} aria-label={T("송장번호")} />
+                        </div>}
+                      </>}
+                    </div>
+                    {/* ⑤ 업로드 주소 (저장 버튼을 눌러야 저장) */}
+                    <div>
+                      <input className="sc-in" type="url" inputMode="url" placeholder={T("업로드 URL 입력")} value={c.permalink ?? ""} onChange={(e) => setUrl(c, e.target.value)} aria-label={T("업로드 URL 입력")} />
+                      <div className="sc-hint">{T("업로드 주소는 ‘저장’을 눌러야 저장돼요")}</div>
+                      {(c.permalink || (c.views ?? 0) > 0 || (c.likes ?? 0) > 0 || (c.comments ?? 0) > 0) && <div style={{ marginTop: 6 }}><ContentActions c={c} /></div>}
+                    </div>
+                    {/* ⑥ 저장은 크게, 삭제는 작게 */}
+                    <div className="sc-actions">
+                      <button className="btn acc sc-save" onClick={() => saveRow(c, brand)}>{T("저장")}</button>
+                      <button className="btn sc-del" onClick={() => del(c)}>{T("삭제")}</button>
+                    </div>
+                  </SchedCard>
+                ))}
+              </div>
+              ) :
               <div className="tablewrap"><table><thead><tr>
                 <th>{T("콘텐츠")}</th>{SCHED_STAGES.map((s) => <th key={s.k}>{T(s.label)}</th>)}<th>{T("상태")}</th><th></th>
               </tr></thead><tbody>
