@@ -694,6 +694,8 @@ export const TX: Record<string, string> = {
   "Instagram 연동·동기화 후 콘텐츠가 표시됩니다.": "Instagram連携・同期後にコンテンツが表示されます。",
   "예: 株式会社トライアウト": "例: 株式会社トライアウト",
   "AI 자동 분석": "AI自動分析",
+  // 모바일 헤더 정리 — ☰ 메뉴 안 화면 설정 버튼 / 월 이동
+  "화면 설정": "表示設定", "테마 바꾸기": "テーマ切替", "이전 달": "前月", "다음 달": "翌月", "메뉴": "メニュー",
 };
 
 export function t(ko: string, lang: Lang): string {
