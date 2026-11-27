@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "81'DEGREE",
   description: "크리에이터 PR 콘텐츠 아카이빙 & 리포팅 플랫폼",
+  // 홈 화면에 추가했을 때(앱처럼 열 때) 설정 — 브라우저에서 볼 때는 영향 없음
+  applicationName: "cc-os",
+  appleWebApp: { capable: true, title: "cc-os", statusBarStyle: "black-translucent" },
+  icons: { apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }] },
 };
 
 export const viewport: Viewport = {

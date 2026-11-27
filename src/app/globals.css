@@ -405,6 +405,12 @@
     .srow .row{gap:8px 14px; flex-wrap:wrap}
     /* 제작 스케줄 보드: 입력칸을 뭉개지 않고 가로 스크롤로 접근(잘림 방지) */
     .sched-board{min-width:640px}
+    /* 홈 화면 앱(PWA)으로 열 때 iPhone 상태 표시줄(시계·배터리)·홈 바에 가리지 않도록 여백.
+       env(safe-area-inset-*) 값은 일반 브라우저·PC에서는 0이라 화면 변화 없음 */
+    .topbar{padding-top:calc(8px + env(safe-area-inset-top))}
+    .sidebar{padding-top:calc(18px + env(safe-area-inset-top)); padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+    .modal-backdrop{padding:calc(10px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom))}
+    .backdrop{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
   }
   @media (max-width:440px){
     .grid-kpi{grid-template-columns:1fr 1fr; gap:8px}
@@ -416,6 +422,10 @@
 
   /* login */
   .login{position:fixed; inset:0; z-index:100; background:var(--ground); display:flex; align-items:center; justify-content:center; padding:24px}
+  /* 홈 화면 앱(PWA)에서 로그인 화면이 상태 표시줄·홈 바에 가리지 않도록 (PC에선 값 0 → 변화 없음) */
+  @media (max-width:860px){
+    .login{padding:calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom))}
+  }
   .login-card{width:min(400px,100%); background:var(--surface); border:1px solid var(--border); border-radius:18px; box-shadow:var(--shadow-lg); padding:32px}
   .login-card h2{font-size:22px; margin-top:16px}
   .login-card .sub{color:var(--faint); font-size:12.5px; margin-top:4px; margin-bottom:22px; font-family:var(--mono)}
